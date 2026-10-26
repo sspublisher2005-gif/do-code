@@ -137,6 +137,30 @@ pub fn list(root: &Path, mission_id: &str) -> Result<Vec<EvidenceManifest>> {
     Ok(result)
 }
 
+/// Mark an evidence record as verified by a trusted sandbox producer.
+/// This is fail-closed: it requires a non-empty sandbox run ID and a matching
+/// mission. Until a real sandbox driver is qualified, this function always
+/// returns an error so that no evidence can be marked verified by untrusted code.
+#[allow(dead_code)]
+pub fn mark_verified(
+    _root: &Path,
+    mission_id: &str,
+    evidence_id: &str,
+    sandbox_run_id: &str,
+) -> Result<EvidenceManifest> {
+    validate_uuid(mission_id)?;
+    validate_uuid(evidence_id)?;
+    if sandbox_run_id.trim().is_empty() {
+        return Err(ForgeError::Safety(
+            "sandbox run ID is required to mark evidence as verified.".into(),
+        ));
+    }
+    // Fail-closed: no qualified sandbox driver exists yet.
+    Err(ForgeError::Safety(
+        "no qualified sandbox driver is available; evidence cannot be marked verified.".into(),
+    ))
+}
+
 pub fn read(
     root: &Path,
     mission_id: &str,

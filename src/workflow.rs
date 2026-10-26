@@ -775,21 +775,34 @@ pub fn verify(root: &Path, mission_id: &str) -> Result<String> {
     let store = MissionStore::open(root)?;
     let mission = store.get(mission_id)?;
     let evidence = evidence::list(root, mission_id)?;
-    let checks_run = evidence
+    // Integrity: list() already validates manifest checksums and identity binding.
+    // Check for trusted test evidence: must be kind=test_log AND verified=true.
+    // verified is only set by a qualified sandbox driver (currently none exist),
+    // so this is fail-closed.
+    let trusted_test_evidence = evidence
         .iter()
-        .any(|entry| entry.kind == "test_log" && entry.verified);
+        .filter(|e| e.kind == "test_log")
+        .filter(|e| e.verified)
+        .count();
+    let forged_or_untrusted = evidence
+        .iter()
+        .filter(|e| e.kind == "test_log" && !e.verified)
+        .count();
     let required_steps_passed = mission
         .steps
         .iter()
         .filter(|s| matches!(s.kind.as_str(), "test" | "review" | "security"))
         .all(|s| s.status == StepStatus::Passed);
-    let allowed = checks_run && required_steps_passed && mission.status == MissionStatus::Completed;
+    let allowed = trusted_test_evidence > 0
+        && required_steps_passed
+        && mission.status == MissionStatus::Completed;
     Ok(format!(
-        "Forge verification report\nMission: {}\nCurrent status: {:?}\nEvidence records: {}\nRequired test evidence found: {}\nRequired review/security/test steps passed: {}\nCompletion allowed: {}\n\nForge has not executed project tests, typecheck, lint, browser checks, or arbitrary shell commands. Model test plans and reviews are not execution evidence. No success claim is made.",
+        "Forge verification report\nMission: {}\nCurrent status: {:?}\nEvidence records: {}\nTrusted test evidence (sandbox-verified): {}\nUntrusted/forged test evidence: {}\nRequired review/security/test steps passed: {}\nCompletion allowed: {}\n\nForge has not executed project tests unless a qualified sandbox produced verified evidence. Model test plans and reviews are not execution evidence. No success claim is made.",
         mission.id,
         mission.status,
         evidence.len(),
-        checks_run,
+        trusted_test_evidence,
+        forged_or_untrusted,
         required_steps_passed,
         allowed
     ))
