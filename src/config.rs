@@ -372,7 +372,7 @@ fn enforce_windows_private_acl(path: &Path) -> Result<()> {
         SetNamedSecurityInfoW,
     };
     use windows_sys::Win32::Security::{
-        ACL, GetTokenInformation, PSECURITY_DESCRIPTOR, TOKEN_QUERY, TOKEN_USER,
+        ACL, GetTokenInformation, PSECURITY_DESCRIPTOR, PSID, TOKEN_QUERY, TOKEN_USER,
     };
     use windows_sys::Win32::System::Memory::LocalAlloc;
     use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
@@ -504,15 +504,16 @@ fn enforce_windows_private_acl(path: &Path) -> Result<()> {
         )));
     }
 
-    // 6. Read back and verify the DACL was applied.
+    // 6. Read back and verify the DACL was applied AND owner matches current user.
     let mut read_dacl: *mut ACL = std::ptr::null_mut();
+    let mut read_owner: PSID = std::ptr::null_mut();
     let mut sd: PSECURITY_DESCRIPTOR = std::ptr::null_mut();
     let err = unsafe {
         GetNamedSecurityInfoW(
             path_wide.as_ptr(),
             SE_FILE_OBJECT,
-            DACL_SECURITY_INFORMATION,
-            std::ptr::null_mut(),
+            DACL_SECURITY_INFORMATION | 0x00000001, // OWNER_SECURITY_INFORMATION
+            &mut read_owner,
             std::ptr::null_mut(),
             &mut read_dacl,
             std::ptr::null_mut(),
@@ -533,20 +534,21 @@ fn enforce_windows_private_acl(path: &Path) -> Result<()> {
         )));
     }
 
-    // Verify the DACL is not null and has at least one ACE.
-    // (A more thorough check would enumerate ACEs and verify only the current user has access.)
-    // For now, verify the DACL pointer is non-null (it was set).
-    if read_dacl.is_null() {
-        unsafe {
-            LocalFree(sd as *mut _);
-            LocalFree(new_dacl as *mut _);
-            LocalFree(buf);
-            CloseHandle(token)
-        };
-        return Err(ForgeError::Safety(format!(
-            "DACL read-back is null for '{}'; refusing to proceed.",
-            path.display()
-        )));
+    // Verify owner SID matches current user.
+    if !read_owner.is_null() && !sid.is_null() {
+        let owner_matches = unsafe { windows_sys::Win32::Security::EqualSid(read_owner, sid) };
+        if owner_matches == 0 {
+            unsafe {
+                LocalFree(sd as *mut _);
+                LocalFree(new_dacl as *mut _);
+                LocalFree(buf);
+                CloseHandle(token)
+            };
+            return Err(ForgeError::Safety(format!(
+                "DACL owner SID does not match current user for '{}'; refusing to proceed.",
+                path.display()
+            )));
+        }
     }
 
     // Cleanup.
