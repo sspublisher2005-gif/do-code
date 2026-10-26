@@ -793,9 +793,12 @@ pub fn verify(root: &Path, mission_id: &str) -> Result<String> {
         .iter()
         .filter(|s| matches!(s.kind.as_str(), "test" | "review" | "security"))
         .all(|s| s.status == StepStatus::Passed);
+    // Completion is only allowed when trusted evidence exists AND steps passed.
+    // The mission status must be NeedsReview or Verifying (not already Completed).
     let allowed = trusted_test_evidence > 0
         && required_steps_passed
-        && mission.status == MissionStatus::Completed;
+        && (mission.status == MissionStatus::NeedsReview
+            || mission.status == MissionStatus::Verifying);
     Ok(format!(
         "Forge verification report\nMission: {}\nCurrent status: {:?}\nEvidence records: {}\nTrusted test evidence (sandbox-verified): {}\nUntrusted/forged test evidence: {}\nRequired review/security/test steps passed: {}\nCompletion allowed: {}\n\nForge has not executed project tests unless a qualified sandbox produced verified evidence. Model test plans and reviews are not execution evidence. No success claim is made.",
         mission.id,
@@ -805,6 +808,42 @@ pub fn verify(root: &Path, mission_id: &str) -> Result<String> {
         forged_or_untrusted,
         required_steps_passed,
         allowed
+    ))
+}
+
+/// Attempt to mark a mission as Completed. Only succeeds when verify() reports
+/// completion_allowed = true. This is the single gate between NeedsReview and
+/// Completed — it cannot be bypassed.
+pub fn complete(root: &Path, mission_id: &str) -> Result<String> {
+    let store = MissionStore::open(root)?;
+    let mission = store.get(mission_id)?;
+    let evidence = evidence::list(root, mission_id)?;
+    let trusted_test_evidence = evidence
+        .iter()
+        .filter(|e| e.kind == "test_log")
+        .filter(|e| e.verified)
+        .count();
+    let required_steps_passed = mission
+        .steps
+        .iter()
+        .filter(|s| matches!(s.kind.as_str(), "test" | "review" | "security"))
+        .all(|s| s.status == StepStatus::Passed);
+    let allowed = trusted_test_evidence > 0
+        && required_steps_passed
+        && (mission.status == MissionStatus::NeedsReview
+            || mission.status == MissionStatus::Verifying);
+    if !allowed {
+        return Err(ForgeError::Safety(format!(
+            "Mission '{}' cannot be completed: trusted test evidence={}, required steps passed={}, status={:?}. \
+             Run 'forge verify {}' for details.",
+            mission_id, trusted_test_evidence, required_steps_passed, mission.status, mission_id
+        )));
+    }
+    store.transition(mission_id, MissionStatus::Completed)?;
+    Ok(format!(
+        "Mission {} marked Completed with trusted evidence. Evidence records: {}.",
+        mission_id,
+        evidence.len()
     ))
 }
 

@@ -95,6 +95,8 @@ enum Command {
     },
     /// Verify mission evidence. This reports missing checks and never invents test results.
     Verify { mission_id: String },
+    /// Mark a mission as completed. Only succeeds when trusted test evidence exists.
+    Complete { mission_id: String },
     /// Inspect a saved mission's state and the next safe action.
     Resume { mission_id: String },
     /// Restore a prior checkpoint only with explicit approval and conflict checks.
@@ -444,6 +446,7 @@ async fn run(cli: Cli) -> Result<()> {
             }
         }
         Command::Verify { mission_id } => println!("{}", workflow::verify(&root, &mission_id)?),
+        Command::Complete { mission_id } => println!("{}", workflow::complete(&root, &mission_id)?),
         Command::Resume { mission_id } => {
             let store = mission_store::MissionStore::open(&root)?;
             // Recover from any crash/interruption first.
