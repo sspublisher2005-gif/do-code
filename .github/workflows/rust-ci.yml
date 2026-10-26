@@ -1,0 +1,39 @@
+name: Forge CLI Rust Implementation — Cross-Platform Verification
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: forge-cli-rust-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Rust ${{ matrix.toolchain }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        toolchain: ["1.88.0", "1.99.1"]
+    steps:
+      - name: Checkout (pinned)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install/check Rust and run full verification suite
+        run: python scripts/ci_pipeline.py --toolchain ${{ matrix.toolchain }} --benchmark-runs 30 --report-dir test-results
+      - name: Upload test, build, and timing evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: forge-rust-evidence-${{ matrix.os }}-${{ matrix.toolchain }}
+          path: test-results/
+          if-no-files-found: warn
+          retention-days: 30

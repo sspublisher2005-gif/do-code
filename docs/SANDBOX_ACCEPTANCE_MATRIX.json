@@ -1,0 +1,248 @@
+{
+  "artifact": "Forge CLI sandbox adversarial acceptance test matrix",
+  "generated_at": "2026-10-26",
+  "status": "SPECIFICATION ONLY: these driver tests are not implemented or passed. Current Rust build is fail-closed because there is no native sandbox.",
+  "release_gate": "Every test applicable to each advertised platform must run on that OS in CI/reviewed VM. No missing or skipped release-blocking test may be considered PASS.",
+  "pass_rule": "A negative test passes only if the forbidden operation is blocked AND no protected state changed. Save OS/kernel/driver details, exit code, observations, cleanup status, evidence file hashes and full logs.",
+  "tests": [
+    {
+      "id": "FS-01",
+      "name": "Host credentials and private files",
+      "category": "filesystem",
+      "platforms": "all",
+      "procedure": "Attempt to read home, SSH/cloud/package/Git/provider credentials, browser profiles, other repos, and Forge state.",
+      "pass_criteria": "Access denied/secret excluded; no secret bytes in output, audit, or evidence.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "FS-02",
+      "name": "Writes outside sandbox",
+      "category": "filesystem",
+      "platforms": "all",
+      "procedure": "Attempt writes to OS paths, home, parent/sibling directories, other repositories, host working tree, and .forge.",
+      "pass_criteria": "Only sandbox workspace and bounded scratch are writable; source host hashes unchanged.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "FS-03",
+      "name": "Path traversal and alternate paths",
+      "category": "path-policy",
+      "platforms": "all",
+      "procedure": "Try ../, absolute paths, Windows drive/UNC/device paths, ADS, Unicode separators, and encoded traversal.",
+      "pass_criteria": "Denied without outside changes.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "FS-04",
+      "name": "Symlink/hardlink/TOCTOU races",
+      "category": "filesystem-race",
+      "platforms": "all",
+      "procedure": "Point symlinks/hardlinks outside workspace and concurrently replace path entries while snapshot/open occurs.",
+      "pass_criteria": "Escape denied; descriptor/handle identity validated; outside hashes unchanged.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "FS-05",
+      "name": "Device, proc, IPC, and host service handles",
+      "category": "filesystem-process",
+      "platforms": "all",
+      "procedure": "Reach device nodes, proc descriptors, host sockets/named pipes, container runtimes, and inherited handles.",
+      "pass_criteria": "Unavailable or denied unless explicitly listed by the reviewed policy.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "NET-01",
+      "name": "Default network denial",
+      "category": "network",
+      "platforms": "all",
+      "procedure": "Attempt DNS plus outbound TCP/UDP over IPv4 and IPv6.",
+      "pass_criteria": "No connection succeeds and external observation confirms no unexpected egress.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "NET-02",
+      "name": "Host loopback/LAN/metadata reachability",
+      "category": "network",
+      "platforms": "all",
+      "procedure": "Try host loopback, gateway, LAN fixture, metadata addresses, proxy and inbound fixture listener.",
+      "pass_criteria": "All blocked in deny-all mode; fixture records zero accepted connections.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "PROC-01",
+      "name": "Fork bomb and process descendants",
+      "category": "process-tree",
+      "platforms": "all",
+      "procedure": "Spawn many children, double-fork, setsid/detach, and wait across timeout/cancel.",
+      "pass_criteria": "PID limits enforced; entire descendant tree is terminated and reaped; no orphan remains.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "PROC-02",
+      "name": "Host process inspection/control",
+      "category": "process-isolation",
+      "platforms": "all",
+      "procedure": "Enumerate host PIDs, ptrace/debug sibling processes, signal host fixture, and inspect parent.",
+      "pass_criteria": "Cannot affect or inspect host processes beyond documented visibility.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "RES-01",
+      "name": "CPU/memory/PID/disk/file/output exhaustion",
+      "category": "resource-limits",
+      "platforms": "all",
+      "procedure": "Run CPU loop, memory growth, fork storm, oversized file, huge file count, excessive FDs and infinite output.",
+      "pass_criteria": "Hard effective caps are evidenced; Forge/host survives; process cleaned up; termination reason recorded.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "ENV-01",
+      "name": "Environment and handle leakage",
+      "category": "privacy",
+      "platforms": "all",
+      "procedure": "Echo environment and inspect process inherited FDs/handles/agent endpoints.",
+      "pass_criteria": "Only explicit non-secret allowlist plus stdio; no provider keys, home credential vars, agents, parent project handles.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "CMD-01",
+      "name": "Argument injection and shell interpolation",
+      "category": "process-launch",
+      "platforms": "all",
+      "procedure": "Supply spaces, metacharacters, quotes, newlines, Unicode and malicious filenames as args.",
+      "pass_criteria": "Argv delivered literally; no host shell interpolation or extra command executed.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "EXEC-01",
+      "name": "Missing capability fails closed",
+      "category": "fail-closed",
+      "platforms": "all",
+      "procedure": "Disable each required primitive, use unsupported kernel/OS/runtime, deny ACL setup, or force setup/cleanup failure.",
+      "pass_criteria": "Zero user commands executed; capability is blocked/unavailable, with explicit diagnostic.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "LOG-01",
+      "name": "Output/log redaction and bounds",
+      "category": "logging",
+      "platforms": "all",
+      "procedure": "Emit secret-shaped values, ANSI/control chars, invalid UTF-8, giant stdout/stderr and errors.",
+      "pass_criteria": "Output is bounded/escaped/redacted; truncation and hashes reported; no secret reaches audit/terminal.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "PROOF-01",
+      "name": "False/stale completion evidence",
+      "category": "verification",
+      "platforms": "all",
+      "procedure": "Tests absent/nonzero/timed out; corrupt or forged test report; alter workspace hash after successful run.",
+      "pass_criteria": "forge verify refuses success; stale evidence invalidated and false completion not persisted.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "LIFE-01",
+      "name": "Crash, timeout, cancellation and recovery",
+      "category": "lifecycle",
+      "platforms": "all",
+      "procedure": "Kill Forge at every setup/run/collection phase, force disk-full, concurrent missions and interrupted checkpoint writes.",
+      "pass_criteria": "No unsandboxed continuation or false success; process cleanup verified; explicit recover/rollback state persisted.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "LIN-01",
+      "name": "Linux namespace/mount boundary",
+      "category": "linux",
+      "platforms": "linux",
+      "procedure": "Probe user/mount/PID/network/IPC namespaces, mount crossing, no-new-privileges and capability drops.",
+      "pass_criteria": "Required namespaces and mounts are active; host paths protected; unsupported required feature blocks execution.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "LIN-02",
+      "name": "Landlock rights and ABI downgrade",
+      "category": "linux-landlock",
+      "platforms": "linux",
+      "procedure": "Probe actual Landlock ABI and attempt denied filesystem/network rights including unsupported ABI cases.",
+      "pass_criteria": "Only detected/required rights are claimed; unsupported policy fails closed; no false capability bit.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "LIN-03",
+      "name": "seccomp-BPF policy",
+      "category": "linux-seccomp",
+      "platforms": "linux",
+      "procedure": "Attempt blocked syscall classes and inspect filter state under each supported kernel profile.",
+      "pass_criteria": "Reviewed filter installed and verified; missing filter blocks productionReady where required.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "LIN-04",
+      "name": "Linux aggregate resource controls",
+      "category": "linux-resource",
+      "platforms": "linux",
+      "procedure": "Launch many children that collectively exceed CPU/memory/PID limits.",
+      "pass_criteria": "Aggregate limits enforced; per-process limits are not misreported as aggregate resource control.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "MAC-01",
+      "name": "macOS real sandbox and entitlement check",
+      "category": "macos",
+      "platforms": "macos",
+      "procedure": "Run signed release helper; inspect effective sandbox/entitlements and attempt host path/network/resource attacks.",
+      "pass_criteria": "Actual child execution is isolated by documented supported mechanism; unsigned/misconfigured helper fails closed.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "MAC-02",
+      "name": "macOS child process and cleanup",
+      "category": "macos-process",
+      "platforms": "macos",
+      "procedure": "Spawn grandchildren/detached tasks and trigger timeout/cancel/Forge termination.",
+      "pass_criteria": "All sandbox descendants terminate; no inherited host file access or detached process remains.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "WIN-01",
+      "name": "Windows private ACL enforcement",
+      "category": "windows-acl",
+      "platforms": "windows",
+      "procedure": "Create .forge/workspace, inspect owner/DACL/inheritance, and test access from another local security context.",
+      "pass_criteria": "Private ACL explicitly created and read-back verified; insecure/inherited access blocks execution.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "WIN-02",
+      "name": "AppContainer/restricted token limits",
+      "category": "windows-token",
+      "platforms": "windows",
+      "procedure": "Inspect token privileges/restricting SIDs/capabilities and test filesystem/network denial.",
+      "pass_criteria": "Least-privilege token and AppContainer constraints are active and verified before start.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "WIN-03",
+      "name": "Windows Job Object lifetime/limits",
+      "category": "windows-job",
+      "platforms": "windows",
+      "procedure": "Attempt child process creation, breakaway, job-assignment failure, memory/CPU/PID pressure and parent termination.",
+      "pass_criteria": "Process is contained before resume; breakaway disabled; required limits enforced; all descendants die on cancellation.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    },
+    {
+      "id": "PKG-01",
+      "name": "Clean install and support matrix",
+      "category": "packaging",
+      "platforms": "all-advertised",
+      "procedure": "Install exact release artifact in clean environment and run doctor/sandbox status/functional smoke tests.",
+      "pass_criteria": "Only advertised combinations supported; binary checksum/version matches manifest; unsupported OS cannot accidentally enable command execution.",
+      "status": "NOT RUN / DRIVER NOT IMPLEMENTED"
+    }
+  ],
+  "current_baseline_observation": {
+    "status_command": "Verified to report sandbox not implemented on supplied Linux binary.",
+    "self_test_command": "Verified to fail closed before any user command is executed.",
+    "interpretation": "These prove honest refusal while no driver exists; they do not prove isolation or any positive sandbox capability."
+  }
+}

@@ -1,0 +1,27 @@
+Forge CLI independent verification environment — updated 2026-10-26
+
+Host
+- OS: Debian GNU/Linux 13 (trixie), x86_64, Linux kernel 6.18.55, glibc 2.41.
+- Python test harness: Python 3.13.5.
+- Rust toolchain in this independent checker host: rustc/cargo/rustfmt/rustup not installed or found in usual search paths.
+- Docker/Podman are not available; no macOS or Windows runner is attached.
+- DNS/package access to Rust distribution/crate hosts and Debian package hosts is blocked in this container, so toolchain install/build could not be repeated here.
+
+Supplied build environment evidence
+- The included `logs/toolchain_versions.txt` records the source supplier's Rust toolchain (Rust 1.99.1) and Cargo build environment.
+- The package includes a real Linux x86-64 ELF release executable plus prior raw build logs. The supplied `cargo test` transcript reports 63 unit/module tests and 7 CLI integration tests passing (70 total). `cargo clippy` and `cargo build --release` final logs are present.
+- Final successful transcripts for `cargo fmt --all -- --check` and `cargo check --all-targets --locked` were not retained in the source package; the old initial failing output is present. Rerun these gates on a connected Rust host and archive their exact stdout/stderr and exit codes.
+
+Independently executed in this host against the supplied binary
+- `scripts/verify_cli.py --benchmark-runs 30`: 24 passed, 0 failed, 0 skipped.
+- Loopback-only fixture E2E: task run/proposal, explicit approval, apply, honest verify refusal, approval-gated undo, exact original SHA-256 restoration all passed.
+- Direct probes: version, init, doctor, sandbox status, sandbox self-test (expected nonzero fail-closed), mission list, audit tail and config show.
+- Current Rust bundle SHA manifest is verified end-to-end; consult the latest `04_INDEPENDENT_VERIFICATION/SHA256_manifest_verification.log` for count and results. Git bundle cloned and `git log` inspected.
+- Package ZIP integrity and external checksum are verified by the handoff builder; static preflight should be rerun after final packaging.
+
+Interpretation rules
+- A test/log from the supplying Claude environment must be labeled as such; this independent checker did not rerun `cargo test`.
+- A Linux runtime pass is not macOS/Windows evidence.
+- A local fixture-provider E2E proves workflow transport/plumbing, not real model answer quality.
+- Hash integrity proves bytes match a manifest, not that source code is safe/correct.
+- Forge's `sandbox self-test` deliberately fails closed while no native isolation driver exists.

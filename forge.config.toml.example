@@ -1,0 +1,19 @@
+[project]
+name = "Forge workspace"
+
+[model]
+provider = "openai-compatible"
+model = "gpt-4.1-mini"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+max_output_tokens = 4096
+timeout_ms = 30000
+
+[privacy]
+mode = "ask"
+telemetry = false
+
+[limits]
+max_read_bytes = 262144
+max_files = 1000
+max_search_matches = 200

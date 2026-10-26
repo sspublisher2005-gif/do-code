@@ -1,0 +1,10 @@
+/target/
+.forge/
+.env
+.env.*
+!.env.example
+*.log
+*.tmp
+__pycache__/
+*.py[cod]
+/test-results/
