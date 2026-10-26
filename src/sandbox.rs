@@ -337,7 +337,8 @@ pub fn status_text() -> String {
     if is_qualified() {
         "Sandbox: available (qualified)".to_string()
     } else {
-        "Sandbox: NOT IMPLEMENTED — no native driver has passed adversarial tests. \
+        "Sandbox: primitives implemented (restricted token + AppContainer + Job Object), \
+         but NOT qualified — no adversarial tests have passed. \
          Arbitrary command execution is disabled."
             .to_string()
     }
