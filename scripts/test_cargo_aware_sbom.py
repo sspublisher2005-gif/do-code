@@ -80,7 +80,7 @@ class CargoSbomValidatorTests(unittest.TestCase):
 
             def fake_run(command, *, cwd, timeout):
                 if "cyclonedx" in command:
-                    (Path(cwd) / "forge-cli-cargo-aware-sbom.json").write_text(json.dumps(sample_bom()), encoding="utf-8")
+                    (Path(cwd) / "forge-cli-cargo-aware-sbom.json.json").write_text(json.dumps(sample_bom()), encoding="utf-8")
                 return {"command": command, "exit_code": 0, "elapsed_seconds": 0.001, "output_tail": "mocked for unit test"}
 
             stdout = io.StringIO()
@@ -92,6 +92,7 @@ class CargoSbomValidatorTests(unittest.TestCase):
             self.assertTrue(output.is_file())
             self.assertTrue(report.is_file())
             self.assertFalse((root / "forge-cli-cargo-aware-sbom.json").exists())
+            self.assertFalse((root / "forge-cli-cargo-aware-sbom.json.json").exists())
             saved_report = json.loads(report.read_text(encoding="utf-8"))
             self.assertEqual(saved_report["status"], "PASS")
             self.assertEqual(saved_report["generator"]["version"], "0.5.9")

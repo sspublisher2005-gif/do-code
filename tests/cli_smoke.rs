@@ -143,6 +143,73 @@ fn cost_prediction_and_cost_budget_flags_are_not_exposed() {
     assert!(!text.contains("--estimated-cost"));
 }
 
+#[test]
+fn memory_propose_previews_without_writing_until_explicit_confirmation() {
+    let root = tempdir().unwrap();
+    let args = [
+        "--root",
+        root.path().to_str().unwrap(),
+        "memory",
+        "propose",
+        "--type",
+        "decision",
+        "--title",
+        "Use bounded parsing",
+        "--problem",
+        "Inputs can be large",
+        "--decision",
+        "Reject oversized input",
+        "--reason",
+        "Bounded parsing limits resource use",
+        "--confidence",
+        "0.9",
+        "--scope",
+        "project",
+    ];
+    let preview = forge().args(args).output().unwrap();
+    assert!(
+        preview.status.success(),
+        "{}",
+        String::from_utf8_lossy(&preview.stderr)
+    );
+    let text = String::from_utf8_lossy(&preview.stdout);
+    assert!(text.contains("MEMORY PROPOSAL"));
+    assert!(text.contains("Not saved"));
+    assert!(
+        !root.path().join(".forge").exists(),
+        "preview must not create Forge state"
+    );
+
+    let saved = forge().args(args).arg("--confirm").output().unwrap();
+    assert!(
+        saved.status.success(),
+        "{}",
+        String::from_utf8_lossy(&saved.stderr)
+    );
+    assert!(String::from_utf8_lossy(&saved.stdout).contains("Saved reviewed memory proposal"));
+    let notes = root.path().join(".forge/memory/project/notes");
+    assert_eq!(fs::read_dir(notes).unwrap().count(), 1);
+}
+
+#[test]
+fn memory_open_displays_vault_paths_without_creating_state() {
+    let root = tempdir().unwrap();
+    let output = forge()
+        .args(["--root", root.path().to_str().unwrap(), "memory", "open"])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let text = String::from_utf8_lossy(&output.stdout);
+    assert!(text.contains("Project memory vault:"));
+    assert!(text.contains("Global memory vault:"));
+    assert!(text.contains("no external application was launched"));
+    assert!(!root.path().join(".forge").exists());
+}
+
 /// Serves the same fixture OpenAI-compatible chat-completion response to every request it
 /// receives, on a background thread, until `stop` is set. Returns the local base URL.
 fn spawn_patch_fixture_server(stop: std::sync::Arc<AtomicBool>) -> String {

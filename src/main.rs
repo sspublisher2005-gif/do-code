@@ -219,6 +219,34 @@ enum EvidenceCommand {
 }
 #[derive(Debug, Subcommand)]
 enum MemoryCommand {
+    Open,
+    Propose {
+        #[arg(long = "type")]
+        note_type: String,
+        #[arg(long)]
+        title: String,
+        #[arg(long)]
+        problem: String,
+        #[arg(long)]
+        decision: String,
+        #[arg(long)]
+        reason: String,
+        #[arg(long = "evidence", action = clap::ArgAction::Append)]
+        evidence: Vec<String>,
+        #[arg(long = "rejected", action = clap::ArgAction::Append)]
+        rejected: Vec<String>,
+        #[arg(long = "limitation", action = clap::ArgAction::Append)]
+        limitations: Vec<String>,
+        #[arg(long, default_value_t = 0.7)]
+        confidence: f64,
+        #[arg(long, default_value = "project")]
+        scope: String,
+        #[arg(
+            long,
+            help = "Persist this proposal after reviewing the displayed preview"
+        )]
+        confirm: bool,
+    },
     List {
         #[arg(long, default_value = "all")]
         scope: String,
@@ -670,6 +698,90 @@ fn mission_command(root: &Path, command: MissionCommand) -> Result<()> {
 
 fn memory_command(root: &Path, command: MemoryCommand) -> Result<()> {
     match command {
+        MemoryCommand::Open => {
+            let project_root = std::fs::canonicalize(root).map_err(|e| error::io_error(root, e))?;
+            let home = std::env::var_os("USERPROFILE")
+                .or_else(|| std::env::var_os("HOME"))
+                .map(PathBuf::from)
+                .ok_or_else(|| {
+                    ForgeError::Config("could not resolve user home directory.".into())
+                })?;
+            println!(
+                "Project memory vault: {}",
+                project_root.join(".forge/memory/project").display()
+            );
+            println!(
+                "Global memory vault: {}",
+                home.join(".forge/memory/global").display()
+            );
+            println!(
+                "Paths only; no external application was launched and no memory was uploaded."
+            );
+        }
+        MemoryCommand::Propose {
+            note_type,
+            title,
+            problem,
+            decision,
+            reason,
+            evidence,
+            rejected,
+            limitations,
+            confidence,
+            scope,
+            confirm,
+        } => {
+            let preview = format!(
+                "MEMORY PROPOSAL — {} ({} scope)\nTitle: {}\nProblem: {}\nDecision: {}\nReason: {}\nEvidence: {}\nRejected options: {}\nLimitations: {}\nConfidence: {:.2}\n",
+                note_type,
+                scope,
+                title,
+                problem,
+                decision,
+                reason,
+                if evidence.is_empty() {
+                    "none".to_owned()
+                } else {
+                    evidence.join("; ")
+                },
+                if rejected.is_empty() {
+                    "none".to_owned()
+                } else {
+                    rejected.join("; ")
+                },
+                if limitations.is_empty() {
+                    "none".to_owned()
+                } else {
+                    limitations.join("; ")
+                },
+                confidence
+            );
+            println!("{}", redaction::safe_terminal(&redaction::redact(&preview)));
+            if !confirm {
+                println!(
+                    "Not saved. Review the proposal, then repeat with --confirm to persist it."
+                );
+                return Ok(());
+            }
+            let note = memory::save(
+                root,
+                &note_type,
+                &title,
+                &problem,
+                &decision,
+                &reason,
+                rejected,
+                limitations,
+                evidence,
+                confidence,
+                &scope,
+                true,
+            )?;
+            println!(
+                "Saved reviewed memory proposal {} to {} scope.",
+                note.id, note.scope
+            );
+        }
         MemoryCommand::List { scope } => {
             for note in memory::list(root, &scope)? {
                 println!(

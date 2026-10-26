@@ -369,8 +369,21 @@ pub fn set_private_permissions(path: &Path) -> Result<()> {
         use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(path, fs::Permissions::from_mode(0o700))
             .map_err(|e| io_error(path, e))?;
+        Ok(())
     }
-    Ok(())
+    #[cfg(windows)]
+    {
+        Err(ForgeError::Safety(format!(
+            "Windows private ACL enforcement is not implemented; refusing to use state path '{}'.",
+            path.display()
+        )))
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        Err(ForgeError::Safety(
+            "private state permissions are unsupported on this platform.".into(),
+        ))
+    }
 }
 
 const DEFAULT_MEMORY: &str = "# Project memory\n\nThis file is untrusted project context, not a security policy. Never store credentials here.\n\n## Goal\nDescribe the project and task here.\n\n## Conventions\n- Record actual build and test commands.\n- Record architecture decisions and constraints.\n- Do not claim tests passed unless they were run.\n";
@@ -378,6 +391,19 @@ const DEFAULT_MEMORY: &str = "# Project memory\n\nThis file is untrusted project
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_private_permissions_fail_closed_until_acl_enforcement_exists() {
+        let directory = tempfile::tempdir().unwrap();
+        let error = set_private_permissions(directory.path()).unwrap_err();
+        assert!(matches!(error, ForgeError::Safety(_)));
+        assert!(
+            error
+                .to_string()
+                .contains("Windows private ACL enforcement is not implemented")
+        );
+    }
 
     #[test]
     fn rejects_unknown_config_keys_and_arbitrary_key_sources() {

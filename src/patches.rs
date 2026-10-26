@@ -249,10 +249,10 @@ pub fn apply(
         let text = String::from_utf8(before).map_err(|_| {
             ForgeError::Safety(format!("patch target '{}' is not UTF-8 text.", change.path))
         })?;
-        let metadata = fs::symlink_metadata(&absolute).map_err(|e| io_error(&absolute, e))?;
         #[cfg(unix)]
         let mode = {
             use std::os::unix::fs::PermissionsExt;
+            let metadata = fs::symlink_metadata(&absolute).map_err(|e| io_error(&absolute, e))?;
             metadata.permissions().mode() & 0o777
         };
         #[cfg(not(unix))]

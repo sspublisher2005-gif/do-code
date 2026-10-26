@@ -1,6 +1,6 @@
 {
   "artifact": "Forge CLI Rust implementation source inventory",
-  "generated_at_utc": "2026-10-26T06:53:16.791438+00:00",
+  "generated_at_utc": "2026-10-26T14:37:19.619379+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
   "inventory_count": 61,
@@ -157,8 +157,8 @@
     },
     {
       "path": "scripts/cargo_aware_sbom.py",
-      "bytes": 9666,
-      "sha256": "b280ced639a49b29ef095b48f41c3e613bd1d814fa28aad351086e9ec047843e"
+      "bytes": 9694,
+      "sha256": "e9513a40d51c3a74b6b3200e042642b0661078804c3adb0e503fed1f8785edba"
     },
     {
       "path": "scripts/ci_pipeline.py",
@@ -192,8 +192,8 @@
     },
     {
       "path": "scripts/test_cargo_aware_sbom.py",
-      "bytes": 4803,
-      "sha256": "cec85c1ee1fd15096122295bb4eb073f6ab4ff7f35eec85e626839fa2ae9baac"
+      "bytes": 4895,
+      "sha256": "a7a38f7f679dc32c969da6d5f90f372f294f2a99c948d9be1ed93caa9b24f7e6"
     },
     {
       "path": "scripts/test_ci_pipeline_gates.py",
@@ -222,8 +222,8 @@
     },
     {
       "path": "src/config.rs",
-      "bytes": 16151,
-      "sha256": "f6cc47dd18600bc4b1ad4c1b6723616ea797237623c9ed0876b504fd5fe3c1e6"
+      "bytes": 17000,
+      "sha256": "7e96165c9e8c1271e9205df2296bc1d1f9cde81b763ae5c11c95cb7a141f88d2"
     },
     {
       "path": "src/context.rs",
@@ -257,8 +257,8 @@
     },
     {
       "path": "src/main.rs",
-      "bytes": 36118,
-      "sha256": "27601d36ef7546df232b83ff1c523b5e130e86436d41427c07f06ddc29a8ab4b"
+      "bytes": 39817,
+      "sha256": "35b024bae93f06f8cf2778c19e8f9d60846ebd6f2405d1a07993ce05d8ae0583"
     },
     {
       "path": "src/memory.rs",
@@ -282,8 +282,8 @@
     },
     {
       "path": "src/patches.rs",
-      "bytes": 21719,
-      "sha256": "b31ac98cad1d8b9a72391641091f4b9e973b1f8c796d31fc595c77e1542b2c2c"
+      "bytes": 21723,
+      "sha256": "fe73b10013f61f871012c7bae90424d729ca3f0f5a79db599b3f9349739fb615"
     },
     {
       "path": "src/provider.rs",
@@ -307,8 +307,8 @@
     },
     {
       "path": "tests/cli_smoke.rs",
-      "bytes": 10665,
-      "sha256": "2fdd801bf242eaf051d9f55ff8149f63460bfaf2bf813d47a4b4470c2af4ce44"
+      "bytes": 12718,
+      "sha256": "060761df002883cd3aa5ead8fe25a3338c2bfda3f4412993cd5724fb85bed971"
     }
   ]
 }

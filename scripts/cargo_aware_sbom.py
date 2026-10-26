@@ -126,7 +126,7 @@ def main() -> int:
     # Only touch names explicitly owned by this generator; never delete a generic
     # `bom.*` file that could belong to the project itself.
     candidates = [root / f"{stem}.json", root / f"{stem}.cdx.json", root / f"{stem}.xml",
-                  root / f"{stem}.json.cdx.json"]
+                  root / f"{stem}.json.cdx.json", root / f"{stem}.json.json"]
     for candidate in candidates:
         if candidate.is_file():
             candidate.unlink()
