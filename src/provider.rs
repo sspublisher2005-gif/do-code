@@ -667,17 +667,9 @@ mod tests {
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {
             let (mut stream, _) = listener.accept().await.unwrap();
-            let mut collected = Vec::new();
-            let mut byte = [0_u8; 1];
-            while collected.len() < 16 * 1024 {
-                if stream.read(&mut byte).await.unwrap_or(0) == 0 {
-                    break;
-                }
-                collected.push(byte[0]);
-                if collected.ends_with(b"\r\n\r\n") {
-                    break;
-                }
-            }
+            let mut collected = vec![0_u8; 16 * 1024];
+            let n = stream.read(&mut collected).await.unwrap_or(0);
+            collected.truncate(n);
             stream.write_all(response.as_bytes()).await.unwrap();
             let _ = stream.flush().await;
             String::from_utf8_lossy(&collected).into_owned()

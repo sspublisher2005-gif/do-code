@@ -13,6 +13,7 @@ mod mission_store;
 mod patches;
 mod provider;
 mod redaction;
+mod sandbox;
 mod storage;
 mod workflow;
 
@@ -467,8 +468,10 @@ async fn run(cli: Cli) -> Result<()> {
         Command::Unfreeze { approve } => { let state = freeze::unfreeze(&root, approve)?; println!("Forge unfrozen: {}", !state.frozen); }
         Command::Sandbox { command } => match command {
             SandboxCommand::Status => {
-                println!("Sandbox status: NOT IMPLEMENTED in this Rust milestone.");
+                println!("{}", sandbox::status_text());
                 println!("Arbitrary shell/test/build/browser execution is disabled; no isolation claim is made.");
+                println!("Windows DACL enforcement: implemented (owner-only protected DACL).");
+                println!("Windows Job Object containment: primitive available; AppContainer/restricted-token: pending.");
             }
             SandboxCommand::SelfTest => return Err(ForgeError::Safety("sandbox self-test cannot pass: no native sandbox driver is implemented. No command was executed.".into())),
         },
