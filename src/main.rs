@@ -446,11 +446,25 @@ async fn run(cli: Cli) -> Result<()> {
         Command::Verify { mission_id } => println!("{}", workflow::verify(&root, &mission_id)?),
         Command::Resume { mission_id } => {
             let store = mission_store::MissionStore::open(&root)?;
-            let mission = store.get(&mission_id)?;
-            println!("Mission: {}\nStatus: {:?}\nCreated: {}\nUpdated: {}", mission.id, mission.status, mission.created_at, mission.updated_at);
-            for step in &mission.steps { println!("- {} [{:?}] attempts={} failure={}", step.kind, step.status, step.attempt, step.failure_code.as_deref().unwrap_or("none")); }
-            println!("Evidence IDs: {}", mission.evidence_ids.join(", "));
-            println!("Resume is inspection-only in this Rust milestone. It does not repeat model calls automatically; use the explicit plan/run workflow for a new proposal.");
+            // Recover from any crash/interruption first.
+            let recovered = store.recover()?;
+            // Find the requested mission.
+            let entry = recovered.iter().find(|(m, _)| m.id == mission_id);
+            match entry {
+                Some((mission, action)) => {
+                    println!("Mission: {}\nStatus: {:?}\nCreated: {}\nUpdated: {}", mission.id, mission.status, mission.created_at, mission.updated_at);
+                    for step in &mission.steps { println!("- {} [{:?}] attempts={} failure={}", step.kind, step.status, step.attempt, step.failure_code.as_deref().unwrap_or("none")); }
+                    println!("Evidence IDs: {}", mission.evidence_ids.join(", "));
+                    println!("\nNext safe action: {}", action);
+                    println!("\nResume is inspection-only: it does not repeat model calls or re-run commands automatically. Use 'forge run' for a new proposal or 'forge verify' to check evidence.");
+                }
+                None => {
+                    let mission = store.get(&mission_id)?;
+                    println!("Mission: {}\nStatus: {:?}\nCreated: {}\nUpdated: {}", mission.id, mission.status, mission.created_at, mission.updated_at);
+                    for step in &mission.steps { println!("- {} [{:?}] attempts={} failure={}", step.kind, step.status, step.attempt, step.failure_code.as_deref().unwrap_or("none")); }
+                    println!("Evidence IDs: {}", mission.evidence_ids.join(", "));
+                }
+            }
         }
         Command::Undo { mission_id, checkpoint_id, approve } => {
             let paths = patches::undo(&root, &mission_id, checkpoint_id.as_deref(), approve)?;

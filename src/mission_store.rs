@@ -137,19 +137,99 @@ impl MissionStore {
 
     pub fn list(&self) -> Result<Vec<Mission>> {
         let dir = self.home.join("missions");
-        let mut files = Vec::new();
-        for entry in fs::read_dir(&dir).map_err(|e| io_error(&dir, e))? {
+        let mut ids = Vec::new();
+        let entries = match fs::read_dir(&dir) {
+            Ok(e) => e,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(err) => return Err(io_error(&dir, err)),
+        };
+        for entry in entries {
             let entry = entry.map_err(|e| io_error(&dir, e))?;
             let name = entry.file_name().to_string_lossy().into_owned();
             if name.ends_with(".json") {
                 let id = name.trim_end_matches(".json");
                 if Uuid::parse_str(id).is_ok() {
-                    files.push(id.to_owned());
+                    ids.push(id.to_owned());
                 }
             }
         }
-        files.sort();
-        files.iter().map(|id| self.get(id)).collect()
+        ids.sort();
+        ids.iter().map(|id| self.get(id)).collect()
+    }
+
+    /// Recover from crashes and interrupted operations.
+    /// Cleans stale locks, leftover temp files, and validates all missions.
+    /// Returns a list of (mission, next_safe_action) pairs.
+    /// Never re-runs destructive actions; only reports state.
+    pub fn recover(&self) -> Result<Vec<(Mission, String)>> {
+        // 1. Clean stale locks (lock files held by dead processes).
+        let lock_dir = self.home.join("locks");
+        if let Ok(entries) = fs::read_dir(&lock_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().is_some_and(|e| e == "lock") {
+                    // Try to acquire the lock; if we can, the previous holder is dead.
+                    if let Ok(file) = OpenOptions::new().read(true).write(true).open(&path) {
+                        // If lock_exclusive succeeds immediately, the lock was stale.
+                        if FileExt::try_lock_exclusive(&file).is_ok() {
+                            let _ = FileExt::unlock(&file);
+                            let _ = fs::remove_file(&path);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Clean leftover temp files from interrupted atomic writes.
+        let mission_dir = self.home.join("missions");
+        if let Ok(entries) = fs::read_dir(&mission_dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                if name.starts_with('.') && name.ends_with(".tmp") {
+                    let _ = fs::remove_file(entry.path());
+                }
+            }
+        }
+
+        // 3. Validate all missions and compute next safe action.
+        let missions = self.list()?;
+        let mut result = Vec::with_capacity(missions.len());
+        for mission in missions {
+            let action = match mission.status {
+                MissionStatus::Draft => "Plan has not started. Run 'forge run' to begin.",
+                MissionStatus::AwaitingApproval => {
+                    "Awaiting approval. Review the proposed patch, then 'forge apply --approve'."
+                }
+                MissionStatus::Ready => "Ready to execute. Run 'forge run' to proceed.",
+                MissionStatus::Running => {
+                    "Interrupted while running. Review steps before resuming."
+                }
+                MissionStatus::Verifying => "Verifying. Run 'forge verify' to check evidence.",
+                MissionStatus::NeedsReview => {
+                    "Awaiting review. Run 'forge verify' to check evidence."
+                }
+                MissionStatus::Completed => "Mission completed. Run 'forge verify' to confirm.",
+                MissionStatus::Failed => {
+                    "Mission failed. Review failure codes, then retry or undo."
+                }
+                MissionStatus::Interrupted => {
+                    "Mission interrupted. Review state, then retry or undo."
+                }
+                MissionStatus::Cancelled => "Mission cancelled. No further action needed.",
+            };
+            // Refine based on step states.
+            let next_step = mission
+                .steps
+                .iter()
+                .find(|s| matches!(s.status, StepStatus::Pending | StepStatus::Running));
+            let action = if let Some(step) = next_step {
+                format!("{} Next step: {} ({:?}).", action, step.kind, step.status)
+            } else {
+                action.to_owned()
+            };
+            result.push((mission, action));
+        }
+        Ok(result)
     }
 
     pub fn transition(&self, id: &str, next: MissionStatus) -> Result<Mission> {
