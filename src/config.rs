@@ -15,6 +15,12 @@ pub struct ForgeConfig {
     pub model: ModelConfig,
     pub privacy: PrivacyConfig,
     pub limits: LimitsConfig,
+    /// Per-role model routing and fallback chain (see router.rs).
+    pub routing: crate::router::RoutingConfig,
+    /// Mission loop budget (step count, stall detection, wall clock).
+    /// Serialized as the `[loop]` TOML section.
+    #[serde(rename = "loop")]
+    pub loop_policy: crate::loopctl::LoopPolicy,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
