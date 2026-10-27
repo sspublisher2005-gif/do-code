@@ -420,15 +420,39 @@ async fn generate_text_with_key(
         _ => {}
     }
     let started = Instant::now();
-    let response = request.json(&body).send().await.map_err(|error| {
-        if error.is_timeout() {
-            ForgeError::Provider("provider request timed out.".into())
-        } else {
-            ForgeError::Provider(
-                "provider endpoint could not be reached; endpoint details were not logged.".into(),
-            )
+    // One transport-level retry for connection failures (connection reset or
+    // closed before a response line arrived). Timeouts and HTTP error
+    // statuses are never retried. Local endpoints (loopback fixtures, local
+    // gateways, endpoint-security software on the host) can transiently drop
+    // a fresh TCP connection; a single re-send is honest transport recovery,
+    // not a fabricated result.
+    let prepared = request.json(&body);
+    let mut response = None;
+    for attempt in 0..2 {
+        let attempt_request = prepared.try_clone().ok_or_else(|| {
+            ForgeError::Provider("could not prepare the provider request.".into())
+        })?;
+        match attempt_request.send().await {
+            Ok(sent) => {
+                response = Some(sent);
+                break;
+            }
+            Err(error) if attempt == 0 && (error.is_connect() || error.is_request()) => {
+                tokio::time::sleep(Duration::from_millis(150)).await;
+            }
+            Err(error) => {
+                if error.is_timeout() {
+                    return Err(ForgeError::Provider("provider request timed out.".into()));
+                }
+                return Err(ForgeError::Provider(
+                    "provider endpoint could not be reached; endpoint details were not logged."
+                        .into(),
+                ));
+            }
         }
-    })?;
+    }
+    let response = response
+        .ok_or_else(|| ForgeError::Provider("provider request could not be completed.".into()))?;
     let status = response.status();
     if !status.is_success() {
         return Err(ForgeError::Provider(format!(

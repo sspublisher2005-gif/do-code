@@ -2,6 +2,7 @@ mod audit;
 mod config;
 mod context;
 mod decision_arena;
+mod dispatch;
 mod error;
 mod evidence;
 mod files;

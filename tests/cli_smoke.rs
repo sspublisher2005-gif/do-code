@@ -227,26 +227,63 @@ fn spawn_patch_fixture_server(stop: std::sync::Arc<AtomicBool>) -> String {
     .to_string();
     thread::spawn(move || {
         while !stop.load(Ordering::SeqCst) {
-            let Ok((mut stream, _)) = listener.accept() else {
-                thread::sleep(std::time::Duration::from_millis(10));
+            let Ok((stream, _)) = listener.accept() else {
+                thread::sleep(std::time::Duration::from_millis(5));
                 continue;
             };
-            let mut buf = [0_u8; 8192];
-            let _ = stream.read(&mut buf);
-            let body = serde_json::json!({
-                "id": "fixture-req",
-                "model": "fixture-model",
-                "choices": [{"message": {"content": patch_json}}],
-                "usage": {"prompt_tokens": 10, "completion_tokens": 20}
-            })
-            .to_string();
-            let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                body.len(),
-                body
-            );
-            let _ = stream.write_all(response.as_bytes());
-            let _ = stream.flush();
+            let patch_json = patch_json.clone();
+            // One thread per connection: a slow or partial request can never
+            // delay or disturb the next response.
+            thread::spawn(move || {
+                let mut stream = stream;
+                let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(5)));
+                let mut received: Vec<u8> = Vec::new();
+                let mut expected: Option<usize> = None;
+                let mut chunk = [0_u8; 8192];
+                loop {
+                    if expected.is_some_and(|total| received.len() >= total) {
+                        break;
+                    }
+                    let Ok(n) = stream.read(&mut chunk) else {
+                        break;
+                    };
+                    if n == 0 {
+                        break;
+                    }
+                    received.extend_from_slice(&chunk[..n]);
+                    if expected.is_none()
+                        && let Some(pos) = received.windows(4).position(|w| w == b"\r\n\r\n")
+                    {
+                        let headers = String::from_utf8_lossy(&received[..pos]);
+                        expected = headers.lines().find_map(|line| {
+                            let mut parts = line.splitn(2, ':');
+                            match parts.next()?.trim().to_ascii_lowercase().as_str() {
+                                "content-length" => {
+                                    Some(pos + 4 + parts.next()?.trim().parse::<usize>().ok()?)
+                                }
+                                _ => None,
+                            }
+                        });
+                    }
+                }
+                let body = serde_json::json!({
+                    "id": "fixture-req",
+                    "model": "fixture-model",
+                    "choices": [{"message": {"content": patch_json}}],
+                    "usage": {"prompt_tokens": 10, "completion_tokens": 20}
+                })
+                .to_string();
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = stream.write_all(response.as_bytes());
+                let _ = stream.flush();
+                // Half-close our side so the client sees EOF after the body
+                // instead of racing its connection teardown.
+                let _ = stream.shutdown(std::net::Shutdown::Both);
+            });
         }
     });
     format!("http://{address}/v1")
