@@ -63,7 +63,23 @@ pub fn list(
     let start_rel = relative_label(&root, &start);
     let mut queue = VecDeque::from([(start, start_rel)]);
     let mut output = Vec::new();
+    // Directory-scoped .gitignore accumulation: each entry is the relative path
+    // of the directory (as "/" path) and the rules that apply to it.
+    let mut ignore_stack: Vec<(String, crate::gitignore::GitignoreSet)> = Vec::new();
     while let Some((directory, rel_directory)) = queue.pop_front() {
+        // Load .gitignore rules for this directory before scanning it. Rules
+        // from parent directories still apply; local rules are appended so the
+        // last-matching-rule-wins behavior is preserved.
+        let gitignore_path = directory.join(".gitignore");
+        if let Ok(contents) = fs::read_to_string(&gitignore_path) {
+            let mut local = crate::gitignore::GitignoreSet::default();
+            local.parse(&contents);
+            if !local.is_empty() {
+                // Replace any previous rules for the same directory, append new.
+                ignore_stack.retain(|(p, _)| p != &rel_directory);
+                ignore_stack.push((rel_directory.clone(), local));
+            }
+        }
         let read_dir = match fs::read_dir(&directory) {
             Ok(items) => items,
             Err(_) => continue,
@@ -113,6 +129,25 @@ pub fn list(
                 format!("{rel_directory}/{name_str}")
             };
             if is_sensitive_path(&child_rel) {
+                continue;
+            }
+            // Apply accumulated .gitignore rules (best-effort parity). The
+            // sensitive-path floor above is never bypassed by ignore rules.
+            let child_is_dir_candidate = {
+                let child = match resolve_existing(&root, &child_rel, Expected::Any) {
+                    Ok(path) => path,
+                    Err(_) => continue,
+                };
+                let metadata = match fs::symlink_metadata(&child) {
+                    Ok(m) => m,
+                    Err(_) => continue,
+                };
+                metadata.is_dir()
+            };
+            let ignored = ignore_stack
+                .iter()
+                .any(|(_, rules)| rules.is_ignored(&child_rel, child_is_dir_candidate));
+            if ignored {
                 continue;
             }
             let child = match resolve_existing(&root, &child_rel, Expected::Any) {
@@ -481,6 +516,39 @@ mod tests {
     #[cfg(unix)]
     use std::os::unix::fs::symlink;
     use tempfile::tempdir;
+    #[test]
+    fn list_respects_nested_gitignore_rules() {
+        let temp = tempdir().unwrap();
+        fs::create_dir_all(temp.path().join("src")).unwrap();
+        fs::create_dir_all(temp.path().join("src/generated")).unwrap();
+        fs::write(temp.path().join("src/generated/out.rs"), "// generated\n").unwrap();
+        fs::write(temp.path().join("src/main.rs"), "fn main() {}\n").unwrap();
+        fs::write(temp.path().join(".gitignore"), "generated/\n").unwrap();
+        fs::write(temp.path().join("debug.log"), "x\n").unwrap();
+        fs::write(temp.path().join(".gitignore2"), "*.log\n").unwrap();
+        // Top-level .gitignore ignores the generated/ directory.
+        let entries = list(temp.path(), ".", true, 100).unwrap();
+        assert!(!entries.iter().any(|e| e.path.contains("generated")));
+        assert!(entries.iter().any(|e| e.path == "src/main.rs"));
+        assert!(entries.iter().any(|e| e.path == "src"));
+        // Debug.log is NOT ignored at top level (no *.log rule at top level).
+        assert!(entries.iter().any(|e| e.path == "debug.log"));
+    }
+
+    #[test]
+    fn list_respects_nested_gitignore_in_subdirectory() {
+        let temp = tempdir().unwrap();
+        fs::create_dir_all(temp.path().join("pkg/cache")).unwrap();
+        fs::write(temp.path().join("pkg/cache/data.tmp"), "x\n").unwrap();
+        fs::write(temp.path().join("pkg/cache/keep.rs"), "fn keep() {}\n").unwrap();
+        fs::write(temp.path().join("pkg/.gitignore"), "cache/\n*.tmp\n").unwrap();
+        fs::write(temp.path().join("top.txt"), "ok\n").unwrap();
+        let entries = list(temp.path(), ".", true, 100).unwrap();
+        assert!(!entries.iter().any(|e| e.path.contains("cache")));
+        assert!(!entries.iter().any(|e| e.path.ends_with(".tmp")));
+        assert!(entries.iter().any(|e| e.path == "top.txt"));
+    }
+
     #[test]
     fn denies_traversal_and_sensitive_paths() {
         assert!(resolve_existing(Path::new("/tmp"), "../etc/passwd", Expected::File).is_err());

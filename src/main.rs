@@ -6,6 +6,7 @@ mod error;
 mod evidence;
 mod files;
 mod freeze;
+mod gitignore;
 mod memory;
 mod message_store;
 mod mission;
