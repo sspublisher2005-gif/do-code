@@ -488,7 +488,7 @@ async fn run(cli: Cli) -> Result<()> {
                 println!("{}", sandbox::status_text());
                 println!("Arbitrary shell/test/build/browser execution is disabled; no isolation claim is made.");
                 println!("Windows DACL enforcement: implemented (owner-only protected DACL).");
-                println!("Windows Job Object containment: primitive available; AppContainer/restricted-token: pending.");
+                println!("Windows launch path: AppContainer (zero capabilities = OS network deny) + restricted token + Job Object assigned before resume + sanitized environment.");
             }
             SandboxCommand::SelfTest => return Err(ForgeError::Safety("sandbox self-test cannot pass: no native sandbox driver is implemented. No command was executed.".into())),
         },
@@ -552,7 +552,7 @@ fn doctor(root: &Path) -> Result<()> {
         _ => println!("PASS  Emergency freeze: inactive"),
     }
     println!(
-        "WARN  Sandbox: not implemented in the Rust branch; no untrusted command execution is available"
+        "WARN  Sandbox: OS primitives implemented (restricted token + AppContainer + Job Object + sanitized env + OS network deny), but NOT qualified — no adversarial acceptance tests have run on a disposable runner; no untrusted command execution is available"
     );
     #[cfg(unix)]
     println!(
@@ -560,7 +560,7 @@ fn doctor(root: &Path) -> Result<()> {
     );
     #[cfg(windows)]
     println!(
-        "WARN  Windows .forge ACL hardening (private ACL creation/verification) is incomplete; do not use with untrusted repositories until ACL checks pass platform tests"
+        "INFO  Windows privacy: owner-only protected DACL is created and verified (owner SID readback) on every private state directory; AppContainer launch path implemented but NOT security-qualified (adversarial matrix NOT RUN)"
     );
     println!(
         "INFO  Rust compiler version: {rust_version}; required minimum: {}",
