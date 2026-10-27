@@ -171,6 +171,31 @@ pub fn load_index(root: &Path) -> Result<RepositoryIndex> {
     Ok(envelope.index)
 }
 
+/// Returns true when the saved index is likely stale relative to the live tree.
+///
+/// Deterministic and bounded: we re-scan at most `MAX_PROBE_FILES` entries and
+/// compare count/total bytes against what the index recorded. When a repo
+/// exceeds the index byte cap the byte comparison is skipped (counts still
+/// catch added/removed files). This is a correctness guard, not a perf
+/// optimization — a stale index is never trusted for context builds.
+pub fn index_is_stale(root: &Path, index: &RepositoryIndex) -> Result<bool> {
+    const MAX_PROBE_FILES: usize = 10_000;
+    let canonical_root = fs::canonicalize(root).map_err(|e| io_error(root, e))?;
+    let entries = files::list(&canonical_root, ".", true, MAX_PROBE_FILES)?;
+    let files: Vec<&crate::files::FileEntry> =
+        entries.iter().filter(|item| item.kind == "file").collect();
+    let live_count = files.len();
+    if live_count != index.files.len() {
+        return Ok(true);
+    }
+    let live_bytes: u64 = files.iter().map(|e| e.size_bytes).sum();
+    // Only compare bytes when the index is not saturated by its cap.
+    if index.total_bytes_indexed < MAX_INDEX_BYTES && live_bytes != index.total_bytes_indexed {
+        return Ok(true);
+    }
+    Ok(false)
+}
+
 pub fn build_context(
     root: &Path,
     task: &str,
@@ -190,7 +215,13 @@ pub fn build_context(
     }
     let root = fs::canonicalize(root).map_err(|e| io_error(root, e))?;
     let index = match load_index(&root) {
-        Ok(index) => index,
+        Ok(saved) if !index_is_stale(&root, &saved)? => saved,
+        Ok(_) => {
+            // Saved index exists but is stale: rebuild from safe live files.
+            let index = build_index(&root, 1_000, max_file_bytes, 8 * 1024 * 1024)?;
+            save_index(&root, &index)?;
+            index
+        }
         Err(ForgeError::Io { source, .. }) if source.kind() == std::io::ErrorKind::NotFound => {
             let index = build_index(&root, 1_000, max_file_bytes, 8 * 1024 * 1024)?;
             save_index(&root, &index)?;
@@ -416,6 +447,43 @@ mod tests {
         );
         let pack = build_context(dir.path(), "greet function", 10, 20_000, 20_000).unwrap();
         assert!(pack.files.iter().any(|f| f.path == "main.rs"));
+    }
+
+    #[test]
+    fn stale_index_is_detected_and_rebuilt() {
+        let dir = tempdir().unwrap();
+        fs::write(dir.path().join("a.rs"), "fn a() {}\n").unwrap();
+        let index = build_index(dir.path(), 100, 20_000, 100_000).unwrap();
+        save_index(dir.path(), &index).unwrap();
+        assert!(!index_is_stale(dir.path(), &index).unwrap());
+
+        // Add a file: the saved index must now be reported stale.
+        fs::write(dir.path().join("b.rs"), "fn b() {}\n").unwrap();
+        let reloaded = load_index(dir.path()).unwrap();
+        assert!(index_is_stale(dir.path(), &reloaded).unwrap());
+
+        // build_context must transparently rebuild: a file added after the index
+        // was saved must be visible in the freshly built context.
+        let pack = build_context(dir.path(), "b function", 10, 20_000, 20_000).unwrap();
+        assert!(pack.files.iter().any(|f| f.path == "b.rs"));
+        let after = load_index(dir.path()).unwrap();
+        assert!(!index_is_stale(dir.path(), &after).unwrap());
+    }
+
+    #[test]
+    fn context_ranking_is_deterministic() {
+        let dir = tempdir().unwrap();
+        for name in ["alpha.rs", "beta.rs", "gamma.rs"] {
+            fs::write(dir.path().join(name), format!("fn {name}() {{}}\n")).unwrap();
+        }
+        let a = build_context(dir.path(), "beta", 10, 20_000, 20_000).unwrap();
+        let b = build_context(dir.path(), "beta", 10, 20_000, 20_000).unwrap();
+        let paths_a: Vec<String> = a.files.iter().map(|f| f.path.clone()).collect();
+        let paths_b: Vec<String> = b.files.iter().map(|f| f.path.clone()).collect();
+        // Highest-relevance file first, tie broken by path: deterministic.
+        assert_eq!(paths_a, paths_b);
+        assert!(paths_a.contains(&"beta.rs".to_owned()));
+        assert_eq!(paths_a[0], "beta.rs");
     }
 }
 
