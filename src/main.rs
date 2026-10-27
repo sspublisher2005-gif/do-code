@@ -682,6 +682,7 @@ fn mission_command(root: &Path, command: MissionCommand) -> Result<()> {
                 "Verified local evidence manifests: {} (integrity hashes verified on read; content is not proof of correctness)",
                 evidence.len()
             );
+            println!("{}", workflow::usage_summary(root, &id)?);
         }
         MissionCommand::Messages { id } => {
             let messages = message_store::list(root, &id)?;

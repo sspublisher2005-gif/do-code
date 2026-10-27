@@ -771,6 +771,59 @@ fn files_resolve(root: &Path, path: &str) -> Result<std::path::PathBuf> {
     crate::files::resolve_workspace_file(root, path)
 }
 
+/// Cost display rule: `unknown` unless EVERY provider response reported an
+/// explicit USD amount. Never zero-fill, never estimate.
+fn cost_display(cost_total: f64, missing_cost: u64) -> String {
+    if missing_cost > 0 {
+        "unknown".to_owned()
+    } else {
+        format!("${cost_total:.6} (provider-reported)")
+    }
+}
+
+/// Aggregate provider-reported usage for a mission from its transcript.
+/// Honesty rules: tokens are summed only where the provider reported them
+/// (with a count of unreported entries); cost is shown as a total ONLY when
+/// every provider request reported a USD cost — otherwise `unknown`. No
+/// estimation, no zero-fill, ever.
+pub fn usage_summary(root: &Path, mission_id: &str) -> Result<String> {
+    let store = MissionStore::open(root)?;
+    let _ = store.get(mission_id)?;
+    let messages = message_store::list(root, mission_id)?;
+    let mut input_total: u64 = 0;
+    let mut output_total: u64 = 0;
+    let mut cost_total: f64 = 0.0;
+    let mut missing_tokens: u64 = 0;
+    let mut missing_cost: u64 = 0;
+    for message in &messages {
+        match &message.usage {
+            Some(usage) => {
+                input_total += usage.input_tokens.unwrap_or(0);
+                output_total += usage.output_tokens.unwrap_or(0);
+                match usage.provider_reported_cost_usd {
+                    Some(cost) => cost_total += cost,
+                    None => missing_cost += 1,
+                }
+            }
+            None => missing_tokens += 1,
+        }
+    }
+    let token_note = if missing_tokens > 0 {
+        format!(" (at least; {missing_tokens} model response(s) did not report token counts)")
+    } else {
+        String::new()
+    };
+    let cost_display_text = cost_display(cost_total, missing_cost);
+    Ok(format!(
+        "Mission usage summary\nModel messages: {}\nInput tokens: {}{}\nOutput tokens: {}\nProvider-reported cost: {}\n\nCost is shown only when every provider response reported an explicit USD amount. Forge never estimates prices and never stops a mission based on cost.",
+        messages.len(),
+        input_total,
+        token_note,
+        output_total,
+        cost_display_text
+    ))
+}
+
 pub fn verify(root: &Path, mission_id: &str) -> Result<String> {
     let store = MissionStore::open(root)?;
     let mission = store.get(mission_id)?;
@@ -898,5 +951,15 @@ mod tests {
     fn tasks_with_secret_like_assignments_are_blocked() {
         assert!(validate_task("fix the API_KEY=long secret text").is_err());
         assert!(validate_task("fix the greeting output").is_ok());
+    }
+
+    #[test]
+    fn usage_summary_reports_unknown_when_any_provider_cost_is_missing() {
+        // The cost-display invariant: a missing provider-reported USD cost in
+        // ANY message makes the total "unknown" — never 0, never a guess.
+        assert_eq!(cost_display(0.0, 1), "unknown");
+        assert_eq!(cost_display(0.0, 3), "unknown");
+        // When every message reported an explicit USD amount, show the total.
+        assert_eq!(cost_display(0.0025, 0), "$0.002500 (provider-reported)");
     }
 }
