@@ -65,10 +65,8 @@ pub fn role_key(role: AgentRole) -> &'static str {
 pub fn routes_for(cfg: &ForgeConfig, routing: &RoutingConfig, role: AgentRole) -> Vec<ModelConfig> {
     let mut routes = Vec::new();
     let key = role_key(role);
-    if let Some(target) = routing.roles.get(key) {
-        if let Ok((provider, model)) = parse_target(target) {
-            routes.push(override_model(&cfg.model, &provider, &model));
-        }
+    if let Some((provider, model)) = routing.roles.get(key).and_then(|t| parse_target(t).ok()) {
+        routes.push(override_model(&cfg.model, &provider, &model));
     }
     routes.push(cfg.model.clone());
     for target in &routing.fallback {

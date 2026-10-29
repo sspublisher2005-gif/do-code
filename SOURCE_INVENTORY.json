@@ -1,9 +1,9 @@
 {
   "artifact": "Forge CLI Rust implementation source inventory",
-  "generated_at_utc": "2026-10-26T14:37:19.619379+00:00",
+  "generated_at_utc": "2026-10-29T16:56:41.287520+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
-  "inventory_count": 61,
+  "inventory_count": 74,
   "inventory": [
     {
       "path": ".github/workflows/rust-ci.yml",
@@ -21,9 +21,9 @@
       "sha256": "514cc7a5bac21aca3ec93d7473afaaa3ddb0ca6cdb93f50676cd2d0831fe3ed8"
     },
     {
-      "path": "CHANGELOG.md",
-      "bytes": 4223,
-      "sha256": "3b379a7a7f1074466894dcb859afe3009bbb7df0ca8a63345b1343df80c0cde8"
+      "path": "build.rs",
+      "bytes": 545,
+      "sha256": "981b347134e3dbd0f5b186f4086a6236eec9d7f36d71c3a9200720516dd0517d"
     },
     {
       "path": "Cargo.lock",
@@ -32,28 +32,13 @@
     },
     {
       "path": "Cargo.toml",
-      "bytes": 1276,
-      "sha256": "175d48e453f9892f492171c56f581ac53555a17d4920843ba8be85a4884395be"
+      "bytes": 1430,
+      "sha256": "e8e3cb1292ade51657749acd276a06067190a94eda9cdabe2926099c55520dfc"
     },
     {
-      "path": "FORGE.md",
-      "bytes": 832,
-      "sha256": "8045c7e22b9586beae2d3535b1a3c5a86e68bba3a41c422317a96ddfd403e3a3"
-    },
-    {
-      "path": "LICENSE",
-      "bytes": 1075,
-      "sha256": "0dab7297fe0cbc8aa2f0621f7ce4315b9413e58f8ddf75b4e7615c39c8f241b3"
-    },
-    {
-      "path": "README.md",
-      "bytes": 10218,
-      "sha256": "97bf7e8b5834fa7a762fb7aff677492df8a663ff9f152865323a43c55d878330"
-    },
-    {
-      "path": "build.rs",
-      "bytes": 545,
-      "sha256": "981b347134e3dbd0f5b186f4086a6236eec9d7f36d71c3a9200720516dd0517d"
+      "path": "CHANGELOG.md",
+      "bytes": 8014,
+      "sha256": "bcd6b4911b254453d266d3ed64644d36e1767764e57273be69cd0ddcea750a33"
     },
     {
       "path": "docs/ARCHITECTURE.md",
@@ -112,8 +97,8 @@
     },
     {
       "path": "docs/STATUS.md",
-      "bytes": 9550,
-      "sha256": "b16a6ceee2f1712682e399708cc0c6ca58a2c7b29b2b3eed40dca41fd20ee21e"
+      "bytes": 12849,
+      "sha256": "c159766aa097413982c039c61854863f5006032bcf8376d70e16b3a2f0870cf4"
     },
     {
       "path": "docs/TEST_RESULTS_2026-10-26.md",
@@ -132,8 +117,23 @@
     },
     {
       "path": "forge.config.toml.example",
-      "bytes": 330,
-      "sha256": "b971a7288b440ef92f87d66c29ebf9a7b5d0d767732a500dc0a993d6d47fe032"
+      "bytes": 1094,
+      "sha256": "a8c045a8f2a5dfd10de5ee24892aff43274599eab971ef295aef5dd60c20521c"
+    },
+    {
+      "path": "FORGE.md",
+      "bytes": 832,
+      "sha256": "8045c7e22b9586beae2d3535b1a3c5a86e68bba3a41c422317a96ddfd403e3a3"
+    },
+    {
+      "path": "LICENSE",
+      "bytes": 1075,
+      "sha256": "0dab7297fe0cbc8aa2f0621f7ce4315b9413e58f8ddf75b4e7615c39c8f241b3"
+    },
+    {
+      "path": "README.md",
+      "bytes": 12071,
+      "sha256": "d9e3af90e656852e3e9f112d1d40630b51583f4b55ce671e7800c89cb5c6175c"
     },
     {
       "path": "reference/Forge_CLI_TS_0.6.0-ts.2_MemoryDecision_Merge_WIP.zip",
@@ -146,14 +146,14 @@
       "sha256": "d13306be0ecda81ce779baa290ffb417380d525928477f16200884b5169cca33"
     },
     {
-      "path": "sbom/README.md",
-      "bytes": 1973,
-      "sha256": "1cdb092c594f94e45237b013926f01491b3dedfd613b64aed54aa1511a3cbb33"
-    },
-    {
       "path": "sbom/forge-cli.cdx.json",
       "bytes": 167836,
       "sha256": "0277e28846a5cf0cc7347bb078226a414a5f1e182fcf8f06268532c4ef1e0915"
+    },
+    {
+      "path": "sbom/README.md",
+      "bytes": 1973,
+      "sha256": "1cdb092c594f94e45237b013926f01491b3dedfd613b64aed54aa1511a3cbb33"
     },
     {
       "path": "scripts/cargo_aware_sbom.py",
@@ -184,6 +184,11 @@
       "path": "scripts/measure_linux_rss.py",
       "bytes": 5737,
       "sha256": "558553c6f9ac41b030413a03d02599796f1a2fa220fd5890c89c3d45cfd64584"
+    },
+    {
+      "path": "scripts/sandbox_adversarial_windows.py",
+      "bytes": 5213,
+      "sha256": "7ad402967892fb2ae72a71b5accbb71fad395082559cdba2c7c8b549946733f8"
     },
     {
       "path": "scripts/static_preflight.py",
@@ -221,19 +226,34 @@
       "sha256": "3cbd923eb6bc2d3626a9dad013b3dbbc6551c331fc420a4bf0fc4e8de3b05a62"
     },
     {
+      "path": "src/compounding.rs",
+      "bytes": 11243,
+      "sha256": "b30d1e6bcc2014a12eae756b52ceef6f480f0bdcd40c393fd25818babf2a2e01"
+    },
+    {
       "path": "src/config.rs",
-      "bytes": 17000,
-      "sha256": "7e96165c9e8c1271e9205df2296bc1d1f9cde81b763ae5c11c95cb7a141f88d2"
+      "bytes": 23750,
+      "sha256": "a5c158d2a1b666fdbbfe3d13a7ac5865f55e4fa3ad121b0253f4adc71087e290"
     },
     {
       "path": "src/context.rs",
-      "bytes": 15231,
-      "sha256": "e7193d9c7cefccecfff176aa75e4d8e558615bef843d9474bbc87159f5927bad"
+      "bytes": 18593,
+      "sha256": "0351f2851bec313c998f4b589ea5601b7cb3256850ea4d7d4d884948d0704780"
+    },
+    {
+      "path": "src/contract.rs",
+      "bytes": 5991,
+      "sha256": "7d3f71a8ac01e970e66a87867d470ee8e2761d56dae1d725d105fcffee34503d"
     },
     {
       "path": "src/decision_arena.rs",
       "bytes": 18212,
       "sha256": "d4050b14be966381dea9f26ef7c9a84fe041376880d1e184837228ad061cdd8f"
+    },
+    {
+      "path": "src/dispatch.rs",
+      "bytes": 5180,
+      "sha256": "7ab6123d2119c57fd2b345b507c09074af3097d20e9fd3fb0efaec0426cfc3db"
     },
     {
       "path": "src/error.rs",
@@ -242,13 +262,13 @@
     },
     {
       "path": "src/evidence.rs",
-      "bytes": 9315,
-      "sha256": "45eaaa5af2f0aa55a5c599561bf7ebce748902d717bdc2b6f72599f5f0f465e3"
+      "bytes": 10224,
+      "sha256": "f7660736b24b138aaec033ce60b08105b7592e92b82c04e86f46edecc187b1e1"
     },
     {
       "path": "src/files.rs",
-      "bytes": 21306,
-      "sha256": "3c28dbcd47f43af9615dc1caa01f76a8840445eb4e221b3c877816cf6f5378ec"
+      "bytes": 24921,
+      "sha256": "6898edf621a2aefc060dcd9c402e9c63add6f48ae8730c161f61af6c74355f9e"
     },
     {
       "path": "src/freeze.rs",
@@ -256,9 +276,19 @@
       "sha256": "f0e0a71482ba7c2afe2105ba1246a91cdb2a6f80554ad97a06adab9aa61168a4"
     },
     {
+      "path": "src/gitignore.rs",
+      "bytes": 8256,
+      "sha256": "1965aae9005adce3fc5dd782c1674d0bfb9a0f55125ea081f1906fabdd8fe2a1"
+    },
+    {
+      "path": "src/loopctl.rs",
+      "bytes": 8721,
+      "sha256": "8416cfd9570ec6a266e5589786e9e27e2b93e03f7b3e3ff46da11362bf87d86d"
+    },
+    {
       "path": "src/main.rs",
-      "bytes": 39817,
-      "sha256": "35b024bae93f06f8cf2778c19e8f9d60846ebd6f2405d1a07993ce05d8ae0583"
+      "bytes": 58279,
+      "sha256": "6ec40f768f5cf01b0b4ff9a90a4b31c41d192c6ac15f19d289897ceafc57ad45"
     },
     {
       "path": "src/memory.rs",
@@ -272,23 +302,23 @@
     },
     {
       "path": "src/mission.rs",
-      "bytes": 8396,
-      "sha256": "e215e86dc3ec1e77b731cd5466aeea9a18038ec98b62cd0f713a820b7d5f6e91"
+      "bytes": 8402,
+      "sha256": "220b3a312e9ac0d71c2b080610035e9ea73fe1816a2fb799fef292eda8581270"
     },
     {
       "path": "src/mission_store.rs",
-      "bytes": 14178,
-      "sha256": "0097362e3149fcfa4238367e9fffaec288889c0165efd5e273a83d486ea12a9c"
+      "bytes": 17999,
+      "sha256": "57e02e1c92a3734147ae1a627760f65698c5e1fc030b9afc9a6813d5081f6534"
     },
     {
       "path": "src/patches.rs",
-      "bytes": 21723,
-      "sha256": "fe73b10013f61f871012c7bae90424d729ca3f0f5a79db599b3f9349739fb615"
+      "bytes": 23541,
+      "sha256": "1d589dfa36443b97428ac0a950140decdbe6c8ae5544daa6bf594b95f414bfea"
     },
     {
       "path": "src/provider.rs",
-      "bytes": 35642,
-      "sha256": "bd5d677f0f7bd61a1867b4094f3e9df034a6538156e1887ca29a22aa0be81e9f"
+      "bytes": 36571,
+      "sha256": "3cb09c0430771e80827a5a96dbfaedceb0f6054b0cc64f36faf700f389ce31b7"
     },
     {
       "path": "src/redaction.rs",
@@ -296,19 +326,54 @@
       "sha256": "3945413be3f5c83a3d67b397cbc64f26b5d05072a14f3040b94a70e2e2eaedd6"
     },
     {
+      "path": "src/risk.rs",
+      "bytes": 11065,
+      "sha256": "f79275d4e6fe0fbbe9fcbb8339a254a9ecf4ad0d1c216c7ae2ad466d1d9aa346"
+    },
+    {
+      "path": "src/router.rs",
+      "bytes": 6901,
+      "sha256": "2717a3f89efe11277d2b768f3a5e54183906b2da445897f5197ea67205e0c023"
+    },
+    {
+      "path": "src/sandbox.rs",
+      "bytes": 17490,
+      "sha256": "de03c54ad078cb11331d8ae0b7c3a0c479927338e6638919496bea1bad00b24e"
+    },
+    {
       "path": "src/storage.rs",
-      "bytes": 15058,
-      "sha256": "ad1fb2f5616f8414d3dbd51abcd47462f47c37b135919f2cb592d4e0f9b8da64"
+      "bytes": 15222,
+      "sha256": "aed145d34bd922da2b81eb7df00097fd1f8a9842a8aa01ee73f563b27547f835"
+    },
+    {
+      "path": "src/taskboard.rs",
+      "bytes": 7194,
+      "sha256": "7bfc1e6620d961dd05e06dc5d2e451d5b6d860036a0f43cfaa010a7267ba7e04"
+    },
+    {
+      "path": "src/teams.rs",
+      "bytes": 3680,
+      "sha256": "290a89f722e5052c0ba0f6e784c2ff53ae6312317d15f3a3f89f8343d4aa621a"
     },
     {
       "path": "src/workflow.rs",
-      "bytes": 29540,
-      "sha256": "63bcf8ab39a833d18e61a1b959f848ac7db1e752a13c2dfc334a3fb952c05b81"
+      "bytes": 47695,
+      "sha256": "5b09d64bfa3cbc76ea5e27692e6702a349526ec7a39a9fa7997a886d1d999107"
+    },
+    {
+      "path": "src/workspace.rs",
+      "bytes": 7350,
+      "sha256": "809cd0bfe1e2ac521b489758a62e332c82b19cf8a932c3d3653b62145c987857"
+    },
+    {
+      "path": "test-results/sandbox-adversarial.json",
+      "bytes": 1408,
+      "sha256": "b7e84fb08f4d55844363d64e0b7d87665b94819c4be8a1152f891d9826ffd45e"
     },
     {
       "path": "tests/cli_smoke.rs",
-      "bytes": 12718,
-      "sha256": "060761df002883cd3aa5ead8fe25a3338c2bfda3f4412993cd5724fb85bed971"
+      "bytes": 14614,
+      "sha256": "9c31712d7eb5b83c36926f712109ff834c3f83cfba8bb40de595484a21ea5508"
     }
   ]
 }

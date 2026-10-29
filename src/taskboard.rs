@@ -152,7 +152,7 @@ mod tests {
     use super::*;
 
     fn board() -> TaskBoard {
-        let mut b = TaskBoard::from_plan(
+        let b = TaskBoard::from_plan(
             &["src/a.rs".to_string(), "src/b.rs".to_string()],
             "coder",
             &["tests pass".to_string()],

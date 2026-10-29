@@ -322,6 +322,48 @@ pub fn apply(
             *mode,
         ));
     }
+    // Code-over-API workspace journal: every applied mutation is recorded
+    // with before/after hashes bound to its checkpoint. The journal is a
+    // ledger, not the source of truth — the checkpoint is — so a journal
+    // failure is recorded in the audit log and does not corrupt the apply.
+    match crate::workspace::MutationJournal::for_mission(&canonical_root, &patch.mission_id) {
+        Ok(mut journal) => {
+            for (path, _, _, before_hash, after_hash, _) in &changed {
+                if let Err(error) = journal.record(
+                    &patch.mission_id,
+                    "coder",
+                    "file_edit",
+                    path,
+                    before_hash,
+                    after_hash,
+                    &checkpoint_id,
+                    true,
+                ) {
+                    let _ = crate::audit::append(
+                        &canonical_root,
+                        "workspace.journal_error",
+                        "failed",
+                        std::collections::BTreeMap::from([
+                            ("missionId".into(), serde_json::json!(patch.mission_id)),
+                            ("path".into(), serde_json::json!(path)),
+                            ("error".into(), serde_json::json!(error.to_string())),
+                        ]),
+                    );
+                }
+            }
+        }
+        Err(error) => {
+            let _ = crate::audit::append(
+                &canonical_root,
+                "workspace.journal_error",
+                "failed",
+                std::collections::BTreeMap::from([
+                    ("missionId".into(), serde_json::json!(patch.mission_id)),
+                    ("error".into(), serde_json::json!(error.to_string())),
+                ]),
+            );
+        }
+    }
     Ok((
         Some(checkpoint_id),
         prepared

@@ -9,6 +9,23 @@ api_key_env = "OPENAI_API_KEY"
 max_output_tokens = 4096
 timeout_ms = 30000
 
+# Per-role model routing. Targets are "provider/model" with provider one of
+# openai-compatible | ollama | anthropic | google. The base [model] config is
+# always the last-resort route; [routing].fallback entries are tried in order
+# when a provider transport fails. Consent, privacy, and secret rules apply
+# to every route equally.
+[routing]
+# roles = { coder = "anthropic/claude-sonnet", researcher = "ollama/qwen3-coder" }
+# fallback = ["openai-compatible/gpt-4.1-mini"]
+
+# Mission loop budget. The loop pauses only at safe boundaries (never kills
+# in-flight work): max_steps bounds model/step iterations, max_wall_minutes
+# bounds wall clock, and stall_limit stops after the same failure repeats.
+[loop]
+max_steps = 40
+stall_limit = 3
+max_wall_minutes = 30
+
 [privacy]
 mode = "ask"
 telemetry = false

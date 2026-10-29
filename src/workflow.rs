@@ -98,6 +98,35 @@ pub async fn plan(root: &Path, task: &str, live: bool, approved: bool) -> Result
         }
         Err(error) => {
             fail_mission(&store, &mission.id);
+            // Record the failure against the persisted loop state so stall
+            // detection (same failure repeated) survives across attempts.
+            let fingerprint = crate::loopctl::LoopState::fingerprint(&error);
+            let mission_dir = storage::ensure_project_home(&root)?
+                .join("missions")
+                .join(&mission.id);
+            let policy = crate::loopctl::LoopPolicy::default();
+            let mut state = crate::loopctl::load_summary(&mission_dir)
+                .ok()
+                .flatten()
+                .map(|summary| crate::loopctl::LoopState::resumed(policy.clone(), &summary))
+                .unwrap_or_else(|| crate::loopctl::LoopState::new(policy.clone()));
+            state.record_failure(&fingerprint);
+            let stalled = matches!(
+                state.begin_step(),
+                Ok(crate::loopctl::LoopDecision::Pause(_))
+            );
+            let summary = state.summary(Some(fingerprint.clone()));
+            let _ = crate::loopctl::save_summary(&mission_dir, &summary);
+            let _ = audit::append(
+                &root,
+                "mission.loop_failure",
+                "failed",
+                BTreeMap::from([
+                    ("missionId".into(), json!(mission.id)),
+                    ("fingerprint".into(), json!(fingerprint)),
+                    ("stallPaused".into(), json!(stalled)),
+                ]),
+            );
             Err(error)
         }
     }
@@ -143,14 +172,40 @@ async fn run_plan_steps(
     )?;
     finish_step(store, mission_id, "research", StepStatus::Passed, None)?;
     start_step(store, mission_id, "plan")?;
-    let plan = call_role(
+    // Compounding: approved playbooks whose keywords match this task are
+    // briefed to the architect. Local files only; nothing is sent anywhere
+    // extra — the brief rides in the same role prompt.
+    let playbook_brief = {
+        let lessons =
+            crate::compounding::playbooks_for_task(root, "project", task).unwrap_or_default();
+        if lessons.is_empty() {
+            String::new()
+        } else {
+            let items: Vec<String> = lessons
+                .iter()
+                .map(|l| format!("- {}: {}", l.title, l.lesson))
+                .collect();
+            format!(
+                "
+Project playbooks approved by the user (advisory):
+{}
+",
+                items.join(
+                    "
+"
+                )
+            )
+        }
+    };
+    let architect_prior = format!("{}{}", research.text, playbook_brief);
+    let plan = call_role_routed(
         root,
         cfg,
         AgentRole::Architect,
         ARCHITECT_SYSTEM,
         task,
         &context_text,
-        Some(&research.text),
+        Some(&architect_prior),
         3500,
         live,
         approved,
@@ -171,7 +226,13 @@ async fn run_plan_steps(
     })
 }
 
-pub async fn run(root: &Path, task: &str, live: bool, approved: bool) -> Result<WorkflowOutcome> {
+pub async fn run(
+    root: &Path,
+    task: &str,
+    live: bool,
+    approved: bool,
+    best_of_n: Option<u8>,
+) -> Result<WorkflowOutcome> {
     let root = fs::canonicalize(root).map_err(|e| crate::error::io_error(root, e))?;
     if !live || !approved {
         return Err(ForgeError::Safety("coding proposals send the task and selected repository context to a model. Pass both --live and --approve-context-sharing. No request was sent.".into()));
@@ -209,6 +270,7 @@ pub async fn run(root: &Path, task: &str, live: bool, approved: bool) -> Result<
         &pack,
         live,
         approved,
+        best_of_n,
     )
     .await;
     match result {
@@ -248,11 +310,13 @@ async fn run_coding_steps(
     pack: &ContextPack,
     live: bool,
     approved: bool,
+    best_of_n: Option<u8>,
 ) -> Result<WorkflowOutcome> {
     let context_text = context::render_context(pack);
     let context_hash = sha256(context_text.as_bytes());
     save_context_evidence(root, store, mission_id, &context_text, &context_hash, pack)?;
     let mut count = 0;
+    let mut loop_state = crate::loopctl::LoopState::new(cfg.loop_policy.clone());
     let complexity = crate::dispatch::classify_task(task, pack);
     audit::append(
         root,
@@ -282,7 +346,7 @@ async fn run_coding_steps(
         "(research skipped: adaptive dispatch classified this task as simple)".to_string()
     } else {
         start_step(store, mission_id, "research")?;
-        let research = call_role(
+        let research = call_role_routed(
             root,
             cfg,
             AgentRole::Researcher,
@@ -296,6 +360,7 @@ async fn run_coding_steps(
         )
         .await?;
         count += 1;
+        loop_state.record_success();
         save_role_evidence(
             root,
             store,
@@ -322,25 +387,46 @@ async fn run_coding_steps(
     };
 
     start_step(store, mission_id, "plan")?;
-    let plan = call_role(
+    // Compounding: approved playbooks whose keywords match this task are
+    // briefed to the architect. Local files only; the brief rides in the
+    // same role prompt and sends nothing extra anywhere.
+    let playbook_brief = {
+        let lessons =
+            crate::compounding::playbooks_for_task(root, "project", task).unwrap_or_default();
+        if lessons.is_empty() {
+            String::new()
+        } else {
+            let items: Vec<String> = lessons
+                .iter()
+                .map(|l| format!("- {}: {}", l.title, l.lesson))
+                .collect();
+            format!(
+                "\nProject playbooks approved by the user (advisory):\n{}\n",
+                items.join("\n")
+            )
+        }
+    };
+    let architect_prior = format!("{}{}", research.text, playbook_brief);
+    let plan = call_role_routed(
         root,
         cfg,
         AgentRole::Architect,
         ARCHITECT_SYSTEM,
         task,
         &context_text,
-        Some(&research.text),
+        Some(&architect_prior),
         3500,
         live,
         approved,
     )
     .await?;
     count += 1;
+    loop_state.record_success();
     save_role_evidence(root, store, mission_id, "plan", &plan, &context_hash, pack)?;
     finish_step(store, mission_id, "plan", StepStatus::Passed, None)?;
 
     start_step(store, mission_id, "test")?;
-    let test_plan = call_role(
+    let test_plan = call_role_routed(
         root,
         cfg,
         AgentRole::Tester,
@@ -357,6 +443,7 @@ async fn run_coding_steps(
     )
     .await?;
     count += 1;
+    loop_state.record_success();
     save_role_evidence(
         root,
         store,
@@ -385,6 +472,79 @@ async fn run_coding_steps(
             "no complete existing files are eligible for patching.".into(),
         ));
     }
+
+    // Spec-first contract gate: the contract is derived deterministically
+    // from the mission inputs and stored as evidence before any patch is
+    // requested. The implement step below refuses to run without it.
+    let contract = crate::contract::MissionContract::derive(task, pack, &test_plan.text);
+    contract.validate()?;
+    let contract_manifest = evidence::put(
+        root,
+        mission_id,
+        "contract",
+        "forge-contract-gate",
+        serde_json::to_vec_pretty(&contract)
+            .map_err(|e| ForgeError::Message(e.to_string()))?
+            .as_slice(),
+        "application/json",
+        BTreeMap::from([
+            ("allowedPaths".into(), json!(contract.allowed_paths.len())),
+            (
+                "forbiddenPaths".into(),
+                json!(contract.forbidden_paths.len()),
+            ),
+            ("requiredTests".into(), json!(contract.required_tests.len())),
+        ]),
+    )?;
+    store.update(mission_id, |mission| {
+        mission.evidence_ids.push(contract_manifest.id.clone());
+        Ok(())
+    })?;
+
+    // Team assignment: complexity-gated staffing recorded on the ledger so
+    // `forge agents` and the mission report show who is on the job.
+    let team = match best_of_n {
+        Some(n) => crate::teams::with_best_of_n(crate::teams::assign_team(complexity), n),
+        None => crate::teams::assign_team(complexity),
+    };
+    audit::append(
+        root,
+        "mission.team_assigned",
+        "succeeded",
+        BTreeMap::from([
+            ("missionId".into(), json!(mission_id)),
+            ("lead".into(), json!("architect")),
+            (
+                "specialists".into(),
+                json!(
+                    team.specialists
+                        .iter()
+                        .map(|r| crate::router::role_key(*r))
+                        .collect::<Vec<_>>()
+                ),
+            ),
+        ]),
+    )?;
+
+    // Shared task board with file locks: decompose the plan into tasks
+    // (per-file for Complex, one task otherwise), persist, and take the
+    // first lock. A lock conflict fails closed before any model call.
+    let board_targets: Vec<String> = if complexity == crate::dispatch::TaskComplexity::Complex {
+        crate::dispatch::extract_file_targets_from_plan(&plan.text, &editable)
+    } else {
+        editable.iter().cloned().collect()
+    };
+    let mut board =
+        crate::taskboard::TaskBoard::from_plan(&board_targets, "coder", &contract.required_tests);
+    if let Some(first) = board.tasks.first().map(|t| t.id.clone()) {
+        board.start_task(&first)?;
+    }
+    let board_home = storage::ensure_project_home(root)?
+        .join("missions")
+        .join(mission_id);
+    storage::ensure_private_dir(&board_home)?;
+    storage::write_atomic(&board_home.join("tasks.json"), &board.to_json()?, true)?;
+
     start_step(store, mission_id, "implement")?;
     // Complex tasks get the plan's explicit file targets restated as priority
     // targets so the coder focuses the change set deterministically.
@@ -401,8 +561,54 @@ async fn run_coding_steps(
     } else {
         String::new()
     };
-    let coder = call_role(root, cfg, AgentRole::Coder, CODER_SYSTEM, task, &context_text, Some(&format!("Research:\n{}\nPlan:\n{}\nTest plan (not executed):\n{}\n{}Only propose complete replacements for files fully included in context.", research.text, plan.text, test_plan.text, dispatch_targets)), cfg.model.max_output_tokens.min(16_000), live, approved).await?;
-    count += 1;
+    // Workspace brief: the coder works code-over-API — real file contents
+    // for allowed paths only; every mutation is journaled by the apply flow.
+    let workspace_brief = crate::workspace::workspace_brief(&contract.allowed_paths);
+    // Best-of-N (opt-in): request N proposals and keep the first that parses
+    // as a valid patch. With the default Single strategy this is one call.
+    let coder_attempts = match team.strategy {
+        crate::teams::TeamStrategy::BestOfN { n } => n as usize,
+        crate::teams::TeamStrategy::Single => 1,
+    };
+    let coder_prompt = format!(
+        "Research:\n{}\nPlan:\n{}\nTest plan (not executed):\n{}\n{}{}\nOnly propose complete replacements for files fully included in context.",
+        research.text, plan.text, test_plan.text, dispatch_targets, workspace_brief
+    );
+    let mut coder: Option<provider::ModelResponse> = None;
+    for attempt in 0..coder_attempts {
+        let candidate = call_role_routed(
+            root,
+            cfg,
+            AgentRole::Coder,
+            CODER_SYSTEM,
+            task,
+            &context_text,
+            Some(&coder_prompt),
+            cfg.model.max_output_tokens.min(16_000),
+            live,
+            approved,
+        )
+        .await?;
+        count += 1;
+        loop_state.record_success();
+        let parses = parse_patch_json(&candidate.text).is_ok();
+        coder = Some(candidate);
+        if parses {
+            break;
+        }
+        if attempt + 1 < coder_attempts {
+            let _ = audit::append(
+                root,
+                "mission.best_of_n_retry",
+                "succeeded",
+                BTreeMap::from([
+                    ("missionId".into(), json!(mission_id)),
+                    ("attempt".into(), json!(attempt + 1)),
+                ]),
+            )?;
+        }
+    }
+    let coder = coder.expect("at least one coder proposal was requested");
     save_role_evidence(
         root,
         store,
@@ -423,6 +629,12 @@ async fn run_coding_steps(
         if !editable.contains(&item.path) {
             return Err(ForgeError::Safety(format!(
                 "model proposed path '{}' that was not fully present in the approved context; proposal rejected.",
+                item.path
+            )));
+        }
+        if !contract.allows(&item.path) {
+            return Err(ForgeError::Safety(format!(
+                "model proposed path '{}' that the mission contract forbids; proposal rejected.",
                 item.path
             )));
         }
@@ -479,7 +691,7 @@ async fn run_coding_steps(
     })?;
 
     start_step(store, mission_id, "review")?;
-    let review = call_role(
+    let review = call_role_routed(
         root,
         cfg,
         AgentRole::Reviewer,
@@ -497,6 +709,7 @@ async fn run_coding_steps(
     )
     .await?;
     count += 1;
+    loop_state.record_success();
     save_role_evidence(
         root,
         store,
@@ -508,7 +721,7 @@ async fn run_coding_steps(
     )?;
     finish_step(store, mission_id, "review", StepStatus::Passed, None)?;
     start_step(store, mission_id, "security")?;
-    let security = call_role(
+    let security = call_role_routed(
         root,
         cfg,
         AgentRole::Security,
@@ -522,6 +735,7 @@ async fn run_coding_steps(
     )
     .await?;
     count += 1;
+    loop_state.record_success();
     save_role_evidence(
         root,
         store,
@@ -539,6 +753,27 @@ async fn run_coding_steps(
         "devops",
         StepStatus::Blocked,
         Some("NO_SANDBOX_OR_BUILD_RUNNER"),
+    )?;
+    // Persist the loop summary so resume can explain any pause and stall
+    // detection survives restarts.
+    let paused_reason = match loop_state.begin_step() {
+        Ok(crate::loopctl::LoopDecision::Pause(reason)) => Some(reason),
+        _ => None,
+    };
+    let summary = loop_state.summary(paused_reason);
+    let mission_dir = storage::ensure_project_home(root)?
+        .join("missions")
+        .join(mission_id);
+    crate::loopctl::save_summary(&mission_dir, &summary)?;
+    audit::append(
+        root,
+        "mission.loop_summary",
+        "succeeded",
+        BTreeMap::from([
+            ("missionId".into(), json!(mission_id)),
+            ("stepsTaken".into(), json!(summary.steps_taken)),
+            ("pausedReason".into(), json!(summary.paused_reason)),
+        ]),
     )?;
     let mission = store.get(mission_id)?;
     Ok(WorkflowOutcome {
@@ -641,6 +876,68 @@ pub(crate) async fn call_role(
         role_name(&role)
     );
     provider::generate_text(root, cfg, system, &user, max, live, approved).await
+}
+
+/// Route a role call through the configured model routes with fallback.
+/// Only provider transport failures move to the next route; safety and
+/// consent errors are global and fail closed.
+// Each argument is a distinct required call parameter; a params struct would
+// add a layer with no safety benefit for this internal entry point.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn call_role_routed(
+    root: &Path,
+    cfg: &config::ForgeConfig,
+    role: AgentRole,
+    system: &str,
+    task: &str,
+    context: &str,
+    prior: Option<&str>,
+    wanted_tokens: usize,
+    live: bool,
+    approved: bool,
+) -> Result<ModelResponse> {
+    let routes = crate::router::routes_for(cfg, &cfg.routing, role);
+    let mut attempted = 0usize;
+    for route in &routes {
+        attempted += 1;
+        let route_cfg = crate::router::config_for_route(cfg, route);
+        match call_role(
+            root,
+            &route_cfg,
+            role,
+            system,
+            task,
+            context,
+            prior,
+            wanted_tokens,
+            live,
+            approved,
+        )
+        .await
+        {
+            Ok(response) => {
+                if attempted > 1 {
+                    let _ = audit::append(
+                        root,
+                        "mission.route_fallback",
+                        "succeeded",
+                        BTreeMap::from([
+                            ("role".into(), json!(role_name(&role))),
+                            ("provider".into(), json!(route.provider)),
+                            ("model".into(), json!(route.model)),
+                            ("attempt".into(), json!(attempted)),
+                        ]),
+                    );
+                }
+                return Ok(response);
+            }
+            Err(ForgeError::Provider(_)) if attempted < routes.len() => continue,
+            Err(error) => return Err(error),
+        }
+    }
+    Err(ForgeError::Provider(
+        "all configured model routes failed.".into(),
+    ))
 }
 fn role_name(role: &AgentRole) -> &'static str {
     match role {

@@ -25,6 +25,7 @@ mod storage;
 mod taskboard;
 mod teams;
 mod workflow;
+mod workspace;
 
 use clap::{Args, Parser, Subcommand};
 use error::{ForgeError, Result};
@@ -101,6 +102,10 @@ enum Command {
         mission_id: String,
         #[arg(long)]
         approve: bool,
+        /// With --approve: remember this approval for future applies in this
+        /// project (reversible via checkpoint undo; never covers dangerous actions).
+        #[arg(long)]
+        remember: bool,
     },
     /// Verify mission evidence. This reports missing checks and never invents test results.
     Verify { mission_id: String },
@@ -152,6 +157,25 @@ enum Command {
         #[command(subcommand)]
         command: ModelCommand,
     },
+    /// Show a mission's task board with owners, file locks, and acceptance criteria.
+    Tasks { mission_id: String },
+    /// Show a mission's spec-first contract (goal, allowed paths, required tests).
+    Contract { mission_id: String },
+    /// Manage the compounding loop: propose lessons, approve them into playbooks.
+    Lessons {
+        #[command(subcommand)]
+        command: LessonsCommand,
+    },
+    /// Show remembered approval decisions (never includes dangerous-action grants).
+    Approvals {
+        #[command(subcommand)]
+        command: Option<ApprovalsCommand>,
+    },
+    /// Show how the risk engine classifies a command (transparency; no execution).
+    Risk {
+        /// The command text to classify, e.g. "cargo test" or "git push --force".
+        command: String,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -179,6 +203,49 @@ enum FilesCommand {
 enum ModelCommand {
     Test(ModelTestArgs),
 }
+#[derive(Debug, Subcommand)]
+enum ApprovalsCommand {
+    /// Forget all remembered approvals for one action name.
+    Forget {
+        action: String,
+    },
+    Show,
+}
+#[derive(Debug, Subcommand)]
+enum LessonsCommand {
+    /// Propose a lesson for review. Nothing is saved to playbooks until approved.
+    Propose {
+        mission_id: String,
+        #[arg(long)]
+        title: String,
+        #[arg(long)]
+        lesson: String,
+        /// Comma-separated keywords used to match future tasks.
+        #[arg(long, value_delimiter = ',')]
+        keywords: Vec<String>,
+        #[arg(long, default_value = "project")]
+        scope: String,
+    },
+    List {
+        #[arg(long, default_value = "project")]
+        scope: String,
+    },
+    Approve {
+        id: String,
+        #[arg(long, default_value = "project")]
+        scope: String,
+    },
+    Reject {
+        id: String,
+        #[arg(long, default_value = "project")]
+        scope: String,
+    },
+    Archive {
+        id: String,
+        #[arg(long, default_value = "project")]
+        scope: String,
+    },
+}
 #[derive(Debug, Args)]
 struct ModelTestArgs {
     /// Actually send the fixed diagnostic prompt to the configured model endpoint.
@@ -198,6 +265,10 @@ struct WorkflowArgs {
     /// Explicitly allow the task and selected repository context to be shared with the configured provider.
     #[arg(long)]
     approve_context_sharing: bool,
+    /// Opt-in best-of-N for hard tasks: request N coder proposals and keep
+    /// the first that passes all safety guards. Multiplies model cost by N.
+    #[arg(long)]
+    best_of_n: Option<u8>,
 }
 #[derive(Debug, Subcommand)]
 enum AgentsCommand {
@@ -424,6 +495,20 @@ async fn run(cli: Cli) -> Result<()> {
         Command::Agents { command: _ } => {
             println!("Forge CLI roles (role perspectives are not independent human experts):");
             for (name, description) in workflow::list_agents() { println!("- {name}: {description}"); }
+            println!();
+            println!("Complexity-gated team staffing (assigned automatically per mission):");
+            for (label, complexity) in [
+                ("simple", dispatch::TaskComplexity::Simple),
+                ("standard", dispatch::TaskComplexity::Standard),
+                ("complex", dispatch::TaskComplexity::Complex),
+            ] {
+                let team = teams::assign_team(complexity);
+                let order: Vec<&str> = teams::execution_order(&team)
+                    .iter()
+                    .map(|r| crate::router::role_key(*r))
+                    .collect();
+                println!("- {label}: {}", order.join(" -> "));
+            }
         }
         Command::Plan(args) => {
             let outcome = workflow::plan(&root, &args.task, args.live, args.approve_context_sharing).await?;
@@ -433,7 +518,7 @@ async fn run(cli: Cli) -> Result<()> {
             println!("\nNo project files were changed. No tests were executed. Inspect with: forge mission show {}", outcome.mission.id);
         }
         Command::Run(args) => {
-            let outcome = workflow::run(&root, &args.task, args.live, args.approve_context_sharing).await?;
+            let outcome = workflow::run(&root, &args.task, args.live, args.approve_context_sharing, args.best_of_n).await?;
             println!("Mission: {}\nStatus: {:?}\nPatch: {}\nContext files: {}\nModel requests: {}", outcome.mission.id, outcome.mission.status, outcome.patch.as_ref().map(|p| p.id.as_str()).unwrap_or("none"), outcome.context_files.len(), outcome.model_requests);
             println!("\nTEST PLAN (not executed)\n{}", redaction::safe_terminal(&redaction::redact(&outcome.test_plan)));
             println!("\nADVISORY REVIEW (one-model perspective; not independent review)\n{}", redaction::safe_terminal(&redaction::redact(&outcome.review)));
@@ -445,17 +530,91 @@ async fn run(cli: Cli) -> Result<()> {
             println!("IMPORTANT: no shell, tests, build, or browser commands were executed. This mission is not complete.");
         }
         Command::Mission { command } => mission_command(&root, command)?,
-        Command::Apply { mission_id, approve } => {
-            let (checkpoint_id, paths) = patches::apply(&root, &mission_id, approve)?;
+        Command::Apply { mission_id, approve, remember } => {
+            // Approval memory: an explicit --approve may be remembered for
+            // this project (--remember), after which plain `forge apply`
+            // applies reviewable patches without asking again. The decision
+            // is scoped to this project, covers only this risk-2 action,
+            // and dangerous classes never use memory.
+            let mut applied_with_memory = false;
+            let mut should_apply = approve;
+            if !should_apply {
+                let home = storage::ensure_project_home(&root)?;
+                let path = home.join("approvals.json");
+                let memory = if path.exists() {
+                    risk::ApprovalMemory::from_json(&storage::read_bounded_regular(&path, 1024 * 1024)?)?
+                } else {
+                    risk::ApprovalMemory::default()
+                };
+                let assessment = risk::RiskAssessment {
+                    risk: risk::Risk::Reviewable,
+                    reason: "applies a reviewed patch; reversible via checkpoint undo".into(),
+                };
+                if let risk::Decision::Allow(reason) =
+                    memory.evaluate(&assessment, "patch.apply", Some(&mission_id))
+                {
+                    should_apply = true;
+                    applied_with_memory = true;
+                    println!("Applying with remembered project approval ({reason}).");
+                }
+            }
+            let (checkpoint_id, paths) = patches::apply(&root, &mission_id, should_apply)?;
             if let Some(checkpoint) = checkpoint_id {
-                audit::append(&root, "patch.applied", "succeeded", BTreeMap::from([("missionId".into(), json!(mission_id)), ("checkpointId".into(), json!(checkpoint)), ("files".into(), json!(paths.len())), ("testsExecuted".into(), json!(false))]))?;
+                if remember && approve {
+                    let home = storage::ensure_project_home(&root)?;
+                    let path = home.join("approvals.json");
+                    let mut memory = if path.exists() {
+                        risk::ApprovalMemory::from_json(&storage::read_bounded_regular(&path, 1024 * 1024)?)?
+                    } else {
+                        risk::ApprovalMemory::default()
+                    };
+                    memory.remember("patch.apply", risk::ApprovalScope::Project, None)?;
+                    storage::write_atomic(&path, &memory.to_json()?, true)?;
+                    println!("Approval remembered for this project: future 'forge apply <mission>' will not ask. Forget it by deleting .forge/approvals.json.");
+                }
+                audit::append(&root, "patch.applied", "succeeded", BTreeMap::from([("missionId".into(), json!(mission_id)), ("checkpointId".into(), json!(checkpoint)), ("files".into(), json!(paths.len())), ("testsExecuted".into(), json!(false)), ("appliedViaApprovalMemory".into(), json!(applied_with_memory))]))?;
                 println!("Patch applied to {} file(s). Checkpoint: {}", paths.len(), checkpoint);
                 println!("Changed files: {}", paths.join(", "));
                 println!("Tests/build/lint were NOT run; mission remains unverified. Undo with: forge undo {mission_id} {checkpoint} --approve");
+                // Shared task board: mark tasks whose locked files were all
+                // applied as done, so the board reflects reality.
+                let board_path = storage::ensure_project_home(&root)?
+                    .join("missions")
+                    .join(&mission_id)
+                    .join("tasks.json");
+                if board_path.exists()
+                    && let Ok(bytes) = storage::read_bounded_regular(&board_path, 1024 * 1024)
+                    && let Ok(mut board) = taskboard::TaskBoard::from_json(&bytes)
+                {
+                    let covered: Vec<String> = board
+                        .tasks
+                        .iter()
+                        .filter(|t| {
+                            !t.files_locked.is_empty()
+                                && t.files_locked.iter().all(|f| paths.contains(f))
+                        })
+                        .map(|t| t.id.clone())
+                        .collect();
+                    let mut completed = 0;
+                    for id in &covered {
+                        if board.complete_task(id).is_ok() {
+                            completed += 1;
+                        }
+                    }
+                    storage::write_atomic(&board_path, &board.to_json()?, true)?;
+                    if completed > 0 {
+                        println!("Task board: {completed} task(s) marked done.");
+                    }
+                }
             }
         }
         Command::Verify { mission_id } => println!("{}", workflow::verify(&root, &mission_id)?),
-        Command::Complete { mission_id } => println!("{}", workflow::complete(&root, &mission_id)?),
+        Command::Complete { mission_id } => {
+            println!("{}", workflow::complete(&root, &mission_id)?);
+            println!();
+            println!("Compounding: capture what this mission taught for next time.");
+            println!("  forge lessons propose {mission_id} --title \"...\" --lesson \"...\" --keywords \"topic1,topic2\"");
+        }
         Command::Resume { mission_id } => {
             let store = mission_store::MissionStore::open(&root)?;
             // Recover from any crash/interruption first.
@@ -508,6 +667,81 @@ async fn run(cli: Cli) -> Result<()> {
         Command::Model { command: ModelCommand::Test(args) } => {
             let loaded = config::load(&root)?;
             provider::test_model(&root, &loaded.config, args.live, args.approve_context_sharing).await?;
+        }
+        Command::Tasks { mission_id } => {
+            let home = storage::ensure_project_home(&root)?
+                .join("missions")
+                .join(&mission_id);
+            let bytes = storage::read_bounded_regular(&home.join("tasks.json"), 1024 * 1024)?;
+            let board = taskboard::TaskBoard::from_json(&bytes)?;
+            println!("Task board for mission {mission_id}:");
+            for task in &board.tasks {
+                println!(
+                    "- {} [{}] owner={} locks=[{}] depends_on=[{}]",
+                    task.id,
+                    format!("{:?}", task.status).to_lowercase(),
+                    task.owner,
+                    task.files_locked.join(", "),
+                    task.depends_on.join(", ")
+                );
+                for acceptance in &task.acceptance {
+                    println!("    acceptance: {acceptance}");
+                }
+            }
+            let ready: Vec<String> = board.ready_tasks().iter().map(|t| t.id.clone()).collect();
+            println!("Ready now: {}", if ready.is_empty() { "(none)".into() } else { ready.join(", ") });
+        }
+        Command::Contract { mission_id } => {
+            let manifests = evidence::list(&root, &mission_id)?;
+            let contract_manifest = manifests
+                .iter()
+                .find(|m| m.kind == "contract")
+                .ok_or_else(|| ForgeError::Message(format!(
+                    "mission {mission_id} has no stored contract; contracts are created by 'forge run'."
+                )))?;
+            let (_, bytes) = evidence::read(&root, &mission_id, &contract_manifest.id)?;
+            let contract: crate::contract::MissionContract = serde_json::from_slice(&bytes)
+                .map_err(|e| ForgeError::Message(format!("stored contract is corrupt: {e}")))?;
+            println!("Mission contract: {mission_id}");
+            println!("Goal: {}", redaction::safe_terminal(&contract.goal));
+            println!("Approved: {}", contract.approved);
+            println!("Allowed paths ({}):", contract.allowed_paths.len());
+            for p in &contract.allowed_paths { println!("  - {p}"); }
+            println!("Forbidden paths: {}", contract.forbidden_paths.join(", "));
+            println!("Required tests:");
+            if contract.required_tests.is_empty() {
+                println!("  (none identified — the tester step found no explicit test commands)");
+            }
+            for t in &contract.required_tests { println!("  - {}", redaction::safe_terminal(t)); }
+            println!("Rollback: {}", contract.rollback_plan);
+        }
+        Command::Lessons { command } => lessons_command(&root, command)?,
+        Command::Approvals { command } => approvals_command(&root, command)?,
+        Command::Risk { command } => {
+            let assessment = risk::score_command(&command);
+            let level = format!("{:?}", assessment.risk).to_lowercase();
+            println!("Command: {}", redaction::safe_terminal(&command));
+            println!("Risk: {} (level {})", level, assessment.risk as u8);
+            println!("Reason: {}", assessment.reason);
+            println!("Policy: {}.", match assessment.risk {
+                risk::Risk::Safe | risk::Risk::Normal => "runs silently; visible in the audit log",
+                risk::Risk::Reviewable => "asks once, remembers at the scope you choose",
+                risk::Risk::Risky | risk::Risk::Dangerous => {
+                    "always asks fresh; remembered approvals are ignored"
+                }
+                risk::Risk::Critical => {
+                    "never auto-approved; requires explicit user action"
+                }
+            });
+            audit::append(
+                &root,
+                "risk.check",
+                "succeeded",
+                BTreeMap::from([
+                    ("risk".into(), json!(level)),
+                    ("networkUsed".into(), json!(false)),
+                ]),
+            )?;
         }
     }
     Ok(())
@@ -692,6 +926,27 @@ fn mission_command(root: &Path, command: MissionCommand) -> Result<()> {
                 evidence.len()
             );
             println!("{}", workflow::usage_summary(root, &id)?);
+            // Workspace mutation journal (code-over-API ledger), if any.
+            if let Ok(journal) = crate::workspace::MutationJournal::for_mission(root, &id)
+                && let Ok(mutations) = journal.read_all()
+                && !mutations.is_empty()
+            {
+                println!(
+                    "Workspace mutation journal: {} recorded mutation(s), each with before/after hashes and checkpoint binding:",
+                    mutations.len()
+                );
+                for mutation in &mutations {
+                    println!(
+                        "  {} [{}] {} by {} reversible={} checkpoint={}",
+                        mutation.mutation_id,
+                        redaction::safe_terminal(&mutation.kind),
+                        redaction::safe_terminal(&mutation.path),
+                        redaction::safe_terminal(&mutation.agent),
+                        mutation.reversible,
+                        redaction::safe_terminal(&mutation.checkpoint)
+                    );
+                }
+            }
         }
         MissionCommand::Messages { id } => {
             let messages = message_store::list(root, &id)?;
@@ -939,6 +1194,123 @@ fn decisions_command(root: &Path, command: DecisionHistoryCommand) -> Result<()>
                 serde_json::to_string_pretty(&output)
                     .map_err(|e| ForgeError::Message(e.to_string()))?
             );
+        }
+    }
+    Ok(())
+}
+
+fn approvals_command(root: &Path, command: Option<ApprovalsCommand>) -> Result<()> {
+    let home = storage::ensure_project_home(root)?;
+    let path = home.join("approvals.json");
+    let load = || -> Result<risk::ApprovalMemory> {
+        if path.exists() {
+            risk::ApprovalMemory::from_json(&storage::read_bounded_regular(&path, 1024 * 1024)?)
+        } else {
+            Ok(risk::ApprovalMemory::default())
+        }
+    };
+    match command.unwrap_or(ApprovalsCommand::Show) {
+        ApprovalsCommand::Show => {
+            let memory = load()?;
+            let summary = risk::summarize(&memory.records);
+            if summary.is_empty() {
+                println!(
+                    "No remembered approvals. Risky actions always ask; reviewable actions remember at the scope you chose."
+                );
+            } else {
+                println!("Remembered approvals:");
+                for (action, count) in &summary {
+                    println!("  - {action}: {count} record(s)");
+                }
+                println!(
+                    "Dangerous and critical actions are never remembered and always ask fresh."
+                );
+            }
+        }
+        ApprovalsCommand::Forget { action } => {
+            let mut memory = load()?;
+            risk::ApprovalMemory::forget(&action, &mut memory.records);
+            storage::write_atomic(&path, &memory.to_json()?, true)?;
+            audit::append(
+                root,
+                "approval.forgotten",
+                "succeeded",
+                BTreeMap::from([("action".into(), json!(action))]),
+            )?;
+            println!("All remembered approvals for '{action}' were forgotten in this project.");
+        }
+    }
+    Ok(())
+}
+
+fn lessons_command(root: &Path, command: LessonsCommand) -> Result<()> {
+    match command {
+        LessonsCommand::Propose {
+            mission_id,
+            title,
+            lesson,
+            keywords,
+            scope,
+        } => {
+            let record =
+                compounding::propose_lesson(root, &scope, &title, &lesson, &mission_id, &keywords)?;
+            audit::append(
+                root,
+                "lesson.proposed",
+                "succeeded",
+                BTreeMap::from([
+                    ("lessonId".into(), json!(record.id)),
+                    ("scope".into(), json!(scope)),
+                    ("sourceMission".into(), json!(mission_id)),
+                ]),
+            )?;
+            println!(
+                "Lesson proposed: {}\nStatus: proposed (nothing is saved to playbooks until you approve)\nReview with: forge lessons list --scope {scope}\nApprove with: forge lessons approve {} --scope {scope}",
+                record.id, record.id
+            );
+        }
+        LessonsCommand::List { scope } => {
+            let lessons = compounding::list_lessons(root, &scope)?;
+            if lessons.is_empty() {
+                println!(
+                    "No lessons in the {scope} store yet. Propose one after completing a mission."
+                );
+            }
+            for lesson in &lessons {
+                println!(
+                    "{} [{}] {}\n    {}",
+                    lesson.id,
+                    format!("{:?}", lesson.status).to_lowercase(),
+                    redaction::safe_terminal(&lesson.title),
+                    redaction::safe_terminal(&lesson.lesson)
+                );
+            }
+        }
+        LessonsCommand::Approve { id, scope } => {
+            let lesson = compounding::approve_lesson(root, &scope, &id)?;
+            audit::append(
+                root,
+                "lesson.approved",
+                "succeeded",
+                BTreeMap::from([
+                    ("lessonId".into(), json!(id)),
+                    ("scope".into(), json!(scope)),
+                ]),
+            )?;
+            println!(
+                "Lesson approved and saved as playbook {}.md in the {scope} memory vault. Future missions matching its keywords will be briefed with it.",
+                lesson.id
+            );
+        }
+        LessonsCommand::Reject { id, scope } => {
+            compounding::reject_lesson(root, &scope, &id)?;
+            println!(
+                "Lesson {id} rejected. It stays in the store marked rejected and never becomes a playbook."
+            );
+        }
+        LessonsCommand::Archive { id, scope } => {
+            compounding::archive_lesson(root, &scope, &id)?;
+            println!("Lesson {id} archived (cold tier). The active playbook was removed.");
         }
     }
     Ok(())

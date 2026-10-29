@@ -62,10 +62,6 @@ impl LoopState {
         }
     }
 
-    pub fn steps_taken(&self) -> usize {
-        self.steps_taken
-    }
-
     /// Consult at a safe boundary before starting a new step.
     pub fn begin_step(&self) -> Result<LoopDecision> {
         if self.steps_taken >= self.policy.max_steps {
@@ -121,11 +117,56 @@ impl LoopState {
 }
 
 /// Persisted loop summary stored with the mission so resume can show why a
-/// run paused.
+/// run paused and stall detection survives process restarts.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct LoopSummary {
     pub steps_taken: usize,
     pub paused_reason: Option<String>,
+    #[serde(default)]
+    pub consecutive_failures: usize,
+    #[serde(default)]
+    pub last_failure: Option<String>,
+}
+
+/// Per-mission loop state persistence (`.forge/missions/<id>/loopstate.json`).
+pub fn load_summary(mission_dir: &std::path::Path) -> Result<Option<LoopSummary>> {
+    let path = mission_dir.join("loopstate.json");
+    if !path.exists() {
+        return Ok(None);
+    }
+    let bytes = crate::storage::read_bounded_regular(&path, 64 * 1024)?;
+    serde_json::from_slice(&bytes)
+        .map(Some)
+        .map_err(|e| ForgeError::Message(format!("corrupt loop state: {e}")))
+}
+
+pub fn save_summary(mission_dir: &std::path::Path, summary: &LoopSummary) -> Result<()> {
+    crate::storage::ensure_private_dir(mission_dir)?;
+    let bytes =
+        serde_json::to_vec_pretty(summary).map_err(|e| ForgeError::Message(e.to_string()))?;
+    crate::storage::write_atomic(&mission_dir.join("loopstate.json"), &bytes, true)
+}
+
+impl LoopState {
+    /// Seed a new run from a persisted summary (resume-aware budgets).
+    pub fn resumed(policy: LoopPolicy, summary: &LoopSummary) -> Self {
+        Self {
+            policy,
+            steps_taken: summary.steps_taken,
+            consecutive_failures: summary.consecutive_failures,
+            last_failure: summary.last_failure.clone(),
+            started_at: std::time::Instant::now(),
+        }
+    }
+
+    pub fn summary(&self, paused_reason: Option<String>) -> LoopSummary {
+        LoopSummary {
+            steps_taken: self.steps_taken,
+            paused_reason,
+            consecutive_failures: self.consecutive_failures,
+            last_failure: self.last_failure.clone(),
+        }
+    }
 }
 
 #[cfg(test)]

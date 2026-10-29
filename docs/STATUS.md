@@ -1,6 +1,33 @@
 # Forge CLI — current Rust status
 
-**As-of date:** 2026-10-26  
+**As-of date:** 2026-10-29  
+**Product:** Forge CLI (`forge`)  
+**Rust source version:** `0.7.0-rs.1`  
+**Release status:** Feature-rich Windows-verified prototype with a mission engine; **not production-ready** (sandbox adversarial proof outstanding).
+
+## 2026-10-29 update — native Windows verification + mission engine
+
+Everything below this section is the 2026-10-26 status and is retained for the audit trail. What changed since:
+
+**Build environment moved to the user's native Windows x86-64 machine.** All five gates pass on the exact current source: `cargo fmt --all -- --check` clean; `cargo check --all-targets --locked` clean; `cargo clippy --all-targets --locked -- -D warnings` clean; `cargo test --all-targets --locked` = **115 unit + 9 integration tests passed, 0 failed**; `cargo build --release --locked` produced a working `forge.exe` (about 6.4 MB). `forge --version`, `agents`, `risk`, `approvals`, `lessons`, and the full lessons lifecycle were smoke-tested against the release binary.
+
+**New mission engine (implemented + unit-tested, wired into `forge run`/`apply`):**
+
+- Loop controller: bounded mission loop (max steps, wall clock, stall detection) that pauses only at safe boundaries; per-mission loop state persists for resume.
+- Spec-first contract gate: every run stores a mission contract (goal, success criteria, allowed/forbidden paths, required tests, rollback) before the coder starts, and rejects out-of-contract paths.
+- Shared task board with per-file locks, dependency DAG, and conflict detection (`forge tasks`); applied patches mark covered tasks done.
+- Multi-model routing with per-role routes and ordered fallback (`[routing]`); transport failures route around, safety/consent errors never do.
+- Risk engine (0-5) + approval memory: silent/ask-once-remember/always-ask/never-auto policies; `forge apply --approve --remember`, `forge approvals show|forget`, `forge risk "<command>"`.
+- Complexity-gated teams with opt-in `--best-of-n` (keeps the first proposal that passes all safety guards).
+- Compounding engine + memory tiers: explicit lesson propose/approve/reject/archive to git-friendly playbooks that brief future matching missions; hot/warm/cold layout under `.forge/memory/<scope>/`.
+- Code-over-API workspace journal: append-only per-mission mutation ledger with before/after hashes and checkpoint binding, visible via `forge mission show`.
+- Windows DACL enforcement with owner-SID readback, sandbox driver primitives (AppContainer + restricted token + Job Object + suspended spawn + sanitized env), `forge complete` evidence gate, crash recovery, context engine (nested .gitignore, stale-index detection) — all from the 2026-10-27 Windows session, now gate-verified.
+
+**Still true from the blockers list below (unchanged):** command execution remains disabled — the sandbox primitives have NOT been run against the adversarial acceptance matrix (needs a disposable Windows runner); `forge complete` still refuses without sandbox-verified evidence (currently unobtainable); no macOS/Linux runtime evidence in this environment; hosted CI six-matrix, RustSec scan, license clearance, installer, and benchmarks remain outstanding. The cost policy is unchanged: no predicted USD, provider-reported only, `unknown` otherwise.
+
+---
+
+**As-of date (historical):** 2026-10-26  
 **Product:** Forge CLI (`forge`)  
 **Rust source version:** `0.7.0-rs.1`  
 **Release status:** Useful Linux prototype with independent runtime evidence; **not production-ready**.

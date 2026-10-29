@@ -75,7 +75,7 @@ impl MissionStore {
                 mission_id: id.clone(),
                 ordinal: ordinal as u32,
                 kind: (*kind).to_owned(),
-                assigned_role: role.clone(),
+                assigned_role: *role,
                 status: StepStatus::Pending,
                 depends_on: previous.iter().cloned().collect(),
                 attempt: 0,

@@ -45,6 +45,9 @@ impl MutationJournal {
 
     /// Append one mutation record. The record is integrity-bound: the
     /// caller must supply the real before/after SHA-256 of the file bytes.
+    // Each argument is a distinct ledger field; grouping them would hide
+    // which hashes are required from the caller.
+    #[allow(clippy::too_many_arguments)]
     pub fn record(
         &mut self,
         mission_id: &str,
@@ -74,7 +77,8 @@ impl MutationJournal {
             reversible,
             recorded_at: crate::storage::timestamp(),
         };
-        let mut line = serde_json::to_vec(&mutation).map_err(|e| ForgeError::Message(e.to_string()))?;
+        let mut line =
+            serde_json::to_vec(&mutation).map_err(|e| ForgeError::Message(e.to_string()))?;
         line.push(b'\n');
         self.append(line)?;
         self.count += 1;
@@ -139,7 +143,16 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let mut journal = MutationJournal::for_mission(root.path(), "msn_1").unwrap();
         let m = journal
-            .record("msn_1", "coder", "file_edit", "src/a.rs", "aaa", "bbb", "cp_1", true)
+            .record(
+                "msn_1",
+                "coder",
+                "file_edit",
+                "src/a.rs",
+                "aaa",
+                "bbb",
+                "cp_1",
+                true,
+            )
             .unwrap();
         assert_eq!(m.mutation_id, "mut_0001");
         let all = journal.read_all().unwrap();
@@ -153,7 +166,16 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let mut journal = MutationJournal::for_mission(root.path(), "msn_1").unwrap();
         let err = journal
-            .record("msn_1", "coder", "file_edit", "src/a.rs", "same", "same", "cp", true)
+            .record(
+                "msn_1",
+                "coder",
+                "file_edit",
+                "src/a.rs",
+                "same",
+                "same",
+                "cp",
+                true,
+            )
             .unwrap_err();
         assert!(err.to_string().contains("nothing changed"));
     }
@@ -162,7 +184,9 @@ mod tests {
     fn mutation_ids_increment_across_appends() {
         let root = tempfile::tempdir().unwrap();
         let mut journal = MutationJournal::for_mission(root.path(), "msn_1").unwrap();
-        journal.record("msn_1", "c", "file_edit", "p", "a", "b", "cp", true).unwrap();
+        journal
+            .record("msn_1", "c", "file_edit", "p", "a", "b", "cp", true)
+            .unwrap();
         let m2 = journal
             .record("msn_1", "c", "file_edit", "q", "c", "d", "cp", true)
             .unwrap();

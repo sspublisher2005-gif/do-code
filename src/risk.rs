@@ -147,17 +147,18 @@ impl ApprovalMemory {
             Risk::Critical => Decision::Deny(assessment.reason.clone()),
             Risk::Dangerous | Risk::Risky => Decision::Ask(assessment.reason.clone()),
             Risk::Reviewable | Risk::Normal | Risk::Safe => {
-                if let Some(record) = self.matching(action, mission_id) {
-                    if record.decision == "allow" {
-                        return Decision::Allow(format!(
-                            "remembered {} approval",
-                            match record.scope {
-                                ApprovalScope::Project => "project",
-                                ApprovalScope::Mission => "mission",
-                                ApprovalScope::Once => "single-use",
-                            }
-                        ));
-                    }
+                if let Some(record) = self
+                    .matching(action, mission_id)
+                    .filter(|r| r.decision == "allow")
+                {
+                    return Decision::Allow(format!(
+                        "remembered {} approval",
+                        match record.scope {
+                            ApprovalScope::Project => "project",
+                            ApprovalScope::Mission => "mission",
+                            ApprovalScope::Once => "single-use",
+                        }
+                    ));
                 }
                 match assessment.risk {
                     Risk::Reviewable => Decision::Ask(assessment.reason.clone()),
@@ -222,8 +223,10 @@ pub enum Decision {
     Deny(String),
 }
 
-/// Batch a group of actions into one question when they share a risk class —
-/// installing five packages is one approval, not five.
+/// KNOWN GAP: batch approval grouping is defined and tested but the
+/// interactive prompt flow that would consume it lands with the sandbox
+/// execution phase; kept as engine API for that wiring.
+#[allow(dead_code)]
 pub fn batch(actions: &[RiskAssessment]) -> Option<RiskAssessment> {
     let first = actions.first()?;
     if actions.iter().all(|a| a.risk == first.risk) {
