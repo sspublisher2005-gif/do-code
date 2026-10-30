@@ -1,9 +1,9 @@
 {
   "artifact": "Forge CLI Rust implementation source inventory",
-  "generated_at_utc": "2026-10-29T16:56:41.287520+00:00",
+  "generated_at_utc": "2026-10-30T15:50:57.638647+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
-  "inventory_count": 74,
+  "inventory_count": 75,
   "inventory": [
     {
       "path": ".github/workflows/rust-ci.yml",
@@ -237,8 +237,8 @@
     },
     {
       "path": "src/context.rs",
-      "bytes": 18593,
-      "sha256": "0351f2851bec313c998f4b589ea5601b7cb3256850ea4d7d4d884948d0704780"
+      "bytes": 19575,
+      "sha256": "845204953a96a7fff5863bd23331e178f690bca8b7072355595620878c5af730"
     },
     {
       "path": "src/contract.rs",
@@ -267,8 +267,8 @@
     },
     {
       "path": "src/files.rs",
-      "bytes": 24921,
-      "sha256": "6898edf621a2aefc060dcd9c402e9c63add6f48ae8730c161f61af6c74355f9e"
+      "bytes": 27446,
+      "sha256": "9c3f8ccdd8f9cc1c94b1e999b147ce63cee8eda8a1f7850d4d8bd90712ff4106"
     },
     {
       "path": "src/freeze.rs",
@@ -312,13 +312,13 @@
     },
     {
       "path": "src/patches.rs",
-      "bytes": 23541,
-      "sha256": "1d589dfa36443b97428ac0a950140decdbe6c8ae5544daa6bf594b95f414bfea"
+      "bytes": 54676,
+      "sha256": "7b5e8ca32dc12bc4799b7dc69f51cde05ce8220814016e4ed3743bd22c87bd2b"
     },
     {
       "path": "src/provider.rs",
-      "bytes": 36571,
-      "sha256": "3cb09c0430771e80827a5a96dbfaedceb0f6054b0cc64f36faf700f389ce31b7"
+      "bytes": 42455,
+      "sha256": "9d5673f8cfdda2c1cf4b4775c31f189f2cc8485e6df685411ba33f9b0fd2286b"
     },
     {
       "path": "src/redaction.rs",
@@ -357,8 +357,8 @@
     },
     {
       "path": "src/workflow.rs",
-      "bytes": 47695,
-      "sha256": "5b09d64bfa3cbc76ea5e27692e6702a349526ec7a39a9fa7997a886d1d999107"
+      "bytes": 52247,
+      "sha256": "6240b6b192cad0bcd8c7e0446d88b579912be91759c789b2ff02c7fb21b523a1"
     },
     {
       "path": "src/workspace.rs",
@@ -371,9 +371,14 @@
       "sha256": "b7e84fb08f4d55844363d64e0b7d87665b94819c4be8a1152f891d9826ffd45e"
     },
     {
+      "path": "test-results/sbom/report.json",
+      "bytes": 245,
+      "sha256": "9ad237238b374065c40ef0e869d6e39d29ca60a9763ba0a0f9069bd13c566eab"
+    },
+    {
       "path": "tests/cli_smoke.rs",
-      "bytes": 14614,
-      "sha256": "9c31712d7eb5b83c36926f712109ff834c3f83cfba8bb40de595484a21ea5508"
+      "bytes": 17605,
+      "sha256": "f10e9edbe6215f0f622f1e99d27d9063f4ba957cc538f640506014a2c5ca8cd3"
     }
   ]
 }

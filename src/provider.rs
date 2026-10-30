@@ -420,25 +420,44 @@ async fn generate_text_with_key(
         _ => {}
     }
     let started = Instant::now();
-    // One transport-level retry for connection failures (connection reset or
-    // closed before a response line arrived). Timeouts and HTTP error
-    // statuses are never retried. Local endpoints (loopback fixtures, local
-    // gateways, endpoint-security software on the host) can transiently drop
-    // a fresh TCP connection; a single re-send is honest transport recovery,
-    // not a fabricated result.
+    // Unified retry policy (one bound for every transient failure): a
+    // connection reset/closed-before-response, or a retryable HTTP status
+    // (429/500/502/503/504), is retried up to MAX_PROVIDER_RETRIES times
+    // with exponential backoff honoring Retry-After. Non-retryable
+    // statuses (401/403/404/400...) and timeouts never retry. A sustained
+    // 429 surfaces as RATE_LIMITED so the workflow can pause the mission
+    // with all state preserved instead of failing it (no work is lost).
+    const MAX_PROVIDER_RETRIES: u32 = 2;
     let prepared = request.json(&body);
     let mut response = None;
-    for attempt in 0..2 {
+    for attempt in 0..=MAX_PROVIDER_RETRIES {
         let attempt_request = prepared.try_clone().ok_or_else(|| {
             ForgeError::Provider("could not prepare the provider request.".into())
         })?;
         match attempt_request.send().await {
             Ok(sent) => {
+                let status = sent.status().as_u16();
+                if is_retryable_status(status) && attempt < MAX_PROVIDER_RETRIES {
+                    let retry_after_ms = sent
+                        .headers()
+                        .get("retry-after")
+                        .and_then(|v| v.to_str().ok())
+                        .and_then(|v| v.trim().parse::<u64>().ok())
+                        .map(|secs| secs.saturating_mul(1_000));
+                    tokio::time::sleep(Duration::from_millis(backoff_delay_ms(
+                        attempt,
+                        retry_after_ms,
+                    )))
+                    .await;
+                    continue;
+                }
                 response = Some(sent);
                 break;
             }
-            Err(error) if attempt == 0 && (error.is_connect() || error.is_request()) => {
-                tokio::time::sleep(Duration::from_millis(150)).await;
+            Err(error)
+                if attempt < MAX_PROVIDER_RETRIES && (error.is_connect() || error.is_request()) =>
+            {
+                tokio::time::sleep(Duration::from_millis(backoff_delay_ms(attempt, None))).await;
             }
             Err(error) => {
                 if error.is_timeout() {
@@ -455,6 +474,12 @@ async fn generate_text_with_key(
         .ok_or_else(|| ForgeError::Provider("provider request could not be completed.".into()))?;
     let status = response.status();
     if !status.is_success() {
+        if status.as_u16() == 429 {
+            return Err(ForgeError::Provider(
+                "RATE_LIMITED: provider rate limit persisted after retries; response body was not logged. Mission state is preserved."
+                    .into(),
+            ));
+        }
         return Err(ForgeError::Provider(format!(
             "provider returned HTTP {status}; response body was not logged."
         )));
@@ -595,6 +620,23 @@ async fn generate_text_with_key(
     })
 }
 
+/// Transient HTTP statuses worth one more attempt: rate limiting and
+/// classic upstream blips. Auth/config/client errors are never retried.
+fn is_retryable_status(status: u16) -> bool {
+    matches!(status, 429 | 500 | 502 | 503 | 504)
+}
+
+/// Exponential backoff with a 5 s ceiling: 250 ms -> 500 ms -> 1 s ...
+/// An explicit Retry-After (in ms here) wins but is still capped.
+fn backoff_delay_ms(attempt: u32, retry_after_ms: Option<u64>) -> u64 {
+    const CAP_MS: u64 = 5_000;
+    let backoff = 250_u64.saturating_mul(1_u64 << attempt.min(16)).min(CAP_MS);
+    match retry_after_ms {
+        Some(delay) => delay.min(CAP_MS),
+        None => backoff,
+    }
+}
+
 fn append_endpoint(base: &url::Url, suffix: &str) -> Result<url::Url> {
     let value = format!(
         "{}/{}",
@@ -655,6 +697,117 @@ mod tests {
         io::{AsyncReadExt, AsyncWriteExt},
         net::TcpListener,
     };
+
+    /// Serves one queued response per connection, in order. Used to test
+    /// retry behavior (429/5xx then success) without flaky timing.
+    async fn local_server_sequence(responses: Vec<String>) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            for response in responses {
+                let Ok((mut stream, _)) = listener.accept().await else {
+                    break;
+                };
+                let mut request = [0_u8; 4096];
+                let _ = stream.read(&mut request).await;
+                let _ = stream.write_all(response.as_bytes()).await;
+                let _ = stream.flush().await;
+            }
+        });
+        format!("http://{address}/v1")
+    }
+
+    #[test]
+    fn retryable_statuses_are_exactly_the_transient_set() {
+        assert!(is_retryable_status(429));
+        assert!(is_retryable_status(500));
+        assert!(is_retryable_status(502));
+        assert!(is_retryable_status(503));
+        assert!(is_retryable_status(504));
+        assert!(!is_retryable_status(401));
+        assert!(!is_retryable_status(403));
+        assert!(!is_retryable_status(404));
+        assert!(!is_retryable_status(400));
+        assert!(!is_retryable_status(200));
+    }
+
+    #[test]
+    fn backoff_honors_retry_after_and_caps_at_five_seconds() {
+        assert_eq!(backoff_delay_ms(0, Some(0)), 0);
+        assert_eq!(backoff_delay_ms(0, Some(2_000)), 2_000);
+        assert_eq!(backoff_delay_ms(1, None), 500);
+        assert_eq!(backoff_delay_ms(2, None), 1_000);
+        assert_eq!(backoff_delay_ms(5, None), 5_000);
+        assert_eq!(backoff_delay_ms(6, None), 5_000);
+        assert_eq!(backoff_delay_ms(9, Some(999_000)), 5_000);
+    }
+
+    #[tokio::test]
+    async fn rate_limit_is_retried_with_backoff_then_succeeds() {
+        let body = r#"{"choices":[{"message":{"content":"RETRY_OK"}}],"usage":{"prompt_tokens":1,"completion_tokens":2}}"#;
+        let base_url = local_server_sequence(vec![
+            http_response("429 Too Many Requests", "slow down", "Retry-After: 0\r\n"),
+            http_response("503 Service Unavailable", "try again", "Retry-After: 0\r\n"),
+            http_response("200 OK", body, ""),
+        ])
+        .await;
+        let mut config = local_config(base_url);
+        config.model.provider = "openai-compatible".into();
+        config.model.model = "fixture".into();
+        let result = generate_text_with_key(
+            std::path::Path::new("."),
+            &config,
+            "sys",
+            "user",
+            128,
+            true,
+            true,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(result.text, "RETRY_OK");
+    }
+
+    #[tokio::test]
+    async fn sustained_rate_limit_reports_rate_limited_without_body_leak() {
+        let base_url = local_server_sequence(vec![
+            http_response(
+                "429 Too Many Requests",
+                "secret-queue-details",
+                "Retry-After: 0\r\n",
+            ),
+            http_response(
+                "429 Too Many Requests",
+                "secret-queue-details",
+                "Retry-After: 0\r\n",
+            ),
+            http_response(
+                "429 Too Many Requests",
+                "secret-queue-details",
+                "Retry-After: 0\r\n",
+            ),
+        ])
+        .await;
+        let mut config = local_config(base_url);
+        config.model.provider = "openai-compatible".into();
+        config.model.model = "fixture".into();
+        let error = generate_text_with_key(
+            std::path::Path::new("."),
+            &config,
+            "sys",
+            "user",
+            128,
+            true,
+            true,
+            None,
+        )
+        .await
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("RATE_LIMITED"), "got: {error}");
+        assert!(!error.contains("secret-queue-details"));
+    }
 
     fn http_response(status: &str, body: &str, extra_headers: &str) -> String {
         format!(

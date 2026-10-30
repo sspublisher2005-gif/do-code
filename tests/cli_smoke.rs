@@ -213,9 +213,6 @@ fn memory_open_displays_vault_paths_without_creating_state() {
 /// Serves the same fixture OpenAI-compatible chat-completion response to every request it
 /// receives, on a background thread, until `stop` is set. Returns the local base URL.
 fn spawn_patch_fixture_server(stop: std::sync::Arc<AtomicBool>) -> String {
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let address = listener.local_addr().unwrap();
-    listener.set_nonblocking(true).unwrap();
     let patch_json = serde_json::json!({
         "summary": "Implement add(a, b) in add.py",
         "files": [{
@@ -225,13 +222,48 @@ fn spawn_patch_fixture_server(stop: std::sync::Arc<AtomicBool>) -> String {
         }]
     })
     .to_string();
+    let body = serde_json::json!({
+        "id": "fixture-req",
+        "model": "fixture-model",
+        "choices": [{"message": {"content": patch_json}}],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 20}
+    })
+    .to_string();
+    spawn_fixture_server(stop, move || {
+        format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            body.len(),
+            body
+        )
+    })
+}
+
+/// Serves a sustained rate-limit response: every request gets a 429 with
+/// Retry-After: 0 so retries exhaust quickly and the mission must pause.
+fn spawn_rate_limit_fixture_server(stop: std::sync::Arc<AtomicBool>) -> String {
+    spawn_fixture_server(stop, || {
+        "HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\nRetry-After: 0\r\nConnection: close\r\n\r\n"
+            .to_string()
+    })
+}
+
+/// Generic fixture: one thread per connection, drains the full request,
+/// then answers with `respond()`. Returns the local base URL.
+fn spawn_fixture_server(
+    stop: std::sync::Arc<AtomicBool>,
+    respond: impl Fn() -> String + Send + Sync + 'static,
+) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let respond = std::sync::Arc::new(respond);
     thread::spawn(move || {
         while !stop.load(Ordering::SeqCst) {
             let Ok((stream, _)) = listener.accept() else {
                 thread::sleep(std::time::Duration::from_millis(5));
                 continue;
             };
-            let patch_json = patch_json.clone();
+            let respond = std::sync::Arc::clone(&respond);
             // One thread per connection: a slow or partial request can never
             // delay or disturb the next response.
             thread::spawn(move || {
@@ -266,18 +298,7 @@ fn spawn_patch_fixture_server(stop: std::sync::Arc<AtomicBool>) -> String {
                         });
                     }
                 }
-                let body = serde_json::json!({
-                    "id": "fixture-req",
-                    "model": "fixture-model",
-                    "choices": [{"message": {"content": patch_json}}],
-                    "usage": {"prompt_tokens": 10, "completion_tokens": 20}
-                })
-                .to_string();
-                let response = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                    body.len(),
-                    body
-                );
+                let response = respond();
                 let _ = stream.write_all(response.as_bytes());
                 let _ = stream.flush();
                 // Half-close our side so the client sees EOF after the body
@@ -419,6 +440,78 @@ fn mission_lifecycle_run_apply_verify_undo_round_trips_file_content() {
         fs::read_to_string(root.path().join("add.py")).unwrap(),
         original,
         "undo must restore the exact original file content"
+    );
+
+    stop.store(true, Ordering::SeqCst);
+}
+
+/// A sustained provider rate limit must PAUSE the mission (status stays
+/// Interrupted with all state preserved), never fail it and never leak the
+/// provider's error body. Mirrors the OpenCode 2.1.2 lesson: no work is
+/// destroyed by a 429.
+#[test]
+fn sustained_rate_limit_pauses_mission_instead_of_failing_it() {
+    let stop = std::sync::Arc::new(AtomicBool::new(false));
+    let base_url = spawn_rate_limit_fixture_server(stop.clone());
+
+    let root = tempdir().unwrap();
+    let root_str = root.path().to_str().unwrap();
+    fs::write(
+        root.path().join("add.py"),
+        "def add(a, b):\n    pass  # TODO: implement\n",
+    )
+    .unwrap();
+
+    let init = forge().args(["--root", root_str, "init"]).output().unwrap();
+    assert!(init.status.success());
+
+    let config_path = root.path().join("forge.config.toml");
+    let config = fs::read_to_string(&config_path).unwrap();
+    let config = config.replace(
+        "base_url = \"https://api.openai.com/v1\"",
+        &format!("base_url = \"{base_url}\""),
+    );
+    fs::write(&config_path, config).unwrap();
+
+    let run = forge()
+        .env("OPENAI_API_KEY", "fixture-not-a-real-key")
+        .args([
+            "--root",
+            root_str,
+            "run",
+            "Implement the add function in add.py",
+            "--live",
+            "--approve-context-sharing",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        !run.status.success(),
+        "a sustained rate limit must surface as an error"
+    );
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&run.stdout),
+        String::from_utf8_lossy(&run.stderr)
+    );
+    assert!(
+        combined.contains("RATE_LIMITED"),
+        "error must identify the rate limit: {combined}"
+    );
+
+    // The mission is paused, not failed.
+    let list = forge()
+        .args(["--root", root_str, "mission", "list"])
+        .output()
+        .unwrap();
+    let listing = String::from_utf8_lossy(&list.stdout).to_ascii_lowercase();
+    assert!(
+        listing.contains("interrupted"),
+        "mission must be Interrupted after a rate limit: {listing}"
+    );
+    assert!(
+        !listing.contains("failed"),
+        "a rate limit must not fail the mission: {listing}"
     );
 
     stop.store(true, Ordering::SeqCst);

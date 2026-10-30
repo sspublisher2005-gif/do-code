@@ -97,7 +97,25 @@ pub async fn plan(root: &Path, task: &str, live: bool, approved: bool) -> Result
             Ok(outcome)
         }
         Err(error) => {
-            fail_mission(&store, &mission.id);
+            // Rate limits pause the mission instead of failing it: the task,
+            // context, and ledger are preserved and a later attempt can
+            // continue (OpenCode-style: no work is ever destroyed by a 429).
+            if error.to_string().contains("RATE_LIMITED:") {
+                let current = store.get(&mission.id);
+                if let Ok(current) = current
+                    && current.status == MissionStatus::Running
+                {
+                    let _ = store.transition(&mission.id, MissionStatus::Interrupted);
+                }
+                let _ = audit::append(
+                    &root,
+                    "mission.rate_limited_pause",
+                    "paused",
+                    BTreeMap::from([("missionId".into(), json!(mission.id))]),
+                );
+            } else {
+                fail_mission(&store, &mission.id);
+            }
             // Record the failure against the persisted loop state so stall
             // detection (same failure repeated) survives across attempts.
             let fingerprint = crate::loopctl::LoopState::fingerprint(&error);
@@ -293,7 +311,23 @@ pub async fn run(
             Ok(outcome)
         }
         Err(error) => {
-            fail_mission(&store, &mission.id);
+            // Rate limits pause the mission instead of failing it so the
+            // task, ledger, and any partial work survive for a later run.
+            if error.to_string().contains("RATE_LIMITED:") {
+                if let Ok(current) = store.get(&mission.id)
+                    && current.status == MissionStatus::Running
+                {
+                    let _ = store.transition(&mission.id, MissionStatus::Interrupted);
+                }
+                let _ = audit::append(
+                    &root,
+                    "mission.rate_limited_pause",
+                    "paused",
+                    BTreeMap::from([("missionId".into(), json!(mission.id))]),
+                );
+            } else {
+                fail_mission(&store, &mission.id);
+            }
             Err(error)
         }
     }
@@ -624,41 +658,99 @@ async fn run_coding_steps(
         ));
     }
     let parsed = parse_patch_json(&coder.text)?;
-    let mut changes = Vec::new();
+    let mut changes: Vec<patches::PatchOpInput> = Vec::new();
     for item in parsed.files {
-        if !editable.contains(&item.path) {
-            return Err(ForgeError::Safety(format!(
-                "model proposed path '{}' that was not fully present in the approved context; proposal rejected.",
-                item.path
-            )));
+        let op = if item.op.is_empty() {
+            "edit".to_string()
+        } else {
+            item.op.to_ascii_lowercase()
+        };
+        // Contract checks are per-operation: edits touch known context files,
+        // creates add new non-sensitive paths, deletes/renames act on known
+        // files and never cross into the sensitive-path floor.
+        match op.as_str() {
+            "edit" => {
+                if !editable.contains(&item.path) {
+                    return Err(ForgeError::Safety(format!(
+                        "model proposed path '{}' that was not fully present in the approved context; proposal rejected.",
+                        item.path
+                    )));
+                }
+                if !contract.allows(&item.path) {
+                    return Err(ForgeError::Safety(format!(
+                        "model proposed path '{}' that the mission contract forbids; proposal rejected.",
+                        item.path
+                    )));
+                }
+                let absolute = files_resolve(root, &item.path)?;
+                let current = storage::read_bounded_regular(
+                    &absolute,
+                    cfg.limits
+                        .max_read_bytes
+                        .max(MAX_PATCH_RESPONSE_BYTES as u64),
+                )?;
+                if sha256(&current)
+                    != pack
+                        .files
+                        .iter()
+                        .find(|f| f.path == item.path)
+                        .expect("checked membership")
+                        .sha256
+                {
+                    return Err(ForgeError::Safety(format!(
+                        "source file '{}' changed since context collection; no patch was saved.",
+                        item.path
+                    )));
+                }
+                changes.push(patches::PatchOpInput::edit(
+                    item.path,
+                    item.content,
+                    item.reason,
+                ));
+            }
+            "create" => {
+                if crate::files::is_sensitive_path(&item.path) {
+                    return Err(ForgeError::Safety(format!(
+                        "model proposed creating sensitive path '{}'; proposal rejected.",
+                        item.path
+                    )));
+                }
+                changes.push(patches::PatchOpInput::create(
+                    item.path,
+                    item.content,
+                    item.reason,
+                ));
+            }
+            "delete" => {
+                if !editable.contains(&item.path) || !contract.allows(&item.path) {
+                    return Err(ForgeError::Safety(format!(
+                        "model proposed deleting '{}' which the mission contract does not cover; proposal rejected.",
+                        item.path
+                    )));
+                }
+                changes.push(patches::PatchOpInput::delete(item.path, item.reason));
+            }
+            "rename" => {
+                let to = item.new_path.clone().ok_or_else(|| {
+                    ForgeError::Safety("model proposed a rename without a destination path.".into())
+                })?;
+                if !editable.contains(&item.path)
+                    || !contract.allows(&item.path)
+                    || crate::files::is_sensitive_path(&to)
+                {
+                    return Err(ForgeError::Safety(format!(
+                        "model proposed renaming '{}' to '{}' outside the mission contract; proposal rejected.",
+                        item.path, to
+                    )));
+                }
+                changes.push(patches::PatchOpInput::rename(item.path, to, item.reason));
+            }
+            other => {
+                return Err(ForgeError::Safety(format!(
+                    "model proposed unsupported operation '{other}'; proposal rejected."
+                )));
+            }
         }
-        if !contract.allows(&item.path) {
-            return Err(ForgeError::Safety(format!(
-                "model proposed path '{}' that the mission contract forbids; proposal rejected.",
-                item.path
-            )));
-        }
-        let absolute = files_resolve(root, &item.path)?;
-        let current = storage::read_bounded_regular(
-            &absolute,
-            cfg.limits
-                .max_read_bytes
-                .max(MAX_PATCH_RESPONSE_BYTES as u64),
-        )?;
-        if sha256(&current)
-            != pack
-                .files
-                .iter()
-                .find(|f| f.path == item.path)
-                .expect("checked membership")
-                .sha256
-        {
-            return Err(ForgeError::Safety(format!(
-                "source file '{}' changed since context collection; no patch was saved.",
-                item.path
-            )));
-        }
-        changes.push((item.path, item.content, item.reason));
     }
     let patch = patches::create_proposal(root, mission_id, &parsed.summary, changes)?;
     let patch_manifest = evidence::put(
@@ -800,6 +892,12 @@ struct ModelFileChange {
     content: String,
     #[serde(default)]
     reason: String,
+    /// Optional operation kind: edit (default), create, delete, rename.
+    #[serde(default)]
+    op: String,
+    /// Rename destination only.
+    #[serde(default)]
+    new_path: Option<String>,
 }
 fn parse_patch_json(text: &str) -> Result<ModelPatch> {
     let trimmed = text.trim();

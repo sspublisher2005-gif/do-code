@@ -262,7 +262,12 @@ pub fn build_context(
             }
             // Project instructions are important context but remain untrusted data. Prioritize
             // their inclusion so the orchestrator can decide whether to quote them explicitly.
-            if item.path.eq_ignore_ascii_case("FORGE.md") {
+            // AGENTS.md is the cross-tool project-instruction convention
+            // (used by Codex and others); treat it like FORGE.md — priority
+            // context that stays untrusted data.
+            if item.path.eq_ignore_ascii_case("FORGE.md")
+                || item.path.eq_ignore_ascii_case("AGENTS.md")
+            {
                 score = score.saturating_add(10_000);
             }
             (score, item)
@@ -404,6 +409,7 @@ fn is_entrypoint(path: &str) -> bool {
     let p = path.to_ascii_lowercase();
     p == "readme.md"
         || p == "forge.md"
+        || p == "agents.md"
         || p == "package.json"
         || p == "cargo.toml"
         || p.ends_with("/main.rs")
@@ -509,5 +515,26 @@ mod forge_instructions_priority_tests {
         let pack = build_context(dir.path(), "fix main Rust function", 1, 16_000, 16_000).unwrap();
         assert_eq!(pack.files.len(), 1);
         assert_eq!(pack.files[0].path, "FORGE.md");
+    }
+
+    #[test]
+    fn agents_md_is_prioritized_like_forge_md() {
+        let dir = tempdir().unwrap();
+        fs::write(
+            dir.path().join("AGENTS.md"),
+            "# Agent policy
+Never run destructive commands without approval.
+",
+        )
+        .unwrap();
+        fs::create_dir_all(dir.path().join("src")).unwrap();
+        fs::write(
+            dir.path().join("src/main.rs"),
+            "fn main() { println!(\"hello\"); }\n",
+        )
+        .unwrap();
+        let pack = build_context(dir.path(), "fix main Rust function", 1, 16_000, 16_000).unwrap();
+        assert_eq!(pack.files.len(), 1);
+        assert_eq!(pack.files[0].path, "AGENTS.md");
     }
 }

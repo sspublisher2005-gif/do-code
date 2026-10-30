@@ -189,6 +189,71 @@ pub fn resolve_workspace_file(root: &Path, requested: &str) -> Result<PathBuf> {
     resolve_existing(&canonical_root, requested, Expected::File)
 }
 
+/// Resolve a not-yet-existing file path for creation. The parent directory
+/// must exist as a real directory; the final component must be absent.
+/// The same traversal/symlink/sensitive-path rules apply to every existing
+/// component, so a create can never escape the workspace or touch private
+/// state.
+pub fn resolve_new_workspace_file(root: &Path, requested: &str) -> Result<PathBuf> {
+    if requested.contains('\0') {
+        return Err(ForgeError::Safety("path contains a NUL byte.".into()));
+    }
+    if Path::new(requested).is_absolute()
+        || requested.starts_with('\\')
+        || requested.as_bytes().get(1) == Some(&b':')
+    {
+        return Err(ForgeError::Safety(
+            "absolute paths are not allowed; use a workspace-relative path.".into(),
+        ));
+    }
+    let components = requested
+        .split(['/', '\\'])
+        .filter(|part| !part.is_empty() && *part != ".")
+        .collect::<Vec<_>>();
+    if components.contains(&"..") {
+        return Err(ForgeError::Safety(
+            "parent-directory traversal is not allowed.".into(),
+        ));
+    }
+    let (name, parents) = components
+        .split_last()
+        .ok_or_else(|| ForgeError::Safety("a file path is required.".into()))?;
+    if is_sensitive_path(requested) || is_sensitive_path(name) {
+        return Err(ForgeError::Safety(
+            "credential or private-state paths are denied.".into(),
+        ));
+    }
+    let canonical_root = fs::canonicalize(root).map_err(|e| io_error(root, e))?;
+    let mut current = canonical_root.clone();
+    for segment in parents {
+        if is_sensitive_path(segment) {
+            return Err(ForgeError::Safety(
+                "credential or private-state paths are denied.".into(),
+            ));
+        }
+        current.push(segment);
+        let meta = fs::symlink_metadata(&current).map_err(|e| io_error(&current, e))?;
+        if meta.file_type().is_symlink() {
+            return Err(ForgeError::Safety(
+                "symlink paths are not followed by Forge.".into(),
+            ));
+        }
+        if !meta.is_dir() {
+            return Err(ForgeError::Safety(
+                "a parent path component is not a directory.".into(),
+            ));
+        }
+    }
+    let target = current.join(name);
+    if fs::symlink_metadata(&target).is_ok() {
+        return Err(ForgeError::Safety(format!(
+            "create refused: '{}' already exists.",
+            requested
+        )));
+    }
+    Ok(target)
+}
+
 pub fn read(root: &Path, requested: &str, max_bytes: u64) -> Result<String> {
     let root = fs::canonicalize(root).map_err(|e| io_error(root, e))?;
     let path = resolve_existing(&root, requested, Expected::File)?;
@@ -305,6 +370,7 @@ pub fn is_sensitive_path(requested: &str) -> bool {
             let lower = segment.to_ascii_lowercase();
             lower == ".env"
                 || lower.starts_with(".env.")
+                || lower.starts_with("secrets.")
                 || matches!(
                     lower.as_str(),
                     ".envrc"

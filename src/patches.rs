@@ -22,6 +22,72 @@ pub struct ProposedFileChange {
     pub expected_sha256: String,
     pub new_content: String,
     pub reason: String,
+    /// Operation kind: "edit" (default), "create", "delete", or "rename".
+    /// Older stored patches deserialize as edit.
+    #[serde(default)]
+    pub op: String,
+    /// Rename target only.
+    #[serde(default)]
+    pub new_path: Option<String>,
+}
+/// One requested patch operation from the model or CLI.
+#[derive(Clone, Debug)]
+pub struct PatchOpInput {
+    pub op: String,
+    pub path: String,
+    pub new_path: Option<String>,
+    pub content: String,
+    pub reason: String,
+}
+impl PatchOpInput {
+    pub fn edit(
+        path: impl Into<String>,
+        content: impl Into<String>,
+        reason: impl Into<String>,
+    ) -> Self {
+        Self {
+            op: "edit".into(),
+            path: path.into(),
+            new_path: None,
+            content: content.into(),
+            reason: reason.into(),
+        }
+    }
+    pub fn create(
+        path: impl Into<String>,
+        content: impl Into<String>,
+        reason: impl Into<String>,
+    ) -> Self {
+        Self {
+            op: "create".into(),
+            path: path.into(),
+            new_path: None,
+            content: content.into(),
+            reason: reason.into(),
+        }
+    }
+    pub fn delete(path: impl Into<String>, reason: impl Into<String>) -> Self {
+        Self {
+            op: "delete".into(),
+            path: path.into(),
+            new_path: None,
+            content: String::new(),
+            reason: reason.into(),
+        }
+    }
+    pub fn rename(
+        from: impl Into<String>,
+        to: impl Into<String>,
+        reason: impl Into<String>,
+    ) -> Self {
+        Self {
+            op: "rename".into(),
+            path: from.into(),
+            new_path: Some(to.into()),
+            content: String::new(),
+            reason: reason.into(),
+        }
+    }
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ProposedPatch {
@@ -45,6 +111,12 @@ struct CheckpointFile {
     before_sha256: String,
     after_sha256: String,
     mode: u32,
+    /// Operation performed, so undo can reverse create/delete/rename.
+    #[serde(default)]
+    op: String,
+    /// Rename target only.
+    #[serde(default)]
+    new_path: Option<String>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Checkpoint {
@@ -66,61 +138,149 @@ pub fn create_proposal(
     root: &Path,
     mission_id: &str,
     summary: &str,
-    changes: Vec<(String, String, String)>,
+    changes: Vec<PatchOpInput>,
 ) -> Result<ProposedPatch> {
     validate_uuid(mission_id)?;
     if changes.is_empty() || changes.len() > MAX_PATCH_FILES {
         return Err(ForgeError::Safety(format!(
-            "patch must change 1..{MAX_PATCH_FILES} existing text files."
+            "patch must change 1..{MAX_PATCH_FILES} files."
         )));
     }
     let mut seen = std::collections::BTreeSet::new();
     let mut files_out = Vec::new();
-    for (path, new_content, reason) in changes {
-        if !seen.insert(path.clone()) {
+    for change in changes {
+        let op = change.op.to_ascii_lowercase();
+        if !matches!(op.as_str(), "edit" | "create" | "delete" | "rename") {
+            return Err(ForgeError::Safety(format!(
+                "unsupported patch operation '{}'.",
+                op
+            )));
+        }
+        if op == "rename"
+            && change
+                .new_path
+                .as_deref()
+                .map(str::trim)
+                .unwrap_or("")
+                .is_empty()
+        {
+            return Err(ForgeError::Safety(format!(
+                "rename of '{}' is missing a destination path.",
+                change.path
+            )));
+        }
+        let display_path = change
+            .new_path
+            .clone()
+            .unwrap_or_else(|| change.path.clone());
+        if !seen.insert(display_path.clone()) {
             return Err(ForgeError::Safety(format!(
                 "patch contains duplicate path '{}'.",
-                path
+                display_path
             )));
         }
-        if files::is_sensitive_path(&path) {
-            return Err(ForgeError::Safety(format!(
-                "patch cannot target sensitive path '{}'.",
-                path
-            )));
+        for p in std::iter::once(&change.path).chain(change.new_path.as_ref()) {
+            if files::is_sensitive_path(p) {
+                return Err(ForgeError::Safety(format!(
+                    "patch cannot target sensitive path '{}'.",
+                    p
+                )));
+            }
         }
-        if new_content.len() as u64 > MAX_FILE_BYTES {
-            return Err(ForgeError::Safety(format!(
-                "proposed file '{}' exceeds the 2 MiB limit.",
-                path
-            )));
-        }
-        if new_content.contains('\0') {
+        let content = if op == "edit" || op == "create" {
+            change.content.clone()
+        } else {
+            String::new()
+        };
+        if (op == "edit" || op == "create") && content.contains('\0') {
             return Err(ForgeError::Safety(format!(
                 "proposed file '{}' contains NUL bytes.",
-                path
+                change.path
             )));
         }
-        if crate::redaction::redact(&new_content) != new_content {
+        if content.len() as u64 > MAX_FILE_BYTES {
+            return Err(ForgeError::Safety(format!(
+                "proposed file '{}' exceeds the 2 MiB limit.",
+                change.path
+            )));
+        }
+        if !content.is_empty() && crate::redaction::redact(&content) != content {
             return Err(ForgeError::Safety(format!(
                 "proposed file '{}' appears to contain a credential; remove it before saving the patch.",
-                path
+                change.path
             )));
         }
-        let absolute = files::resolve_workspace_file(root, &path)?;
-        let current_bytes = storage::read_bounded_regular(&absolute, MAX_FILE_BYTES)?;
-        let current = String::from_utf8(current_bytes).map_err(|_| {
-            ForgeError::Safety(format!("patch target '{}' is not UTF-8 text.", path))
-        })?;
-        let expected_sha256 = hash(current.as_bytes());
-        if current == new_content {
-            continue;
-        }
+        // The common content rules passed; per-operation validation follows.
+        let (expected_sha256, new_content) = match op.as_str() {
+            "edit" => {
+                let absolute = files::resolve_workspace_file(root, &change.path)?;
+                let current_bytes = storage::read_bounded_regular(&absolute, MAX_FILE_BYTES)?;
+                let current = String::from_utf8(current_bytes).map_err(|_| {
+                    ForgeError::Safety(format!("patch target '{}' is not UTF-8 text.", change.path))
+                })?;
+                if current == content {
+                    continue;
+                }
+                (hash(current.as_bytes()), content)
+            }
+            "create" => {
+                let absolute = files::resolve_new_workspace_file(root, &change.path)?;
+                if fs::symlink_metadata(&absolute).is_ok() {
+                    return Err(ForgeError::Safety(format!(
+                        "create refused: '{}' already exists.",
+                        change.path
+                    )));
+                }
+                (hash(String::new().as_bytes()), content)
+            }
+            "delete" => {
+                let absolute = files::resolve_workspace_file(root, &change.path)?;
+                let current_bytes = storage::read_bounded_regular(&absolute, MAX_FILE_BYTES)?;
+                let current = String::from_utf8(current_bytes).map_err(|_| {
+                    ForgeError::Safety(format!(
+                        "delete target '{}' is not UTF-8 text.",
+                        change.path
+                    ))
+                })?;
+                // The precondition for a delete is the hash of the file that
+                // will be removed, so apply can detect races.
+                (hash(current.as_bytes()), String::new())
+            }
+            "rename" => {
+                let to = change.new_path.clone().expect("checked above");
+                if files::is_sensitive_path(&to) {
+                    return Err(ForgeError::Safety(format!(
+                        "patch cannot rename into sensitive path '{}'.",
+                        to
+                    )));
+                }
+                let from_absolute = files::resolve_workspace_file(root, &change.path)?;
+                let to_absolute = files::resolve_new_workspace_file(root, &to)?;
+                let current_bytes = storage::read_bounded_regular(&from_absolute, MAX_FILE_BYTES)?;
+                let current = String::from_utf8(current_bytes).map_err(|_| {
+                    ForgeError::Safety(format!(
+                        "rename source '{}' is not UTF-8 text.",
+                        change.path
+                    ))
+                })?;
+                if fs::symlink_metadata(&to_absolute).is_ok() {
+                    return Err(ForgeError::Safety(format!(
+                        "rename refused: destination '{}' already exists.",
+                        to
+                    )));
+                }
+                // The rename precondition is the hash of the file being moved.
+                (hash(current.as_bytes()), String::new())
+            }
+            _ => unreachable!("validated above"),
+        };
         files_out.push(ProposedFileChange {
-            path,
+            path: change.path,
             expected_sha256,
             new_content,
-            reason: bounded_text(&reason, 1_000),
+            reason: bounded_text(&change.reason, 1_000),
+            op,
+            new_path: change.new_path,
         });
     }
     if files_out.is_empty() {
@@ -235,39 +395,227 @@ pub fn apply(
         ));
     }
     // Validate every target and conflict before creating checkpoint or changing any file.
-    let mut prepared = Vec::new();
+    enum PlannedOp {
+        Edit {
+            absolute: PathBuf,
+            before_text: String,
+            before_hash: String,
+            mode: u32,
+        },
+        Create {
+            absolute: PathBuf,
+            content: String,
+        },
+        Delete {
+            absolute: PathBuf,
+            before_text: String,
+            before_hash: String,
+        },
+        Rename {
+            from: PathBuf,
+            to: PathBuf,
+            before_text: String,
+            before_hash: String,
+            mode: u32,
+        },
+    }
+    let mut prepared: Vec<(ProposedFileChange, PlannedOp)> = Vec::new();
     for change in &patch.files {
-        let absolute = files::resolve_workspace_file(&canonical_root, &change.path)?;
-        let before = storage::read_bounded_regular(&absolute, MAX_FILE_BYTES)?;
-        let before_hash = hash(&before);
-        if before_hash != change.expected_sha256 {
-            return Err(ForgeError::Safety(format!(
-                "PATCH_CONFLICT: '{}' changed after proposal creation; no files were changed.",
-                change.path
-            )));
+        match change.op.as_str() {
+            "edit" => {
+                let absolute = files::resolve_workspace_file(&canonical_root, &change.path)?;
+                let before = storage::read_bounded_regular(&absolute, MAX_FILE_BYTES)?;
+                let before_hash = hash(&before);
+                if before_hash != change.expected_sha256 {
+                    return Err(ForgeError::Safety(format!(
+                        "PATCH_CONFLICT: '{}' changed after proposal creation; no files were changed.",
+                        change.path
+                    )));
+                }
+                let text = String::from_utf8(before).map_err(|_| {
+                    ForgeError::Safety(format!("patch target '{}' is not UTF-8 text.", change.path))
+                })?;
+                #[cfg(unix)]
+                let mode = {
+                    use std::os::unix::fs::PermissionsExt;
+                    let metadata =
+                        fs::symlink_metadata(&absolute).map_err(|e| io_error(&absolute, e))?;
+                    metadata.permissions().mode() & 0o777
+                };
+                #[cfg(not(unix))]
+                let mode = 0o600_u32;
+                prepared.push((
+                    change.clone(),
+                    PlannedOp::Edit {
+                        absolute,
+                        before_text: text,
+                        before_hash,
+                        mode,
+                    },
+                ));
+            }
+            "create" => {
+                let absolute = files::resolve_new_workspace_file(&canonical_root, &change.path)?;
+                if fs::symlink_metadata(&absolute).is_ok() {
+                    return Err(ForgeError::Safety(format!(
+                        "PATCH_CONFLICT: '{}' was created after the proposal; no files were changed.",
+                        change.path
+                    )));
+                }
+                let parent = absolute.parent().ok_or_else(|| {
+                    ForgeError::Safety(format!(
+                        "create target '{}' has no parent directory.",
+                        change.path
+                    ))
+                })?;
+                if !parent.is_dir() {
+                    return Err(ForgeError::Safety(format!(
+                        "create refused: parent directory of '{}' does not exist.",
+                        change.path
+                    )));
+                }
+                prepared.push((
+                    change.clone(),
+                    PlannedOp::Create {
+                        absolute,
+                        content: change.new_content.clone(),
+                    },
+                ));
+            }
+            "delete" => {
+                let absolute = files::resolve_workspace_file(&canonical_root, &change.path)?;
+                let before = storage::read_bounded_regular(&absolute, MAX_FILE_BYTES)?;
+                let before_hash = hash(&before);
+                if before_hash != change.expected_sha256 {
+                    return Err(ForgeError::Safety(format!(
+                        "PATCH_CONFLICT: '{}' changed after proposal creation; no files were changed.",
+                        change.path
+                    )));
+                }
+                let text = String::from_utf8(before).map_err(|_| {
+                    ForgeError::Safety(format!(
+                        "delete target '{}' is not UTF-8 text.",
+                        change.path
+                    ))
+                })?;
+                prepared.push((
+                    change.clone(),
+                    PlannedOp::Delete {
+                        absolute,
+                        before_text: text,
+                        before_hash,
+                    },
+                ));
+            }
+            "rename" => {
+                let to = change.new_path.clone().ok_or_else(|| {
+                    ForgeError::Safety(format!(
+                        "rename of '{}' is missing its destination.",
+                        change.path
+                    ))
+                })?;
+                let from = files::resolve_workspace_file(&canonical_root, &change.path)?;
+                let to_absolute = files::resolve_new_workspace_file(&canonical_root, &to)?;
+                let before = storage::read_bounded_regular(&from, MAX_FILE_BYTES)?;
+                let before_hash = hash(&before);
+                if before_hash != change.expected_sha256 {
+                    return Err(ForgeError::Safety(format!(
+                        "PATCH_CONFLICT: '{}' changed after proposal creation; no files were changed.",
+                        change.path
+                    )));
+                }
+                let text = String::from_utf8(before).map_err(|_| {
+                    ForgeError::Safety(format!(
+                        "rename source '{}' is not UTF-8 text.",
+                        change.path
+                    ))
+                })?;
+                if fs::symlink_metadata(&to_absolute).is_ok() {
+                    return Err(ForgeError::Safety(format!(
+                        "PATCH_CONFLICT: rename destination '{}' appeared after the proposal; no files were changed.",
+                        to
+                    )));
+                }
+                #[cfg(unix)]
+                let mode = {
+                    use std::os::unix::fs::PermissionsExt;
+                    let metadata = fs::symlink_metadata(&from).map_err(|e| io_error(&from, e))?;
+                    metadata.permissions().mode() & 0o777
+                };
+                #[cfg(not(unix))]
+                let mode = 0o600_u32;
+                prepared.push((
+                    change.clone(),
+                    PlannedOp::Rename {
+                        from,
+                        to: to_absolute,
+                        before_text: text,
+                        before_hash,
+                        mode,
+                    },
+                ));
+            }
+            other => {
+                return Err(ForgeError::Safety(format!(
+                    "unsupported patch operation '{other}'; no files were changed."
+                )));
+            }
         }
-        let text = String::from_utf8(before).map_err(|_| {
-            ForgeError::Safety(format!("patch target '{}' is not UTF-8 text.", change.path))
-        })?;
-        #[cfg(unix)]
-        let mode = {
-            use std::os::unix::fs::PermissionsExt;
-            let metadata = fs::symlink_metadata(&absolute).map_err(|e| io_error(&absolute, e))?;
-            metadata.permissions().mode() & 0o777
-        };
-        #[cfg(not(unix))]
-        let mode = 0o600_u32;
-        prepared.push((change.clone(), absolute, text, before_hash, mode));
     }
     let checkpoint_id = Uuid::new_v4().to_string();
     let checkpoint_files = prepared
         .iter()
-        .map(|(change, _, before, before_hash, mode)| CheckpointFile {
-            path: change.path.clone(),
-            before_content: before.clone(),
-            before_sha256: before_hash.clone(),
-            after_sha256: hash(change.new_content.as_bytes()),
-            mode: *mode,
+        .map(|(change, planned)| match planned {
+            PlannedOp::Edit {
+                before_text,
+                before_hash,
+                mode,
+                ..
+            } => CheckpointFile {
+                path: change.path.clone(),
+                before_content: before_text.clone(),
+                before_sha256: before_hash.clone(),
+                after_sha256: hash(change.new_content.as_bytes()),
+                mode: *mode,
+                op: "edit".into(),
+                new_path: None,
+            },
+            PlannedOp::Create { content, .. } => CheckpointFile {
+                path: change.path.clone(),
+                before_content: String::new(),
+                before_sha256: hash(String::new().as_bytes()),
+                after_sha256: hash(content.as_bytes()),
+                mode: 0o600_u32,
+                op: "create".into(),
+                new_path: None,
+            },
+            PlannedOp::Delete {
+                before_text,
+                before_hash,
+                ..
+            } => CheckpointFile {
+                path: change.path.clone(),
+                before_content: before_text.clone(),
+                before_sha256: before_hash.clone(),
+                after_sha256: hash(String::new().as_bytes()),
+                mode: 0o600_u32,
+                op: "delete".into(),
+                new_path: None,
+            },
+            PlannedOp::Rename {
+                before_text,
+                before_hash,
+                mode,
+                ..
+            } => CheckpointFile {
+                path: change.path.clone(),
+                before_content: before_text.clone(),
+                before_sha256: before_hash.clone(),
+                after_sha256: before_hash.clone(),
+                mode: *mode,
+                op: "rename".into(),
+                new_path: change.new_path.clone(),
+            },
         })
         .collect::<Vec<_>>();
     let checkpoint = Checkpoint {
@@ -297,30 +645,132 @@ pub fn apply(
         false,
     )?;
 
-    let mut changed: Vec<(String, PathBuf, String, String, String, u32)> = Vec::new();
-    for (change, absolute, before_text, before_hash, mode) in &prepared {
-        let current = storage::read_bounded_regular(absolute, MAX_FILE_BYTES)?;
-        if hash(&current) != *before_hash {
-            rollback_applied(&changed);
-            return Err(ForgeError::Safety(format!(
-                "PATCH_RACE_DETECTED: '{}' changed while patch was being applied; rollback was attempted for prior files if they still matched Forge's output.",
-                change.path
-            )));
+    let mut changed: Vec<(String, PathBuf, String, String, String, u32, String)> = Vec::new();
+    for (change, planned) in &prepared {
+        match planned {
+            PlannedOp::Edit {
+                absolute,
+                before_text,
+                before_hash,
+                mode,
+            } => {
+                let current = storage::read_bounded_regular(absolute, MAX_FILE_BYTES)?;
+                if hash(&current) != *before_hash {
+                    rollback_applied(&changed);
+                    return Err(ForgeError::Safety(format!(
+                        "PATCH_RACE_DETECTED: '{}' changed while the patch was being applied; rollback was attempted for prior files.",
+                        change.path
+                    )));
+                }
+                if let Err(error) = storage::write_atomic_with_mode(
+                    absolute,
+                    change.new_content.as_bytes(),
+                    true,
+                    *mode,
+                ) {
+                    rollback_applied(&changed);
+                    return Err(error);
+                }
+                changed.push((
+                    change.path.clone(),
+                    absolute.clone(),
+                    before_text.clone(),
+                    before_hash.clone(),
+                    hash(change.new_content.as_bytes()),
+                    *mode,
+                    "edit".into(),
+                ));
+            }
+            PlannedOp::Create {
+                absolute, content, ..
+            } => {
+                if fs::symlink_metadata(absolute).is_ok() {
+                    rollback_applied(&changed);
+                    return Err(ForgeError::Safety(format!(
+                        "PATCH_RACE_DETECTED: '{}' appeared while the patch was being applied; rollback was attempted for prior files.",
+                        change.path
+                    )));
+                }
+                if let Err(error) =
+                    storage::write_atomic_with_mode(absolute, content.as_bytes(), false, 0o600_u32)
+                {
+                    rollback_applied(&changed);
+                    return Err(error);
+                }
+                changed.push((
+                    change.path.clone(),
+                    absolute.clone(),
+                    String::new(),
+                    hash(String::new().as_bytes()),
+                    hash(content.as_bytes()),
+                    0o600_u32,
+                    "create".into(),
+                ));
+            }
+            PlannedOp::Delete {
+                absolute,
+                before_text,
+                before_hash,
+                ..
+            } => {
+                let current = storage::read_bounded_regular(absolute, MAX_FILE_BYTES)?;
+                if hash(&current) != *before_hash {
+                    rollback_applied(&changed);
+                    return Err(ForgeError::Safety(format!(
+                        "PATCH_RACE_DETECTED: '{}' changed while the patch was being applied; rollback was attempted for prior files.",
+                        change.path
+                    )));
+                }
+                if let Err(error) = fs::remove_file(absolute).map_err(|e| io_error(absolute, e)) {
+                    rollback_applied(&changed);
+                    return Err(error);
+                }
+                changed.push((
+                    change.path.clone(),
+                    absolute.clone(),
+                    before_text.clone(),
+                    before_hash.clone(),
+                    hash(String::new().as_bytes()),
+                    0o600_u32,
+                    "delete".into(),
+                ));
+            }
+            PlannedOp::Rename {
+                from,
+                to,
+                before_text,
+                before_hash,
+                ..
+            } => {
+                let current = storage::read_bounded_regular(from, MAX_FILE_BYTES)?;
+                if hash(&current) != *before_hash {
+                    rollback_applied(&changed);
+                    return Err(ForgeError::Safety(format!(
+                        "PATCH_RACE_DETECTED: '{}' changed while the patch was being applied; rollback was attempted for prior files.",
+                        change.path
+                    )));
+                }
+                if fs::symlink_metadata(to).is_ok() {
+                    rollback_applied(&changed);
+                    return Err(ForgeError::Safety(
+                        "PATCH_RACE_DETECTED: rename destination appeared while applying; rollback was attempted for prior files.".into(),
+                    ));
+                }
+                if let Err(error) = fs::rename(from, to).map_err(|e| io_error(from, e)) {
+                    rollback_applied(&changed);
+                    return Err(error);
+                }
+                changed.push((
+                    change.path.clone(),
+                    to.clone(),
+                    before_text.clone(),
+                    before_hash.clone(),
+                    before_hash.clone(),
+                    0o600_u32,
+                    "rename".into(),
+                ));
+            }
         }
-        if let Err(error) =
-            storage::write_atomic_with_mode(absolute, change.new_content.as_bytes(), true, *mode)
-        {
-            rollback_applied(&changed);
-            return Err(error);
-        }
-        changed.push((
-            change.path.clone(),
-            absolute.clone(),
-            before_text.clone(),
-            before_hash.clone(),
-            hash(change.new_content.as_bytes()),
-            *mode,
-        ));
     }
     // Code-over-API workspace journal: every applied mutation is recorded
     // with before/after hashes bound to its checkpoint. The journal is a
@@ -328,11 +778,11 @@ pub fn apply(
     // failure is recorded in the audit log and does not corrupt the apply.
     match crate::workspace::MutationJournal::for_mission(&canonical_root, &patch.mission_id) {
         Ok(mut journal) => {
-            for (path, _, _, before_hash, after_hash, _) in &changed {
+            for (path, _, _, before_hash, after_hash, _, op) in &changed {
                 if let Err(error) = journal.record(
                     &patch.mission_id,
                     "coder",
-                    "file_edit",
+                    &format!("file_{op}"),
                     path,
                     before_hash,
                     after_hash,
@@ -368,7 +818,7 @@ pub fn apply(
         Some(checkpoint_id),
         prepared
             .iter()
-            .map(|(c, _, _, _, _)| c.path.clone())
+            .map(|(c, _)| c.new_path.clone().unwrap_or_else(|| c.path.clone()))
             .collect(),
     ))
 }
@@ -426,53 +876,183 @@ pub fn undo(
     }
     let mut ready = Vec::new();
     for item in &envelope.checkpoint.files {
-        let absolute = files::resolve_workspace_file(&canonical_root, &item.path)?;
-        let current = storage::read_bounded_regular(&absolute, MAX_FILE_BYTES)?;
-        if hash(&current) != item.after_sha256 {
-            return Err(ForgeError::Safety(format!(
-                "UNDO_CONFLICT: '{}' changed since the checkpoint; nothing was restored.",
-                item.path
-            )));
+        match item.op.as_str() {
+            // Delete undo: the file must be absent and gets its old bytes back.
+            "delete" => {
+                let absolute = files::resolve_new_workspace_file(&canonical_root, &item.path)?;
+                if fs::symlink_metadata(&absolute).is_ok() {
+                    return Err(ForgeError::Safety(format!(
+                        "UNDO_CONFLICT: '{}' exists again since the checkpoint; nothing was restored.",
+                        item.path
+                    )));
+                }
+                if hash(item.before_content.as_bytes()) != item.before_sha256 {
+                    return Err(ForgeError::Safety(format!(
+                        "checkpoint integrity failed for '{}'.",
+                        item.path
+                    )));
+                }
+                ready.push((item.clone(), absolute));
+            }
+            // Create undo: the created file must still be exactly what Forge wrote.
+            "create" => {
+                let absolute = files::resolve_workspace_file(&canonical_root, &item.path)?;
+                let current = storage::read_bounded_regular(&absolute, MAX_FILE_BYTES)?;
+                if hash(&current) != item.after_sha256 {
+                    return Err(ForgeError::Safety(format!(
+                        "UNDO_CONFLICT: '{}' changed since the checkpoint; nothing was restored.",
+                        item.path
+                    )));
+                }
+                ready.push((item.clone(), absolute));
+            }
+            // Rename undo: destination must hold the moved bytes and the source be gone.
+            "rename" => {
+                let to = item.new_path.clone().ok_or_else(|| {
+                    ForgeError::Safety("checkpoint rename is missing its destination.".into())
+                })?;
+                // Source must be gone; the destination must exist.
+                let source_gone = files::resolve_new_workspace_file(&canonical_root, &item.path)?;
+                let to_absolute = files::resolve_workspace_file(&canonical_root, &to)?;
+                let moved = storage::read_bounded_regular(&to_absolute, MAX_FILE_BYTES)?;
+                if hash(&moved) != item.after_sha256 || fs::symlink_metadata(&source_gone).is_ok() {
+                    return Err(ForgeError::Safety(format!(
+                        "UNDO_CONFLICT: rename '{}' -> '{}' changed since the checkpoint; nothing was restored.",
+                        item.path, to
+                    )));
+                }
+                if hash(item.before_content.as_bytes()) != item.before_sha256 {
+                    return Err(ForgeError::Safety(format!(
+                        "checkpoint integrity failed for '{}'.",
+                        item.path
+                    )));
+                }
+                ready.push((item.clone(), to_absolute));
+            }
+            _ => {
+                let absolute = files::resolve_workspace_file(&canonical_root, &item.path)?;
+                let current = storage::read_bounded_regular(&absolute, MAX_FILE_BYTES)?;
+                if hash(&current) != item.after_sha256 {
+                    return Err(ForgeError::Safety(format!(
+                        "UNDO_CONFLICT: '{}' changed since the checkpoint; nothing was restored.",
+                        item.path
+                    )));
+                }
+                if hash(item.before_content.as_bytes()) != item.before_sha256 {
+                    return Err(ForgeError::Safety(format!(
+                        "checkpoint integrity failed for '{}'.",
+                        item.path
+                    )));
+                }
+                ready.push((item.clone(), absolute));
+            }
         }
-        if hash(item.before_content.as_bytes()) != item.before_sha256 {
-            return Err(ForgeError::Safety(format!(
-                "checkpoint integrity failed for '{}'.",
-                item.path
-            )));
-        }
-        ready.push((item.clone(), absolute));
     }
     for (item, path) in &ready {
-        let current = storage::read_bounded_regular(path, MAX_FILE_BYTES)?;
-        if hash(&current) != item.after_sha256 {
-            return Err(ForgeError::Safety(format!(
-                "UNDO_CONFLICT: '{}' changed during restore; no further files were restored.",
-                item.path
-            )));
+        match item.op.as_str() {
+            // Create undo removes the file Forge added.
+            "create" => {
+                let current = storage::read_bounded_regular(path, MAX_FILE_BYTES)?;
+                if hash(&current) != item.after_sha256 {
+                    return Err(ForgeError::Safety(format!(
+                        "UNDO_CONFLICT: '{}' changed during restore; no further files were restored.",
+                        item.path
+                    )));
+                }
+                fs::remove_file(path).map_err(|e| io_error(path, e))?;
+            }
+            // Rename undo moves the file back to its original path.
+            "rename" => {
+                let original = files::resolve_new_workspace_file(&canonical_root, &item.path)?;
+                if fs::symlink_metadata(&original).is_ok() {
+                    return Err(ForgeError::Safety(format!(
+                        "UNDO_CONFLICT: '{}' appeared during restore; no further files were restored.",
+                        item.path
+                    )));
+                }
+                fs::rename(path, &original).map_err(|e| io_error(path, e))?;
+            }
+            // Edit undo restores the recorded bytes after a final race check.
+            "edit" => {
+                let current = storage::read_bounded_regular(path, MAX_FILE_BYTES)?;
+                if hash(&current) != item.after_sha256 {
+                    return Err(ForgeError::Safety(format!(
+                        "UNDO_CONFLICT: '{}' changed during restore; no further files were restored.",
+                        item.path
+                    )));
+                }
+                storage::write_atomic_with_mode(
+                    path,
+                    item.before_content.as_bytes(),
+                    true,
+                    item.mode,
+                )?;
+            }
+            // Delete undo: the file was validated absent; write the old bytes back.
+            "delete" => {
+                storage::write_atomic_with_mode(
+                    path,
+                    item.before_content.as_bytes(),
+                    true,
+                    item.mode,
+                )?;
+            }
+            _ => {
+                storage::write_atomic_with_mode(
+                    path,
+                    item.before_content.as_bytes(),
+                    true,
+                    item.mode,
+                )?;
+            }
         }
-        storage::write_atomic_with_mode(path, item.before_content.as_bytes(), true, item.mode)?;
     }
     Ok(ready.iter().map(|(item, _)| item.path.clone()).collect())
 }
 
-fn rollback_applied(changed: &[(String, PathBuf, String, String, String, u32)]) {
-    // Failure rollback never overwrites a target that no longer matches Forge's proposed output.
-    for (relative, absolute, before_content, _before_hash, after_hash, mode) in changed.iter().rev()
+fn rollback_applied(changed: &[(String, PathBuf, String, String, String, u32, String)]) {
+    // Failure rollback never touches a target that no longer matches Forge's output.
+    for (relative, absolute, before_content, _before_hash, after_hash, _mode, op) in
+        changed.iter().rev()
     {
-        let current = match storage::read_bounded_regular(absolute, MAX_FILE_BYTES) {
-            Ok(bytes) => bytes,
-            Err(_) => continue,
-        };
-        if hash(&current) != *after_hash {
-            continue;
-        }
-        if storage::write_atomic_with_mode(absolute, before_content.as_bytes(), true, *mode)
-            .is_err()
-        {
-            eprintln!(
-                "forge: rollback incomplete for '{}'; use the retained checkpoint for manual recovery.",
-                crate::redaction::safe_terminal(relative)
-            );
+        match op.as_str() {
+            // A created file rolls back by removal; only remove what Forge wrote.
+            "create" => {
+                let exists = fs::symlink_metadata(absolute)
+                    .map(|m| !m.is_dir())
+                    .unwrap_or(false);
+                let matches = fs::read(absolute)
+                    .map(|b| hash(&b) == *after_hash)
+                    .unwrap_or(false);
+                if exists && matches && fs::remove_file(absolute).is_err() {
+                    eprintln!(
+                        "forge: rollback incomplete for '{}'; use the retained checkpoint for manual recovery.",
+                        crate::redaction::safe_terminal(relative)
+                    );
+                }
+            }
+            _ => {
+                let current = match storage::read_bounded_regular(absolute, MAX_FILE_BYTES) {
+                    Ok(bytes) => bytes,
+                    Err(_) => continue,
+                };
+                if hash(&current) != *after_hash {
+                    continue;
+                }
+                if storage::write_atomic_with_mode(
+                    absolute,
+                    before_content.as_bytes(),
+                    true,
+                    0o600_u32,
+                )
+                .is_err()
+                {
+                    eprintln!(
+                        "forge: rollback incomplete for '{}'; use the retained checkpoint for manual recovery.",
+                        crate::redaction::safe_terminal(relative)
+                    );
+                }
+            }
         }
     }
 }
@@ -549,10 +1129,10 @@ mod tests {
             root.path(),
             &mission_id,
             "Rename function",
-            vec![(
-                "src/example.rs".into(),
-                "fn new_name() {}\n".into(),
-                "Use clearer name".into(),
+            vec![PatchOpInput::edit(
+                "src/example.rs",
+                "fn new_name() {}\n",
+                "Use clearer name",
             )],
         )
         .unwrap();
@@ -594,8 +1174,8 @@ mod tests {
             &mission_id,
             "Update both files",
             vec![
-                ("a.txt".into(), "changed a\n".into(), "first".into()),
-                ("b.txt".into(), "changed b\n".into(), "second".into()),
+                PatchOpInput::edit("a.txt", "changed a\n", "first"),
+                PatchOpInput::edit("b.txt", "changed b\n", "second"),
             ],
         )
         .unwrap();
@@ -622,7 +1202,7 @@ mod tests {
                 root.path(),
                 &mission_id,
                 "Modify env",
-                vec![(".env".into(), "API_KEY=secret".into(), "no".into())]
+                vec![PatchOpInput::edit(".env", "API_KEY=secret", "no")]
             )
             .is_err()
         );
@@ -631,13 +1211,216 @@ mod tests {
                 root.path(),
                 &mission_id,
                 "Leak a token",
-                vec![(
-                    "main.rs".into(),
-                    "const API_KEY = \"long secret value here\";\n".into(),
-                    "no".into()
-                )]
+                vec![PatchOpInput::edit(
+                    "main.rs",
+                    "const API_KEY = \"long secret value here\";\n",
+                    "no",
+                )],
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn create_operation_applies_and_undo_removes_the_created_file() {
+        let root = tempdir().unwrap();
+        storage::ensure_project_home(root.path()).unwrap();
+        fs::create_dir_all(root.path().join("src")).unwrap();
+        let mission_id = Uuid::new_v4().to_string();
+        let patch = create_proposal(
+            root.path(),
+            &mission_id,
+            "Add a new module",
+            vec![PatchOpInput::create(
+                "src/new_mod.rs",
+                "pub fn born() {}\n",
+                "new code",
+            )],
+        )
+        .unwrap();
+        assert_eq!(patch.files[0].op, "create");
+        assert!(fs::read_to_string(root.path().join("src/new_mod.rs")).is_err());
+        let (checkpoint, paths) = apply(root.path(), &mission_id, true).unwrap();
+        assert_eq!(paths, vec!["src/new_mod.rs"]);
+        assert_eq!(
+            fs::read_to_string(root.path().join("src/new_mod.rs")).unwrap(),
+            "pub fn born() {}\n"
+        );
+        let checkpoint = checkpoint.unwrap();
+        undo(root.path(), &mission_id, Some(&checkpoint), true).unwrap();
+        assert!(
+            fs::read_to_string(root.path().join("src/new_mod.rs")).is_err(),
+            "undo of a create must remove the created file"
+        );
+    }
+
+    #[test]
+    fn delete_operation_applies_and_undo_restores_exact_bytes() {
+        let root = tempdir().unwrap();
+        let original = "fn doomed() {}\n";
+        setup_file(root.path(), "legacy.rs", original);
+        storage::ensure_project_home(root.path()).unwrap();
+        let mission_id = Uuid::new_v4().to_string();
+        let patch = create_proposal(
+            root.path(),
+            &mission_id,
+            "Remove legacy module",
+            vec![PatchOpInput::delete("legacy.rs", "dead code")],
+        )
+        .unwrap();
+        assert_eq!(patch.files[0].op, "delete");
+        let (checkpoint, _) = apply(root.path(), &mission_id, true).unwrap();
+        assert!(fs::read_to_string(root.path().join("legacy.rs")).is_err());
+        let checkpoint = checkpoint.unwrap();
+        let restored = undo(root.path(), &mission_id, Some(&checkpoint), true).unwrap();
+        assert_eq!(restored, vec!["legacy.rs"]);
+        assert_eq!(
+            fs::read_to_string(root.path().join("legacy.rs")).unwrap(),
+            original,
+            "undo of a delete must restore the exact original bytes"
+        );
+    }
+
+    #[test]
+    fn rename_operation_applies_and_undo_moves_back() {
+        let root = tempdir().unwrap();
+        let content = "fn moved() {}\n";
+        setup_file(root.path(), "old_name.rs", content);
+        storage::ensure_project_home(root.path()).unwrap();
+        let mission_id = Uuid::new_v4().to_string();
+        let patch = create_proposal(
+            root.path(),
+            &mission_id,
+            "Rename module",
+            vec![PatchOpInput::rename(
+                "old_name.rs",
+                "new_name.rs",
+                "clearer name",
+            )],
+        )
+        .unwrap();
+        assert_eq!(patch.files[0].op, "rename");
+        assert_eq!(patch.files[0].new_path.as_deref(), Some("new_name.rs"));
+        let (checkpoint, paths) = apply(root.path(), &mission_id, true).unwrap();
+        assert_eq!(paths, vec!["new_name.rs"]);
+        assert!(fs::read_to_string(root.path().join("old_name.rs")).is_err());
+        assert_eq!(
+            fs::read_to_string(root.path().join("new_name.rs")).unwrap(),
+            content
+        );
+        let checkpoint = checkpoint.unwrap();
+        let restored = undo(root.path(), &mission_id, Some(&checkpoint), true).unwrap();
+        assert_eq!(restored, vec!["old_name.rs"]);
+        assert_eq!(
+            fs::read_to_string(root.path().join("old_name.rs")).unwrap(),
+            content
+        );
+        assert!(fs::read_to_string(root.path().join("new_name.rs")).is_err());
+    }
+
+    #[test]
+    fn create_refuses_existing_files_and_sensitive_paths() {
+        let root = tempdir().unwrap();
+        setup_file(root.path(), "exists.rs", "x\n");
+        storage::ensure_project_home(root.path()).unwrap();
+        let mission_id = Uuid::new_v4().to_string();
+        assert!(
+            create_proposal(
+                root.path(),
+                &mission_id,
+                "clobber",
+                vec![PatchOpInput::create("exists.rs", "y\n", "no")],
+            )
+            .is_err()
+        );
+        assert!(
+            create_proposal(
+                root.path(),
+                &mission_id,
+                "env",
+                vec![PatchOpInput::create(".env.local", "KEY=1\n", "no")],
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn rename_refuses_existing_destination_and_sensitive_targets() {
+        let root = tempdir().unwrap();
+        setup_file(root.path(), "a.rs", "a\n");
+        setup_file(root.path(), "b.rs", "b\n");
+        storage::ensure_project_home(root.path()).unwrap();
+        let mission_id = Uuid::new_v4().to_string();
+        assert!(
+            create_proposal(
+                root.path(),
+                &mission_id,
+                "clobber rename",
+                vec![PatchOpInput::rename("a.rs", "b.rs", "no")],
+            )
+            .is_err()
+        );
+        assert!(
+            create_proposal(
+                root.path(),
+                &mission_id,
+                "sensitive rename",
+                vec![PatchOpInput::rename("a.rs", "secrets.bin", "no")],
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn multi_operation_patch_applies_atomically_with_one_checkpoint() {
+        let root = tempdir().unwrap();
+        setup_file(root.path(), "keep.txt", "original\n");
+        storage::ensure_project_home(root.path()).unwrap();
+        let mission_id = Uuid::new_v4().to_string();
+        create_proposal(
+            root.path(),
+            &mission_id,
+            "Mixed changes",
+            vec![
+                PatchOpInput::edit("keep.txt", "edited\n", "update"),
+                PatchOpInput::create("fresh.txt", "created\n", "add"),
+                PatchOpInput::delete("keep.txt.bak", "cleanup"),
+            ],
+        )
+        .unwrap_err(); // delete target does not exist -> whole patch rejected
+        // Now a consistent mix.
+        setup_file(root.path(), "keep.txt.bak", "backup\n");
+        let patch = create_proposal(
+            root.path(),
+            &mission_id,
+            "Mixed changes",
+            vec![
+                PatchOpInput::edit("keep.txt", "edited\n", "update"),
+                PatchOpInput::create("fresh.txt", "created\n", "add"),
+                PatchOpInput::delete("keep.txt.bak", "cleanup"),
+            ],
+        )
+        .unwrap();
+        assert_eq!(patch.files.len(), 3);
+        let (checkpoint, _) = apply(root.path(), &mission_id, true).unwrap();
+        assert_eq!(
+            fs::read_to_string(root.path().join("keep.txt")).unwrap(),
+            "edited\n"
+        );
+        assert_eq!(
+            fs::read_to_string(root.path().join("fresh.txt")).unwrap(),
+            "created\n"
+        );
+        assert!(fs::read_to_string(root.path().join("keep.txt.bak")).is_err());
+        undo(root.path(), &mission_id, Some(&checkpoint.unwrap()), true).unwrap();
+        assert_eq!(
+            fs::read_to_string(root.path().join("keep.txt")).unwrap(),
+            "original\n"
+        );
+        assert!(fs::read_to_string(root.path().join("fresh.txt")).is_err());
+        assert_eq!(
+            fs::read_to_string(root.path().join("keep.txt.bak")).unwrap(),
+            "backup\n"
         );
     }
 }
