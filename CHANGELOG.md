@@ -1,5 +1,17 @@
 # Forge CLI — Changelog
 
+## 30 October 2026 — Competitor-driven hardening round (rate limits, patch ops, AGENTS.md, supply chain)
+
+Researched the October 2026 competitor round (Claude Code 2.1.x, Codex 0.101-0.122, OpenCode 2.0-2.2, Antigravity) and adopted the changes that matter for Forge's users:
+
+- Rate-limit resilience (OpenCode 2.1.2 lesson: rate limits must never destroy user work; Claude Code 2.1.x unified retry bound). Provider calls now retry 429/500/502/503/504 up to two extra attempts with exponential backoff honoring Retry-After (250 ms base, 5 s cap). A sustained 429 surfaces as RATE_LIMITED and the mission PAUSES (Running -> Interrupted) with task, context, and ledger fully preserved instead of failing. New tests cover the status set, backoff math, a 429->503->200 recovery sequence, no error-body leakage, and a mission-level pause E2E.
+- Patch operations parity: create, delete, and rename now work beside edit, with the same review-first approval, hash preconditions, checkpoints, and undo rigor. Create refuses existing or sensitive paths and requires an existing parent directory; delete/rename preconditions hash the current file; undo reverses every operation (created files removed, deleted bytes restored exactly, renames moved back); apply-time rollback handles mixed operations atomically. `secrets.*` segments join the sensitive-path floor.
+- AGENTS.md is now prioritized in context packs exactly like FORGE.md (the cross-tool project-instruction convention Codex and others use).
+- Supply chain on native Windows: real CycloneDX 1.5 SBOM generated with cargo-cyclonedx (200 components, 100% license-field coverage), replacing the offline estimate as the checked-in `sbom/forge-cli.cdx.json`; RustSec advisory scan via cargo-audit: exit 0 — zero vulnerabilities across 206 dependencies against 1,395 advisories (fresh database 2026-10-30).
+- Evidence: test-results/windows-gates-2026-10-30.json records every gate result on the exact source revision.
+
+Still blocked, unchanged: the sandbox adversarial acceptance matrix needs a disposable Windows runner (command execution stays disabled and `forge complete` stays fail-closed), and macOS/Linux runtime evidence, hosted CI, and installer qualification remain outstanding.
+
 ## 27-29 October 2026 — Mission engine: loop control, contracts, teams, compounding (Windows-native session)
 
 Implemented on native Windows x86-64 (Rust 1.99.1 MSVC). All gates pass locally: `cargo fmt --check`, `cargo check --all-targets --locked`, `cargo clippy --all-targets --locked -- -D warnings`, `cargo test --all-targets --locked` (115 unit + 9 integration), and a release build. The sandbox adversarial matrix remains NOT RUN (needs a disposable Windows runner); command execution stays disabled and `forge complete` stays fail-closed.

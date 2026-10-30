@@ -1,9 +1,9 @@
 {
   "artifact": "Forge CLI Rust implementation source inventory",
-  "generated_at_utc": "2026-10-30T15:50:57.638647+00:00",
+  "generated_at_utc": "2026-10-30T17:21:13.819102+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
-  "inventory_count": 75,
+  "inventory_count": 79,
   "inventory": [
     {
       "path": ".github/workflows/rust-ci.yml",
@@ -37,8 +37,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 8014,
-      "sha256": "bcd6b4911b254453d266d3ed64644d36e1767764e57273be69cd0ddcea750a33"
+      "bytes": 10253,
+      "sha256": "0df004fe5b22723f0022e05932d08d500a0411e35d5631b3df440dca0ca4cb6f"
     },
     {
       "path": "docs/ARCHITECTURE.md",
@@ -114,6 +114,11 @@
       "path": "docs/VERIFICATION_REPORT_RUST_2026-10-24.md",
       "bytes": 4550,
       "sha256": "e2cd71e7083cc6bacc984be5fdcb92404768070ca7416e9eea7a7dc963f130b1"
+    },
+    {
+      "path": "forge-cli.cdx.json",
+      "bytes": 240565,
+      "sha256": "e75caba260f4609ee20e1321bd47fc5938fc8821aff9253754932d272cfc9bef"
     },
     {
       "path": "forge.config.toml.example",
@@ -366,6 +371,16 @@
       "sha256": "809cd0bfe1e2ac521b489758a62e332c82b19cf8a932c3d3653b62145c987857"
     },
     {
+      "path": "test-results/cargo-audit-2026-10-30.log",
+      "bytes": 265,
+      "sha256": "892a0b050f5843b805b60788f8131b4de611130c10b4b18cfb9d0b7eaa0e6c70"
+    },
+    {
+      "path": "test-results/forge-cli-cargo-sbom-2026-10-30.cdx.json",
+      "bytes": 240565,
+      "sha256": "e75caba260f4609ee20e1321bd47fc5938fc8821aff9253754932d272cfc9bef"
+    },
+    {
       "path": "test-results/sandbox-adversarial.json",
       "bytes": 1408,
       "sha256": "b7e84fb08f4d55844363d64e0b7d87665b94819c4be8a1152f891d9826ffd45e"
@@ -374,6 +389,11 @@
       "path": "test-results/sbom/report.json",
       "bytes": 245,
       "sha256": "9ad237238b374065c40ef0e869d6e39d29ca60a9763ba0a0f9069bd13c566eab"
+    },
+    {
+      "path": "test-results/windows-gates-2026-10-30.json",
+      "bytes": 2925,
+      "sha256": "f703efc7bed6ac8af0605c5aaac9d7365a0a3d1f256410aae3ac932d3ec04334"
     },
     {
       "path": "tests/cli_smoke.rs",
