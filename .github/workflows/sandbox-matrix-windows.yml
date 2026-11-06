@@ -36,7 +36,7 @@ jobs:
         shell: pwsh
 
       - name: Run sandbox adversarial matrix (disposable native runner)
-        run: python scripts/sandbox_adversarial_windows.py --binary target\release\docode.exe --report sandbox-adversarial.json
+        run: python scripts/sandbox_adversarial_windows.py --binary target\release\docode.exe --report sandbox-adversarial.json --execute-matrix --case-timeout 120
         shell: pwsh
 
       - name: Upload sandbox evidence
@@ -49,6 +49,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 90
 
-      - name: Fail if matrix is still BLOCKED
-        run: python -c "import json; d=json.load(open('sandbox-adversarial.json')); print('status='+d['status']); exit(1 if d['status']=='BLOCKED' else 0)"
+      - name: Release gate on matrix status
+        run: |
+          python -c "import json; d=json.load(open('sandbox-adversarial.json')); print('status='+d['status']); [print(e['id']+'='+('PASS' if e['passed'] else 'FAIL')) for e in d.get('executed',[])]; exit(1 if d['status'] in ('BLOCKED','FAIL') else 0)"
         shell: pwsh
