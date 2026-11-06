@@ -143,7 +143,7 @@ def main() -> int:
     # but is NOT a substitute for the scheduled cargo-audit workflow or a final
     # license-complete release SBOM.
     sbom_dir = args.report_dir / "sbom"
-    sbom_path = sbom_dir / "forge-cli.cdx.json"
+    sbom_path = sbom_dir / "docode-cli.cdx.json"
     sbom_script = Path(__file__).with_name("generate_sbom.py").resolve()
     sbom_test_script = Path(__file__).with_name("test_sbom_generator.py").resolve()
     steps.append(run_step(
@@ -175,7 +175,7 @@ def main() -> int:
     cargo_aware_sbom_required = sys.platform.startswith("linux") and args.toolchain == "1.99.1"
     if cargo_aware_sbom_required:
         cargo_sbom_script = Path(__file__).with_name("cargo_aware_sbom.py").resolve()
-        cargo_sbom_output = sbom_dir / "forge-cli-cargo-aware.cdx.json"
+        cargo_sbom_output = sbom_dir / "docode-cli-cargo-aware.cdx.json"
         cargo_sbom_report = sbom_dir / "cargo-aware-sbom-report.json"
         steps.append(run_step(
             "Generate Cargo-aware CycloneDX SBOM",

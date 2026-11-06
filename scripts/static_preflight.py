@@ -42,7 +42,7 @@ def main() -> int:
     args = parser.parse_args()
     root = args.repo.resolve()
     archive = (args.archive or root.parent / f"{root.name}.zip").resolve()
-    report_path = args.report.resolve() if args.report else root.parent / "Forge_CLI_Static_Preflight_2026-10-24.json"
+    report_path = args.report.resolve() if args.report else root.parent / "docode_cli_Static_Preflight_2026-10-24.json"
     results: list[dict[str, Any]] = []
     blockers: list[dict[str, str]] = []
 
@@ -185,7 +185,7 @@ def main() -> int:
         generator = (root / "scripts/generate_sbom.py").read_text(encoding="utf-8")
         tests = (root / "scripts/test_sbom_generator.py").read_text(encoding="utf-8")
         pipeline = (root / "scripts/ci_pipeline.py").read_text(encoding="utf-8")
-        sbom = json.loads((root / "sbom/forge-cli.cdx.json").read_text(encoding="utf-8"))
+        sbom = json.loads((root / "sbom/docode-cli.cdx.json").read_text(encoding="utf-8"))
         assert sbom["bomFormat"] == "CycloneDX" and sbom["specVersion"] == "1.5"
         assert len(sbom["components"]) == 205, len(sbom["components"])
         assert "Vulnerability audit: NOT PERFORMED" in generator
@@ -231,7 +231,7 @@ def main() -> int:
         assert "max_cost_usd" not in mission and "estimated_cost_usd" not in mission
         assert "max_cost_usd" not in main and "estimated_cost_usd" not in main
         assert "provider_reported_cost_usd" in (root / "src/provider.rs").read_text(encoding="utf-8")
-        assert cargo["package"]["name"] == "forge-cli"
+        assert cargo["package"]["name"] == "docode-cli"
         return "active config/domain/CLI contain no USD estimate or cost-stop field; provider-reported actual cost field is present"
 
     check("No predicted-cost stop in active product model", cost_policy)
@@ -284,7 +284,7 @@ def main() -> int:
     check("Security regression coverage markers", security_regressions)
 
     def reference_archive() -> str:
-        path = root / "reference/Forge_CLI_TS_0.6.0-ts.2_MemoryDecision_Merge_WIP.zip"
+        path = root / "reference/docode_cli_TS_0.6.0-ts.2_MemoryDecision_Merge_WIP.zip"
         assert path.is_file(), "preserved TypeScript reference archive is missing"
         with zipfile.ZipFile(path) as zf:
             bad = zf.testzip()
@@ -302,7 +302,7 @@ def main() -> int:
             raw_names = set(zf.namelist())
             prefix = root.name + "/"
             names = {name[len(prefix):] for name in raw_names if name.startswith(prefix)}
-            required = {"Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "SOURCE_INVENTORY.json", "scripts/verify_cli.py", "scripts/ci_pipeline.py", "scripts/static_preflight.py", "scripts/generate_sbom.py", "scripts/test_sbom_generator.py", "scripts/cargo_aware_sbom.py", "scripts/test_cargo_aware_sbom.py", "scripts/test_ci_pipeline_gates.py", "scripts/update_source_inventory.py", "scripts/measure_linux_rss.py", ".github/workflows/security-audit.yml", "sbom/forge-cli.cdx.json", "reference/Forge_CLI_TS_0.6.0-ts.2_MemoryDecision_Merge_WIP.zip"}
+            required = {"Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "SOURCE_INVENTORY.json", "scripts/verify_cli.py", "scripts/ci_pipeline.py", "scripts/static_preflight.py", "scripts/generate_sbom.py", "scripts/test_sbom_generator.py", "scripts/cargo_aware_sbom.py", "scripts/test_cargo_aware_sbom.py", "scripts/test_ci_pipeline_gates.py", "scripts/update_source_inventory.py", "scripts/measure_linux_rss.py", ".github/workflows/security-audit.yml", "sbom/docode-cli.cdx.json", "reference/docode_cli_TS_0.6.0-ts.2_MemoryDecision_Merge_WIP.zip"}
             missing = required - names
             assert not missing, f"package missing required files: {sorted(missing)}"
             forbidden_fragments = ("target/", "__pycache__/", ".forge/", ".git/")

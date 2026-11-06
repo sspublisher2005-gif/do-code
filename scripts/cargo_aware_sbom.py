@@ -122,7 +122,7 @@ def main() -> int:
     # The plugin writes beside Cargo.toml. It is generated only in the trusted
     # checkout, then moved into the evidence directory so the source inventory
     # and working tree are not polluted with generated files.
-    stem = "forge-cli-cargo-aware-sbom"
+    stem = "docode-cli-cargo-aware-sbom"
     # Only touch names explicitly owned by this generator; never delete a generic
     # `bom.*` file that could belong to the project itself.
     candidates = [root / f"{stem}.json", root / f"{stem}.cdx.json", root / f"{stem}.xml",
@@ -152,7 +152,7 @@ def main() -> int:
         source_bom = max(existing, key=lambda p: p.stat().st_mtime_ns)
         payload = json.loads(source_bom.read_text(encoding="utf-8"))
         validation = validate_bom(payload)
-        if "forge-cli" not in str(validation["root_component"]["name"]).lower().replace("_", "-"):
+        if "docode-cli" not in str(validation["root_component"]["name"]).lower().replace("_", "-"):
             raise ValueError(f"SBOM root component does not appear to describe Forge CLI: {validation['root_component']}")
         output.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         report = {

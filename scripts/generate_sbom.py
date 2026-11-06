@@ -66,7 +66,7 @@ def main() -> int:
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1],
                         help="Cargo project root")
     parser.add_argument("--output", type=Path, default=None,
-                        help="Output JSON path (default: <root>/sbom/forge-cli.cdx.json)")
+                        help="Output JSON path (default: <root>/sbom/docode-cli.cdx.json)")
     args = parser.parse_args()
     root = args.root.resolve(strict=True)
     manifest_path = root / "Cargo.toml"
@@ -164,7 +164,7 @@ def main() -> int:
 
     lock_sha = hashlib.sha256(lock_bytes).hexdigest()
     # Deterministic serial number: same Cargo.lock + manifest coordinates yield same BOM ID.
-    serial = uuid.uuid5(uuid.NAMESPACE_URL, f"forge-cli:{app_version}:{lock_sha}")
+    serial = uuid.uuid5(uuid.NAMESPACE_URL, f"docode-cli:{app_version}:{lock_sha}")
     bom: dict[str, Any] = {
         "bomFormat": "CycloneDX",
         "specVersion": "1.5",
@@ -182,7 +182,7 @@ def main() -> int:
         "components": sorted(components, key=lambda item: (item["name"], item["version"])),
         "dependencies": sorted(dependencies, key=lambda item: item["ref"]),
     }
-    output = (args.output or root / "sbom" / "forge-cli.cdx.json").resolve()
+    output = (args.output or root / "sbom" / "docode-cli.cdx.json").resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(bom, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
