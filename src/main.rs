@@ -36,7 +36,7 @@ use std::{
 };
 
 #[derive(Debug, Parser)]
-#[command(name = "docode", version, about = "Docode - evidence-first, project-isolated AI coding harness", long_about = None)]
+#[command(name = "docode", version, about = "Do Code — the evidence-first AI coding agent (CLI; desktop app planned)", long_about = None)]
 struct Cli {
     /// Project root. Defaults to the current directory.
     #[arg(long, global = true, default_value = ".")]
@@ -290,7 +290,8 @@ enum SandboxCommand {
     Status,
     SelfTest,
     Exec {
-        #[arg(long, default_value_t = 30000)] timeout_ms: u32,
+        #[arg(long, default_value_t = 30000)]
+        timeout_ms: u32,
         command: Vec<String>,
     },
 }
@@ -435,16 +436,24 @@ struct DecisionArgs {
 #[allow(dead_code)]
 fn which_exe(name: &str) -> Option<String> {
     if name.contains('\\') || name.contains('/') {
-        return if std::path::Path::new(name).exists() { Some(name.to_owned()) } else { None };
+        return if std::path::Path::new(name).exists() {
+            Some(name.to_owned())
+        } else {
+            None
+        };
     }
     let path_var = std::env::var_os("PATH").unwrap_or_default();
     for dir in std::env::split_paths(&path_var) {
         let candidate = dir.join(name);
-        if candidate.exists() { return Some(candidate.to_string_lossy().into_owned()); }
+        if candidate.exists() {
+            return Some(candidate.to_string_lossy().into_owned());
+        }
         #[cfg(windows)]
         for ext in [".exe", ".bat", ".cmd"] {
-            let p2 = dir.join(std::ffi::OsString::from(format!("{}{}", name, ext)));
-            if p2.exists() { return Some(p2.to_string_lossy().into_owned()); }
+            let p2 = dir.join(std::ffi::OsString::from(format!("{name}{ext}")));
+            if p2.exists() {
+                return Some(p2.to_string_lossy().into_owned());
+            }
         }
     }
     None
@@ -647,7 +656,7 @@ async fn run(cli: Cli) -> Result<()> {
                     println!("Mission: {}\nStatus: {:?}\nCreated: {}\nUpdated: {}", mission.id, mission.status, mission.created_at, mission.updated_at);
                     for step in &mission.steps { println!("- {} [{:?}] attempts={} failure={}", step.kind, step.status, step.attempt, step.failure_code.as_deref().unwrap_or("none")); }
                     println!("Evidence IDs: {}", mission.evidence_ids.join(", "));
-                    println!("\nNext safe action: {}", action);
+                    println!("\nNext safe action: {action}");
                     println!("\nResume is inspection-only: it does not repeat model calls or re-run commands automatically. Use 'forge run' for a new proposal or 'forge verify' to check evidence.");
                 }
                 None => {
@@ -694,7 +703,7 @@ async fn run(cli: Cli) -> Result<()> {
                     } else if let Some(found) = which_exe(&exe) {
                         found
                     } else {
-                        return Err(ForgeError::Message(format!("executable not found in PATH: {}", exe)));
+                        return Err(ForgeError::Message(format!("executable not found in PATH: {exe}")));
                     };
                     let limits = sandbox::ResourceLimits {
                         max_wall_time_ms: timeout_ms,
@@ -709,12 +718,13 @@ async fn run(cli: Cli) -> Result<()> {
                 }
                 #[cfg(not(windows))]
                 {
+                    let _ = timeout_ms;
                     return Err(ForgeError::Safety(
                         "sandbox exec not implemented on this platform; no command was executed.".into(),
                     ));
                 }
             }
-            
+
         },
         Command::Memory { command } => memory_command(&root, command)?,
         Command::Pilot(args) => pilot_command(&root, args).await?,
@@ -910,7 +920,7 @@ fn files_command(root: &Path, command: FilesCommand) -> Result<()> {
         FilesCommand::Read { path } => {
             let content = files::read(root, &path, loaded.config.limits.max_read_bytes)?;
             let display = redaction::safe_terminal(&redaction::redact(&content));
-            print!("{}", display);
+            print!("{display}");
             if !display.ends_with('\n') {
                 println!();
             }

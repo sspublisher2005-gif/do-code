@@ -19,7 +19,7 @@ fn help_and_version_work() {
     assert!(String::from_utf8_lossy(&version.stdout).contains("0.7.0-rs.1"));
     let help = docode().arg("--help").output().expect("launch docode");
     assert!(help.status.success());
-    assert!(String::from_utf8_lossy(&help.stdout).contains("Docode"));
+    assert!(String::from_utf8_lossy(&help.stdout).contains("Do Code"));
 }
 
 #[test]

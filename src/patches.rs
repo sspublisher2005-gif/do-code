@@ -152,8 +152,7 @@ pub fn create_proposal(
         let op = change.op.to_ascii_lowercase();
         if !matches!(op.as_str(), "edit" | "create" | "delete" | "rename") {
             return Err(ForgeError::Safety(format!(
-                "unsupported patch operation '{}'.",
-                op
+                "unsupported patch operation '{op}'."
             )));
         }
         if op == "rename"
@@ -175,15 +174,13 @@ pub fn create_proposal(
             .unwrap_or_else(|| change.path.clone());
         if !seen.insert(display_path.clone()) {
             return Err(ForgeError::Safety(format!(
-                "patch contains duplicate path '{}'.",
-                display_path
+                "patch contains duplicate path '{display_path}'."
             )));
         }
         for p in std::iter::once(&change.path).chain(change.new_path.as_ref()) {
             if files::is_sensitive_path(p) {
                 return Err(ForgeError::Safety(format!(
-                    "patch cannot target sensitive path '{}'.",
-                    p
+                    "patch cannot target sensitive path '{p}'."
                 )));
             }
         }
@@ -250,8 +247,7 @@ pub fn create_proposal(
                 let to = change.new_path.clone().expect("checked above");
                 if files::is_sensitive_path(&to) {
                     return Err(ForgeError::Safety(format!(
-                        "patch cannot rename into sensitive path '{}'.",
-                        to
+                        "patch cannot rename into sensitive path '{to}'."
                     )));
                 }
                 let from_absolute = files::resolve_workspace_file(root, &change.path)?;
@@ -265,8 +261,7 @@ pub fn create_proposal(
                 })?;
                 if fs::symlink_metadata(&to_absolute).is_ok() {
                     return Err(ForgeError::Safety(format!(
-                        "rename refused: destination '{}' already exists.",
-                        to
+                        "rename refused: destination '{to}' already exists."
                     )));
                 }
                 // The rename precondition is the hash of the file being moved.
@@ -532,8 +527,7 @@ pub fn apply(
                 })?;
                 if fs::symlink_metadata(&to_absolute).is_ok() {
                     return Err(ForgeError::Safety(format!(
-                        "PATCH_CONFLICT: rename destination '{}' appeared after the proposal; no files were changed.",
-                        to
+                        "PATCH_CONFLICT: rename destination '{to}' appeared after the proposal; no files were changed."
                     )));
                 }
                 #[cfg(unix)]

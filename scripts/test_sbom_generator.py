@@ -35,7 +35,7 @@ class SbomGeneratorTests(unittest.TestCase):
         self.assertEqual(bom["bomFormat"], "CycloneDX")
         self.assertEqual(bom["specVersion"], "1.5")
         self.assertRegex(bom["serialNumber"], r"^urn:uuid:[0-9a-f-]{36}$")
-        self.assertEqual(bom["metadata"]["component"]["name"], "forge-cli")
+        self.assertEqual(bom["metadata"]["component"]["name"], "docode-cli")
 
     def test_locked_component_count_matches_lockfile(self) -> None:
         expected = sum(1 for package in self.lock["package"]

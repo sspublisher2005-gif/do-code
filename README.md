@@ -1,8 +1,16 @@
-# Forge CLI — Rust implementation (`0.7.0-rs.1`)
+# Do Code (`docode`)
 
-**Status: WIP, developed and verified on native Windows x86-64 (Rust 1.99.1 MSVC). All five local gates pass on the exact current source: `cargo fmt --all -- --check`, `cargo check --all-targets --locked`, `cargo clippy --all-targets --locked -- -D warnings`, `cargo test --all-targets --locked` (115 unit + 9 integration tests), and `cargo build --release --locked`. The production execution sandbox remains NOT RUN against its adversarial acceptance matrix (needs a disposable Windows runner), arbitrary command execution stays disabled, and `forge complete` stays fail-closed — do not claim production readiness from local gates.** The previous TypeScript `0.6.0-ts.2` branch is preserved at `reference/Forge_CLI_TS_0.6.0-ts.2_MemoryDecision_Merge_WIP.zip` for feature-parity work and rollback.
+**Do Code** is an evidence-first AI coding agent: it reads your repository, plans with your consent, proposes reviewable patches, and refuses to claim anything works without real evidence. The CLI (`docode`) ships today; a desktop app (like OpenCode's CLI + desktop pairing) is planned on top of the same engine.
 
-Forge CLI is an evidence-first, provider-agnostic coding harness. This branch implements Forge CLI in Rust for a single fast executable, stricter data types, bounded resource behavior, and easier distribution. The TypeScript source is a reference until every retained capability is ported and tested; this crate is not claiming feature parity yet.
+**Repo:** [github.com/sspublisher2005-gif/do-code](https://github.com/sspublisher2005-gif/do-code) (public) · **Status:** feature-rich prototype, developed and gate-verified on native Windows x64 (Rust 1.99.1 MSVC, MSRV 1.88).
+
+**Verified on the exact current source:** `cargo fmt --check` clean · `cargo check --locked` clean · `cargo clippy -D warnings` clean on **both 1.88 and 1.99 toolchains** · **126 unit + 10 integration tests pass** · release build OK · CycloneDX 1.5 SBOM (200 components, 100% license fields) · `cargo audit` exit 0 (zero vulnerabilities).
+
+**Honest limits (do not remove):** the production execution sandbox has primitives implemented (AppContainer + restricted token + Job Object) but the 26-case adversarial acceptance matrix has NOT run yet — command execution stays disabled and `docode complete` stays fail-closed until that matrix passes on a disposable runner. Do not claim production readiness from local gates.
+
+## Product name history (kept for provenance)
+
+The project began as "Forge CLI" (the name was taken elsewhere); the TypeScript 0.6.0-ts.2 reference remains at `reference/Forge_CLI_TS_0.6.0-ts.2_MemoryDecision_Merge_WIP.zip` for parity work and rollback. Every user-visible surface now says **Do Code**; the binary is `docode`; the crate id stays `docode-cli` for lockfile/SBOM stability.
 
 ## Why Rust
 

@@ -1,14 +1,19 @@
 {
   "artifact": "Forge CLI Rust implementation source inventory",
-  "generated_at_utc": "2026-10-30T17:21:13.819102+00:00",
+  "generated_at_utc": "2026-11-06T18:40:01.425543+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
-  "inventory_count": 79,
+  "inventory_count": 87,
   "inventory": [
     {
       "path": ".github/workflows/rust-ci.yml",
       "bytes": 1198,
       "sha256": "bd23a43073e131b753ca62662457f33d197cd7a556695dda0542c3baf61c11f1"
+    },
+    {
+      "path": ".github/workflows/sandbox-matrix-windows.yml",
+      "bytes": 1579,
+      "sha256": "c303054a47618198747109319c3e5a768491dc204eb27681fcf5daa166988089"
     },
     {
       "path": ".github/workflows/security-audit.yml",
@@ -21,19 +26,24 @@
       "sha256": "514cc7a5bac21aca3ec93d7473afaaa3ddb0ca6cdb93f50676cd2d0831fe3ed8"
     },
     {
+      "path": "artifacts-sandbox/sandbox-adversarial.json",
+      "bytes": 1415,
+      "sha256": "98b11fef3eaaa1bdae52457711815a359f2b192a68d2a746624805a0d64faada"
+    },
+    {
       "path": "build.rs",
       "bytes": 545,
       "sha256": "981b347134e3dbd0f5b186f4086a6236eec9d7f36d71c3a9200720516dd0517d"
     },
     {
       "path": "Cargo.lock",
-      "bytes": 49710,
-      "sha256": "69c99d30b108c0565242520b140f850b365b44cef5f835c7aa811011bff3845a"
+      "bytes": 49711,
+      "sha256": "928a84633e34100ae3e53cc588a763202ef5d19635c005bb8719947be0c78251"
     },
     {
       "path": "Cargo.toml",
-      "bytes": 1430,
-      "sha256": "e8e3cb1292ade51657749acd276a06067190a94eda9cdabe2926099c55520dfc"
+      "bytes": 1429,
+      "sha256": "3b4799d2214ecba644ac5566443672cbcc8b21aebc0ce0975f568420eef1530e"
     },
     {
       "path": "CHANGELOG.md",
@@ -137,8 +147,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 12071,
-      "sha256": "d9e3af90e656852e3e9f112d1d40630b51583f4b55ce671e7800c89cb5c6175c"
+      "bytes": 12552,
+      "sha256": "7924ba72786d1459a84e23e0f2fed181e44c091dfb1b73e281609def0aa87033"
     },
     {
       "path": "reference/Forge_CLI_TS_0.6.0-ts.2_MemoryDecision_Merge_WIP.zip",
@@ -151,7 +161,7 @@
       "sha256": "d13306be0ecda81ce779baa290ffb417380d525928477f16200884b5169cca33"
     },
     {
-      "path": "sbom/forge-cli.cdx.json",
+      "path": "sbom/docode-cli.cdx.json",
       "bytes": 167836,
       "sha256": "0277e28846a5cf0cc7347bb078226a414a5f1e182fcf8f06268532c4ef1e0915"
     },
@@ -162,13 +172,13 @@
     },
     {
       "path": "scripts/cargo_aware_sbom.py",
-      "bytes": 9694,
-      "sha256": "e9513a40d51c3a74b6b3200e042642b0661078804c3adb0e503fed1f8785edba"
+      "bytes": 9696,
+      "sha256": "9f9315fb922c0e3964159c025d531e469bc6c7f8ddb4a1268921721555f35592"
     },
     {
       "path": "scripts/ci_pipeline.py",
-      "bytes": 16526,
-      "sha256": "a04d0e19c7903e7be7a12821882fc9d6012081184c45699573a9cb6e57f4b25b"
+      "bytes": 16528,
+      "sha256": "3fc48b6a6fde2da7f87bfde105bcbfbb1bdbb81aec0950e1a97d89a35fedafac"
     },
     {
       "path": "scripts/extended_offline_acceptance.py",
@@ -182,8 +192,8 @@
     },
     {
       "path": "scripts/generate_sbom.py",
-      "bytes": 9789,
-      "sha256": "bd5f3b377f16d04b9afbf864c229933784e07daf39e9565db20e74cc2b9dfc36"
+      "bytes": 9792,
+      "sha256": "f3bac8f0213be7b563c15ed4011d6b2c15e9862037c97c6d1776bca36185156d"
     },
     {
       "path": "scripts/measure_linux_rss.py",
@@ -197,13 +207,13 @@
     },
     {
       "path": "scripts/static_preflight.py",
-      "bytes": 22258,
-      "sha256": "69f78a693aebb3ea8489734fe4ce350d93824a5f053bc5032104875c5b8e93ae"
+      "bytes": 22264,
+      "sha256": "a05311b682dc26966ef5ca94b58e80e3316821286b459051c091930804d537c0"
     },
     {
       "path": "scripts/test_cargo_aware_sbom.py",
-      "bytes": 4895,
-      "sha256": "a7a38f7f679dc32c969da6d5f90f372f294f2a99c948d9be1ed93caa9b24f7e6"
+      "bytes": 4901,
+      "sha256": "95adf485e1062ed0184c62cfa3a06c83f651ea4c8f707735fd5ce1a9ccae2132"
     },
     {
       "path": "scripts/test_ci_pipeline_gates.py",
@@ -212,8 +222,8 @@
     },
     {
       "path": "scripts/test_sbom_generator.py",
-      "bytes": 3821,
-      "sha256": "ce7426fc2ed3bccd02980f079de0064ad461df9cde214aa66fa6f876f362a356"
+      "bytes": 3822,
+      "sha256": "cb79a50fb3a126b72c74efd941778174ddfbdde91b5bc7a4af0c786a9f85dfac"
     },
     {
       "path": "scripts/update_source_inventory.py",
@@ -272,8 +282,8 @@
     },
     {
       "path": "src/files.rs",
-      "bytes": 27446,
-      "sha256": "9c3f8ccdd8f9cc1c94b1e999b147ce63cee8eda8a1f7850d4d8bd90712ff4106"
+      "bytes": 27418,
+      "sha256": "78318b19b34d041770c4fde86a103f1ec4f6332945bf5d7439505fdaf2e78ab1"
     },
     {
       "path": "src/freeze.rs",
@@ -292,8 +302,8 @@
     },
     {
       "path": "src/main.rs",
-      "bytes": 58279,
-      "sha256": "6ec40f768f5cf01b0b4ff9a90a4b31c41d192c6ac15f19d289897ceafc57ad45"
+      "bytes": 60969,
+      "sha256": "7602a4e4abd8d7c80b56729dcada5f8732da10dfcd80427b3d669798394b2980"
     },
     {
       "path": "src/memory.rs",
@@ -317,8 +327,8 @@
     },
     {
       "path": "src/patches.rs",
-      "bytes": 54676,
-      "sha256": "7b5e8ca32dc12bc4799b7dc69f51cde05ce8220814016e4ed3743bd22c87bd2b"
+      "bytes": 54540,
+      "sha256": "7a1e223f2d64b6bb5c6d85a34d20b91613f000e4895681817aa8ae1c5269f809"
     },
     {
       "path": "src/provider.rs",
@@ -342,8 +352,8 @@
     },
     {
       "path": "src/sandbox.rs",
-      "bytes": 17490,
-      "sha256": "de03c54ad078cb11331d8ae0b7c3a0c479927338e6638919496bea1bad00b24e"
+      "bytes": 17271,
+      "sha256": "70454be25338de5fd72dbc642128e129e1b73490e8914fade4675702d5ca0714"
     },
     {
       "path": "src/storage.rs",
@@ -376,14 +386,44 @@
       "sha256": "892a0b050f5843b805b60788f8131b4de611130c10b4b18cfb9d0b7eaa0e6c70"
     },
     {
+      "path": "test-results/Cargo.lock.artifact",
+      "bytes": 49711,
+      "sha256": "928a84633e34100ae3e53cc588a763202ef5d19635c005bb8719947be0c78251"
+    },
+    {
+      "path": "test-results/ci-pipeline.json",
+      "bytes": 51999,
+      "sha256": "fd7fbd784db9030f59af7a4519b4456768db18504c70f6bb373f47e47a7b819f"
+    },
+    {
+      "path": "test-results/ci-summary.md",
+      "bytes": 1579,
+      "sha256": "27a64579f28be043e797ec8b4ef2f96b0cfc3b2b55a99ce5aa2dd1624fff03a5"
+    },
+    {
+      "path": "test-results/extended-offline-acceptance.json",
+      "bytes": 5555,
+      "sha256": "7e83b1eb1742ff2fe98adeb44b8f27a9812db892cca23a33d50748b16abbfdfc"
+    },
+    {
       "path": "test-results/forge-cli-cargo-sbom-2026-10-30.cdx.json",
       "bytes": 240565,
       "sha256": "e75caba260f4609ee20e1321bd47fc5938fc8821aff9253754932d272cfc9bef"
     },
     {
+      "path": "test-results/forge-runtime.json",
+      "bytes": 6429,
+      "sha256": "486ce1045f9489ecaa5ef59943c779b445c3e1f3fa473f3f1742fffdf3204bcb"
+    },
+    {
       "path": "test-results/sandbox-adversarial.json",
       "bytes": 1408,
       "sha256": "b7e84fb08f4d55844363d64e0b7d87665b94819c4be8a1152f891d9826ffd45e"
+    },
+    {
+      "path": "test-results/sbom/docode-cli.cdx.json",
+      "bytes": 174434,
+      "sha256": "410bd2ae5695becc90ff2cf6417862d7f5b8a8843bcaabfe523432fba5f95556"
     },
     {
       "path": "test-results/sbom/report.json",
@@ -397,8 +437,8 @@
     },
     {
       "path": "tests/cli_smoke.rs",
-      "bytes": 17605,
-      "sha256": "f10e9edbe6215f0f622f1e99d27d9063f4ba957cc538f640506014a2c5ca8cd3"
+      "bytes": 17685,
+      "sha256": "0ea20d37ea1ccfce60702d4a32743315dc612da4dfaeb7bddd48ab935aada366"
     }
   ]
 }

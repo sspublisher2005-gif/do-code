@@ -19,7 +19,7 @@ def sample_bom() -> dict:
     return {
         "bomFormat": "CycloneDX",
         "specVersion": "1.5",
-        "metadata": {"component": {"type": "application", "name": "forge-cli", "version": "0.7.0-rs.1"}},
+        "metadata": {"component": {"type": "application", "name": "docode-cli", "version": "0.7.0-rs.1"}},
         "components": [
             {"type": "library", "name": "serde", "version": "1.0.0", "licenses": [{"license": {"id": "MIT"}}]},
             {"type": "library", "name": "tokio", "version": "1.0.0"},
@@ -71,16 +71,16 @@ class CargoSbomValidatorTests(unittest.TestCase):
         # orchestration/validation/artifact logic, not that cargo-cyclonedx ran.
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "Cargo.toml").write_text('[package]\nname="forge-cli"\nversion="0.7.0-rs.1"\n', encoding="utf-8")
+            (root / "Cargo.toml").write_text('[package]\nname="docode-cli"\nversion="0.7.0-rs.1"\n', encoding="utf-8")
             (root / "Cargo.lock").write_text('# synthetic lockfile for wrapper unit test\n', encoding="utf-8")
-            output = root / "test-results" / "sbom" / "forge-cli-cargo-aware.cdx.json"
+            output = root / "test-results" / "sbom" / "docode-cli-cargo-aware.cdx.json"
             report = root / "test-results" / "sbom" / "report.json"
             argv = ["cargo_aware_sbom.py", "--root", str(root), "--output", str(output), "--report", str(report),
                     "--cargo", "cargo", "--toolchain", "1.99.1"]
 
             def fake_run(command, *, cwd, timeout):
                 if "cyclonedx" in command:
-                    (Path(cwd) / "forge-cli-cargo-aware-sbom.json.json").write_text(json.dumps(sample_bom()), encoding="utf-8")
+                    (Path(cwd) / "docode-cli-cargo-aware-sbom.json.json").write_text(json.dumps(sample_bom()), encoding="utf-8")
                 return {"command": command, "exit_code": 0, "elapsed_seconds": 0.001, "output_tail": "mocked for unit test"}
 
             stdout = io.StringIO()
@@ -91,8 +91,8 @@ class CargoSbomValidatorTests(unittest.TestCase):
             self.assertEqual(result, 0, stderr.getvalue())
             self.assertTrue(output.is_file())
             self.assertTrue(report.is_file())
-            self.assertFalse((root / "forge-cli-cargo-aware-sbom.json").exists())
-            self.assertFalse((root / "forge-cli-cargo-aware-sbom.json.json").exists())
+            self.assertFalse((root / "docode-cli-cargo-aware-sbom.json").exists())
+            self.assertFalse((root / "docode-cli-cargo-aware-sbom.json.json").exists())
             saved_report = json.loads(report.read_text(encoding="utf-8"))
             self.assertEqual(saved_report["status"], "PASS")
             self.assertEqual(saved_report["generator"]["version"], "0.5.9")

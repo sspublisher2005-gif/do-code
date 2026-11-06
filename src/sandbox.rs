@@ -11,6 +11,7 @@
 //!     passes on a real disposable Windows runner.
 //!   - Linux / macOS: not yet implemented; execution stays disabled.
 
+#[cfg(windows)]
 use crate::error::{ForgeError, Result};
 
 #[cfg(windows)]
@@ -418,17 +419,6 @@ mod windows_impl {
 #[cfg(windows)]
 #[allow(unused_imports)]
 pub use windows_impl::*;
-
-#[cfg(windows)]
-#[allow(dead_code)]
-pub fn sandbox_status() -> &'static str {
-    "windows primitive available; not qualified"
-}
-
-#[cfg(not(windows))]
-pub fn sandbox_status() -> &'static str {
-    "not implemented on this platform"
-}
 
 /// A qualified sandbox has passed the adversarial acceptance matrix on a
 /// disposable native runner. Forge has not run those tests, so this stays

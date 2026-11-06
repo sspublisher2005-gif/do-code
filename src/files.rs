@@ -247,8 +247,7 @@ pub fn resolve_new_workspace_file(root: &Path, requested: &str) -> Result<PathBu
     let target = current.join(name);
     if fs::symlink_metadata(&target).is_ok() {
         return Err(ForgeError::Safety(format!(
-            "create refused: '{}' already exists.",
-            requested
+            "create refused: '{requested}' already exists."
         )));
     }
     Ok(target)
@@ -260,8 +259,7 @@ pub fn read(root: &Path, requested: &str, max_bytes: u64) -> Result<String> {
     let metadata = fs::symlink_metadata(&path).map_err(|e| io_error(&path, e))?;
     if metadata.len() > max_bytes {
         return Err(ForgeError::Safety(format!(
-            "file exceeds configured {}-byte read limit.",
-            max_bytes
+            "file exceeds configured {max_bytes}-byte read limit."
         )));
     }
     if is_binary_extension(&path) {
