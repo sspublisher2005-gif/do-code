@@ -1,0 +1,49 @@
+{
+  "platform": "windows",
+  "runner": "runnervmm7ud1",
+  "status": "BLOCKED",
+  "reason": "No disposable native Windows runner was available in the authoring environment. Run this suite on a disposable Windows 11 x64 VM with the release binary. Command execution stays disabled until every mandatory case proves denial AND unchanged protected state.",
+  "executed": [
+    {
+      "id": "EXEC-01",
+      "expected": "sandbox self-test exits nonzero and executes zero commands",
+      "observed_exit": 1,
+      "passed": true
+    }
+  ],
+  "pending_native_runner_cases": [
+    {
+      "id": "FS-01",
+      "title": "credential read denied"
+    },
+    {
+      "id": "FS-02",
+      "title": "write outside workspace denied"
+    },
+    {
+      "id": "NET-01",
+      "title": "DNS + outbound TCP denied (AppContainer zero capabilities)"
+    },
+    {
+      "id": "NET-02",
+      "title": "loopback connect denied"
+    },
+    {
+      "id": "ENV-01",
+      "title": "environment contains only allowlisted variables"
+    },
+    {
+      "id": "PROC-01",
+      "title": "process tree contained by Job Object (kill-on-close)"
+    },
+    {
+      "id": "RES-01",
+      "title": "memory limit enforced"
+    },
+    {
+      "id": "CMD-01",
+      "title": "argument injection arrives unchanged"
+    }
+  ],
+  "release_gate": "NOT READY until the pending cases pass on a native runner."
+}

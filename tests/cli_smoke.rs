@@ -8,24 +8,24 @@ use std::{
 };
 use tempfile::tempdir;
 
-fn forge() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_forge"))
+fn docode() -> Command {
+    Command::new(env!("CARGO_BIN_EXE_docode"))
 }
 
 #[test]
 fn help_and_version_work() {
-    let version = forge().arg("--version").output().expect("launch forge");
+    let version = docode().arg("--version").output().expect("launch docode");
     assert!(version.status.success());
     assert!(String::from_utf8_lossy(&version.stdout).contains("0.7.0-rs.1"));
-    let help = forge().arg("--help").output().expect("launch forge");
+    let help = docode().arg("--help").output().expect("launch docode");
     assert!(help.status.success());
-    assert!(String::from_utf8_lossy(&help.stdout).contains("Forge CLI"));
+    assert!(String::from_utf8_lossy(&help.stdout).contains("Docode"));
 }
 
 #[test]
 fn init_is_local_and_preserves_existing_files() {
     let root = tempdir().unwrap();
-    let output = forge()
+    let output = docode()
         .args(["--root", root.path().to_str().unwrap(), "init"])
         .output()
         .unwrap();
@@ -37,7 +37,7 @@ fn init_is_local_and_preserves_existing_files() {
     assert!(String::from_utf8_lossy(&output.stdout).contains("Network: not used"));
     let config_before = fs::read(root.path().join("forge.config.toml")).unwrap();
     let memory_before = fs::read(root.path().join("FORGE.md")).unwrap();
-    let second = forge()
+    let second = docode()
         .args(["init", "--root", root.path().to_str().unwrap()])
         .output()
         .unwrap();
@@ -65,7 +65,7 @@ fn files_are_read_only_and_sensitive_paths_are_denied() {
     )
     .unwrap();
     fs::write(root.path().join(".env"), "API_KEY=never-read").unwrap();
-    let read = forge()
+    let read = docode()
         .args([
             "--root",
             root.path().to_str().unwrap(),
@@ -83,7 +83,7 @@ fn files_are_read_only_and_sensitive_paths_are_denied() {
         "terminal output must redact common secret assignments"
     );
     assert!(display.contains("[REDACTED]"));
-    let denied = forge()
+    let denied = docode()
         .args([
             "--root",
             root.path().to_str().unwrap(),
@@ -100,12 +100,12 @@ fn files_are_read_only_and_sensitive_paths_are_denied() {
 #[test]
 fn model_test_is_network_silent_without_live_flag() {
     let root = tempdir().unwrap();
-    let init = forge()
+    let init = docode()
         .args(["--root", root.path().to_str().unwrap(), "init"])
         .output()
         .unwrap();
     assert!(init.status.success());
-    let model = forge()
+    let model = docode()
         .args(["--root", root.path().to_str().unwrap(), "model", "test"])
         .output()
         .unwrap();
@@ -116,12 +116,12 @@ fn model_test_is_network_silent_without_live_flag() {
 #[test]
 fn live_request_requires_context_sharing_approval() {
     let root = tempdir().unwrap();
-    let init = forge()
+    let init = docode()
         .args(["--root", root.path().to_str().unwrap(), "init"])
         .output()
         .unwrap();
     assert!(init.status.success());
-    let model = forge()
+    let model = docode()
         .args([
             "--root",
             root.path().to_str().unwrap(),
@@ -137,7 +137,7 @@ fn live_request_requires_context_sharing_approval() {
 
 #[test]
 fn cost_prediction_and_cost_budget_flags_are_not_exposed() {
-    let help = forge().arg("--help").output().unwrap();
+    let help = docode().arg("--help").output().unwrap();
     let text = String::from_utf8_lossy(&help.stdout);
     assert!(!text.contains("--max-cost-usd"));
     assert!(!text.contains("--estimated-cost"));
@@ -166,7 +166,7 @@ fn memory_propose_previews_without_writing_until_explicit_confirmation() {
         "--scope",
         "project",
     ];
-    let preview = forge().args(args).output().unwrap();
+    let preview = docode().args(args).output().unwrap();
     assert!(
         preview.status.success(),
         "{}",
@@ -180,7 +180,7 @@ fn memory_propose_previews_without_writing_until_explicit_confirmation() {
         "preview must not create Forge state"
     );
 
-    let saved = forge().args(args).arg("--confirm").output().unwrap();
+    let saved = docode().args(args).arg("--confirm").output().unwrap();
     assert!(
         saved.status.success(),
         "{}",
@@ -194,7 +194,7 @@ fn memory_propose_previews_without_writing_until_explicit_confirmation() {
 #[test]
 fn memory_open_displays_vault_paths_without_creating_state() {
     let root = tempdir().unwrap();
-    let output = forge()
+    let output = docode()
         .args(["--root", root.path().to_str().unwrap(), "memory", "open"])
         .output()
         .unwrap();
@@ -324,7 +324,10 @@ fn mission_lifecycle_run_apply_verify_undo_round_trips_file_content() {
         "def add(a, b):\n    \"\"\"Add two numbers.\"\"\"\n    pass  # TODO: implement\n";
     fs::write(root.path().join("add.py"), original).unwrap();
 
-    let init = forge().args(["--root", root_str, "init"]).output().unwrap();
+    let init = docode()
+        .args(["--root", root_str, "init"])
+        .output()
+        .unwrap();
     assert!(init.status.success());
 
     let config_path = root.path().join("forge.config.toml");
@@ -335,7 +338,7 @@ fn mission_lifecycle_run_apply_verify_undo_round_trips_file_content() {
     );
     fs::write(&config_path, config).unwrap();
 
-    let run = forge()
+    let run = docode()
         .env("OPENAI_API_KEY", "fixture-not-a-real-key")
         .args([
             "--root",
@@ -367,7 +370,7 @@ fn mission_lifecycle_run_apply_verify_undo_round_trips_file_content() {
         .trim()
         .to_owned();
 
-    let preview = forge()
+    let preview = docode()
         .args(["--root", root_str, "apply", &mission_id])
         .output()
         .unwrap();
@@ -379,7 +382,7 @@ fn mission_lifecycle_run_apply_verify_undo_round_trips_file_content() {
         "preview apply without --approve must not write files"
     );
 
-    let apply = forge()
+    let apply = docode()
         .args(["--root", root_str, "apply", &mission_id, "--approve"])
         .output()
         .unwrap();
@@ -399,7 +402,7 @@ fn mission_lifecycle_run_apply_verify_undo_round_trips_file_content() {
     assert!(applied_content.contains("return a + b"));
     assert_ne!(applied_content, original);
 
-    let verify = forge()
+    let verify = docode()
         .args(["--root", root_str, "verify", &mission_id])
         .output()
         .unwrap();
@@ -408,7 +411,7 @@ fn mission_lifecycle_run_apply_verify_undo_round_trips_file_content() {
     assert!(verify_out.contains("Completion allowed: false"));
     assert!(verify_out.contains("has not executed project tests"));
 
-    let undo_preview = forge()
+    let undo_preview = docode()
         .args(["--root", root_str, "undo", &mission_id, &checkpoint_id])
         .output()
         .unwrap();
@@ -420,7 +423,7 @@ fn mission_lifecycle_run_apply_verify_undo_round_trips_file_content() {
         "undo preview without --approve must not restore files"
     );
 
-    let undo = forge()
+    let undo = docode()
         .args([
             "--root",
             root_str,
@@ -462,7 +465,10 @@ fn sustained_rate_limit_pauses_mission_instead_of_failing_it() {
     )
     .unwrap();
 
-    let init = forge().args(["--root", root_str, "init"]).output().unwrap();
+    let init = docode()
+        .args(["--root", root_str, "init"])
+        .output()
+        .unwrap();
     assert!(init.status.success());
 
     let config_path = root.path().join("forge.config.toml");
@@ -473,7 +479,7 @@ fn sustained_rate_limit_pauses_mission_instead_of_failing_it() {
     );
     fs::write(&config_path, config).unwrap();
 
-    let run = forge()
+    let run = docode()
         .env("OPENAI_API_KEY", "fixture-not-a-real-key")
         .args([
             "--root",
@@ -500,7 +506,7 @@ fn sustained_rate_limit_pauses_mission_instead_of_failing_it() {
     );
 
     // The mission is paused, not failed.
-    let list = forge()
+    let list = docode()
         .args(["--root", root_str, "mission", "list"])
         .output()
         .unwrap();

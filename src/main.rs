@@ -36,7 +36,7 @@ use std::{
 };
 
 #[derive(Debug, Parser)]
-#[command(name = "forge", version, about = "Forge CLI — evidence-first, project-isolated AI coding harness", long_about = None)]
+#[command(name = "docode", version, about = "Docode - evidence-first, project-isolated AI coding harness", long_about = None)]
 struct Cli {
     /// Project root. Defaults to the current directory.
     #[arg(long, global = true, default_value = ".")]
