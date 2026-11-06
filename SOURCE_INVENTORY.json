@@ -1,9 +1,9 @@
 {
   "artifact": "Forge CLI Rust implementation source inventory",
-  "generated_at_utc": "2026-11-06T18:40:01.425543+00:00",
+  "generated_at_utc": "2026-11-06T18:53:54.230648+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
-  "inventory_count": 87,
+  "inventory_count": 88,
   "inventory": [
     {
       "path": ".github/workflows/rust-ci.yml",
@@ -27,8 +27,8 @@
     },
     {
       "path": "artifacts-sandbox/sandbox-adversarial.json",
-      "bytes": 1415,
-      "sha256": "98b11fef3eaaa1bdae52457711815a359f2b192a68d2a746624805a0d64faada"
+      "bytes": 1367,
+      "sha256": "a441777176f0665f343899b3b3f8a9cc6b5046fa37d5264b825cccea0ac2d557"
     },
     {
       "path": "build.rs",
@@ -49,6 +49,11 @@
       "path": "CHANGELOG.md",
       "bytes": 10253,
       "sha256": "0df004fe5b22723f0022e05932d08d500a0411e35d5631b3df440dca0ca4cb6f"
+    },
+    {
+      "path": "docs/ADOPTION_PLAN_2026-11.md",
+      "bytes": 3480,
+      "sha256": "77bfb8854dbf38ba0ec097e0f562e00a0d66c5e5dd25130318ca8cd3ca49f216"
     },
     {
       "path": "docs/ARCHITECTURE.md",
@@ -152,8 +157,8 @@
     },
     {
       "path": "reference/Forge_CLI_TS_0.6.0-ts.2_MemoryDecision_Merge_WIP.zip",
-      "bytes": 3687250,
-      "sha256": "c3dabcb6519d91c5e802392457509a9149e98914343ec971af18d2cfa0717732"
+      "bytes": 3687200,
+      "sha256": "394a5907f865fb07fe01f7b6bec0cf37ad32840d6524698d97907ca437159af9"
     },
     {
       "path": "rust-toolchain.toml",
@@ -227,8 +232,8 @@
     },
     {
       "path": "scripts/update_source_inventory.py",
-      "bytes": 2531,
-      "sha256": "5564e6156e8c4bfd5933fef5f60b3fc6902051b45b216c4a2d39a96b21438689"
+      "bytes": 2729,
+      "sha256": "ed46e2f0e3bf92f8a4856ce92d03d402d88730a19864f523a0ea1287523b5617"
     },
     {
       "path": "scripts/verify_cli.py",
@@ -392,18 +397,18 @@
     },
     {
       "path": "test-results/ci-pipeline.json",
-      "bytes": 51999,
-      "sha256": "fd7fbd784db9030f59af7a4519b4456768db18504c70f6bb373f47e47a7b819f"
+      "bytes": 51753,
+      "sha256": "6ad9b2c699c9b93ef121c9b8dcc57227305a568869f6a5e8e7f8cebc0a859ddc"
     },
     {
       "path": "test-results/ci-summary.md",
-      "bytes": 1579,
-      "sha256": "27a64579f28be043e797ec8b4ef2f96b0cfc3b2b55a99ce5aa2dd1624fff03a5"
+      "bytes": 1553,
+      "sha256": "4a3e6497807c7ed84f2e0b80c5b04625af9bf7264fe63b647838a126878eacae"
     },
     {
       "path": "test-results/extended-offline-acceptance.json",
-      "bytes": 5555,
-      "sha256": "7e83b1eb1742ff2fe98adeb44b8f27a9812db892cca23a33d50748b16abbfdfc"
+      "bytes": 5345,
+      "sha256": "aca77ae0188440d6de68b5b652fbe4bb53a446390ac5705757a4314bda9ae883"
     },
     {
       "path": "test-results/forge-cli-cargo-sbom-2026-10-30.cdx.json",
@@ -412,28 +417,28 @@
     },
     {
       "path": "test-results/forge-runtime.json",
-      "bytes": 6429,
-      "sha256": "486ce1045f9489ecaa5ef59943c779b445c3e1f3fa473f3f1742fffdf3204bcb"
+      "bytes": 6225,
+      "sha256": "084b4c2cac0ccd57dc7ef12e38a7d388b9a7d0d171d7e357dfa1e5eef1b06a36"
     },
     {
       "path": "test-results/sandbox-adversarial.json",
-      "bytes": 1408,
-      "sha256": "b7e84fb08f4d55844363d64e0b7d87665b94819c4be8a1152f891d9826ffd45e"
+      "bytes": 1360,
+      "sha256": "e123776be24526fcb32b4e8cabba4e28faf26f5559335e9fbf31fc8b7bbbe11a"
     },
     {
       "path": "test-results/sbom/docode-cli.cdx.json",
-      "bytes": 174434,
-      "sha256": "410bd2ae5695becc90ff2cf6417862d7f5b8a8843bcaabfe523432fba5f95556"
+      "bytes": 167839,
+      "sha256": "04c45d54af8a709d8046ee315bf5729287acd540f175387514574ee991a395f5"
     },
     {
       "path": "test-results/sbom/report.json",
-      "bytes": 245,
-      "sha256": "9ad237238b374065c40ef0e869d6e39d29ca60a9763ba0a0f9069bd13c566eab"
+      "bytes": 234,
+      "sha256": "025d2630e075dcfb4a90dac4dcf31fef3a10cc19610dba73e77decd5defca7ae"
     },
     {
       "path": "test-results/windows-gates-2026-10-30.json",
-      "bytes": 2925,
-      "sha256": "f703efc7bed6ac8af0605c5aaac9d7365a0a3d1f256410aae3ac932d3ec04334"
+      "bytes": 2877,
+      "sha256": "21c1cdbfdb2fff2daa4272161b298d99fcf28ae728d54f1112aeb8d8c1f18838"
     },
     {
       "path": "tests/cli_smoke.rs",

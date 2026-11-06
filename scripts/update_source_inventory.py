@@ -24,7 +24,10 @@ def collect(root: Path) -> list[dict[str, object]]:
         if path.suffix in EXCLUDED_SUFFIXES or path.name.endswith(".env"):
             continue
         raw = path.read_bytes()
-        rows.append({"path": rel.as_posix(), "bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()})
+        # Normalize CRLF to LF so hashes match across Windows checkouts
+        # (autocrlf) and Linux CI checkouts of the same blobs.
+        normalized = raw.replace(b"\r\n", b"\n")
+        rows.append({"path": rel.as_posix(), "bytes": len(normalized), "sha256": hashlib.sha256(normalized).hexdigest()})
     return rows
 
 
