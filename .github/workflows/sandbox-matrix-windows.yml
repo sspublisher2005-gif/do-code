@@ -1,0 +1,54 @@
+name: Docode Windows Sandbox Matrix
+
+on:
+  workflow_dispatch:
+  push:
+    paths: [".github/workflows/sandbox-matrix-windows.yml"]
+  schedule:
+    - cron: "0 2 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docode-sandbox-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sandbox-matrix:
+    name: Windows sandbox adversarial matrix
+    runs-on: windows-2025
+    timeout-minutes: 50
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Rust 1.99.1
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.99.1
+          components: rustfmt, clippy
+
+      - name: Build docode (release)
+        run: cargo build --release --locked
+        shell: pwsh
+
+      - name: Run sandbox adversarial matrix (disposable native runner)
+        run: python scripts/sandbox_adversarial_windows.py --binary target\release\docode.exe --report sandbox-adversarial.json
+        shell: pwsh
+
+      - name: Upload sandbox evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: sandbox-adversarial-${{ github.sha }}
+          path: |
+            sandbox-adversarial.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Fail if matrix is still BLOCKED
+        run: python -c "import json; d=json.load(open('sandbox-adversarial.json')); print('status='+d['status']); exit(1 if d['status']=='BLOCKED' else 0)"
+        shell: pwsh
