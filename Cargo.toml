@@ -1,15 +1,15 @@
 [package]
-name = "forge-cli"
+name = "docode-cli"
 version = "0.7.0-rs.1"
 edition = "2024"
 rust-version = "1.88"
-description = "Forge CLI coding harness implemented in Rust"
+description = "Docode coding harness implemented in Rust"
 license = "MIT"
 readme = "README.md"
 build = "build.rs"
 
 [[bin]]
-name = "forge"
+name = "docode"
 path = "src/main.rs"
 
 [dependencies]
