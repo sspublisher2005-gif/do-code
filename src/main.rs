@@ -289,6 +289,10 @@ enum FreezeCommand {
 enum SandboxCommand {
     Status,
     SelfTest,
+    Exec {
+        #[arg(long, default_value_t = 30000)] timeout_ms: u32,
+        command: Vec<String>,
+    },
 }
 #[derive(Debug, Subcommand)]
 enum DecisionHistoryCommand {
@@ -428,6 +432,23 @@ struct DecisionArgs {
     approve_context_sharing: bool,
 }
 
+#[allow(dead_code)]
+fn which_exe(name: &str) -> Option<String> {
+    if name.contains('\\') || name.contains('/') {
+        return if std::path::Path::new(name).exists() { Some(name.to_owned()) } else { None };
+    }
+    let path_var = std::env::var_os("PATH").unwrap_or_default();
+    for dir in std::env::split_paths(&path_var) {
+        let candidate = dir.join(name);
+        if candidate.exists() { return Some(candidate.to_string_lossy().into_owned()); }
+        #[cfg(windows)]
+        for ext in [".exe", ".bat", ".cmd"] {
+            let p2 = dir.join(std::ffi::OsString::from(format!("{}{}", name, ext)));
+            if p2.exists() { return Some(p2.to_string_lossy().into_owned()); }
+        }
+    }
+    None
+}
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     if let Err(error) = run(Cli::parse()).await {
@@ -659,6 +680,41 @@ async fn run(cli: Cli) -> Result<()> {
                 println!("Windows launch path: AppContainer (zero capabilities = OS network deny) + restricted token + Job Object assigned before resume + sanitized environment.");
             }
             SandboxCommand::SelfTest => return Err(ForgeError::Safety("sandbox self-test cannot pass: no native sandbox driver is implemented. No command was executed.".into())),
+            SandboxCommand::Exec { timeout_ms, command } => {
+                let timeout_ms = timeout_ms.clamp(1_000, 600_000);
+                if command.is_empty() {
+                    return Err(ForgeError::Message("no command given; usage: docode sandbox exec -- <exe> [args...]".into()));
+                }
+                #[cfg(windows)]
+                {
+                    let exe = command[0].clone();
+                    let args = command[1..].to_vec();
+                    let exe = if exe.contains('\\') || exe.contains('/') {
+                        exe
+                    } else if let Some(found) = which_exe(&exe) {
+                        found
+                    } else {
+                        return Err(ForgeError::Message(format!("executable not found in PATH: {}", exe)));
+                    };
+                    let limits = sandbox::ResourceLimits {
+                        max_wall_time_ms: timeout_ms,
+                        ..Default::default()
+                    };
+                    let job = sandbox::JobObject::create(limits)?;
+                    let (proc_handle, thread_handle, _pid) =
+                        sandbox::spawn_suspended(&exe, &args, limits, &job)?;
+                    let (exit_code, timed_out) =
+                        sandbox::wait_for_completion(proc_handle, thread_handle, timeout_ms)?;
+                    println!("exit_code={exit_code} timed_out={timed_out}");
+                }
+                #[cfg(not(windows))]
+                {
+                    return Err(ForgeError::Safety(
+                        "sandbox exec not implemented on this platform; no command was executed.".into(),
+                    ));
+                }
+            }
+            
         },
         Command::Memory { command } => memory_command(&root, command)?,
         Command::Pilot(args) => pilot_command(&root, args).await?,
