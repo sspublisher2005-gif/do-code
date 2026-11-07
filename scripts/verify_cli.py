@@ -144,10 +144,14 @@ class Verifier:
             def doctor_test() -> None:
                 proc = self.run(["--root", str(root), "doctor"])
                 self.require(proc.returncode == 0, proc.stderr)
-                self.require("Sandbox: not implemented" in proc.stdout, "doctor does not disclose sandbox limitation")
+                self.require(
+                    "available (qualified)" not in proc.stdout
+                    and ("NOT qualified" in proc.stdout or "not implemented" in proc.stdout),
+                    "doctor does not disclose sandbox limitation",
+                )
                 self.require("no predicted cost" in proc.stdout, "doctor does not disclose the cost policy")
                 if os.name == "nt":
-                    self.require("Windows .docode ACL hardening" in proc.stdout, "Windows security warning missing")
+                    self.require("owner-only protected DACL" in proc.stdout, "Windows security disclosure missing")
 
             self.check("doctor reports actual limits and platform warning", doctor_test)
 

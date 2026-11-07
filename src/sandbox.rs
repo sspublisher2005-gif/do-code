@@ -504,10 +504,11 @@ pub fn is_qualified() -> bool {
 pub fn status_text() -> String {
     if is_qualified() {
         "Sandbox: available (qualified)".to_string()
+    } else if cfg!(windows) {
+        "Sandbox: primitives implemented (AppContainer + Job Object + private workspace          DACL + sanitized env + OS network deny), but NOT qualified — adversarial acceptance          tests have not passed on a disposable runner yet. Arbitrary command execution is disabled."
+            .to_string()
     } else {
-        "Sandbox: primitives implemented (restricted token + AppContainer + Job Object + \
-         sanitized env + OS network deny), but NOT qualified — adversarial acceptance tests \
-         have not run on a disposable Windows runner. Arbitrary command execution is disabled."
+        "Sandbox: not implemented on this platform; arbitrary command execution is disabled.          Windows driver exists; Linux (Bubblewrap+Landlock+seccomp) and macOS (Seatbelt) are          designed but not implemented."
             .to_string()
     }
 }

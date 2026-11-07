@@ -1,6 +1,6 @@
 {
   "artifact": "Do Code Rust implementation source inventory",
-  "generated_at_utc": "2026-11-07T18:05:13.738521+00:00",
+  "generated_at_utc": "2026-11-07T18:49:01.447801+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
   "inventory_count": 77,
@@ -187,8 +187,8 @@
     },
     {
       "path": "scripts/extended_offline_acceptance.py",
-      "bytes": 12609,
-      "sha256": "d09b923622a98cbfec599a41288bf3e08c1ebf1b386430f7845ffc0476fa431a"
+      "bytes": 12900,
+      "sha256": "6a02f0300b957849ac46fa31d10604d01a430f740d11c96cfc19d077662e6de2"
     },
     {
       "path": "scripts/extra_safety_probes.py",
@@ -237,8 +237,8 @@
     },
     {
       "path": "scripts/verify_cli.py",
-      "bytes": 24128,
-      "sha256": "744b1965e1c3d8f40b4b604df0dd2f0331616645eb38934afa458301ddc58bc8"
+      "bytes": 24280,
+      "sha256": "93859940cc9f306465539e8602f07785e14f1438c23861a3bf84ce158aef445d"
     },
     {
       "path": "src/audit.rs",
@@ -357,8 +357,8 @@
     },
     {
       "path": "src/sandbox.rs",
-      "bytes": 21225,
-      "sha256": "1e67b9fe5271db3547afda2337895f3ccce1f52e92640d2ad0257de8ae96cdf6"
+      "bytes": 21507,
+      "sha256": "4e5d532e43703f5117aff2ff7f4b18fe76834bebfb8430d823d211c20747cc58"
     },
     {
       "path": "src/storage.rs",

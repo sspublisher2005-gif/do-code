@@ -62,7 +62,12 @@ def main() -> int:
         check("init preserves user DOCODE.md", init_again.returncode == 0 and "keep-me" in (root / "DOCODE.md").read_text())
 
         doctor = invoke(root, "doctor")
-        check("doctor does not claim sandbox is implemented", doctor.returncode == 0 and "Sandbox: not implemented" in doctor.stdout)
+        check(
+            "doctor does not claim sandbox is qualified",
+            doctor.returncode == 0
+            and "available (qualified)" not in doctor.stdout
+            and ("NOT qualified" in doctor.stdout or "not implemented" in doctor.stdout),
+        )
         config = invoke(root, "config", "show")
         try:
             config_doc = json.loads(config.stdout)
@@ -117,10 +122,10 @@ def main() -> int:
         imported_id_match = UUID_RE.search(imported_list.stdout)
         imported_id = imported_id_match.group(0) if imported_id_match else None
         check("imported memory remains searchable/listed", "Use pathlib" in imported_list.stdout and imported_id is not None)
-        docodet_denied = invoke(root, "memory", "docodet", imported_id or "invalid")
-        check("docodet refuses without approval", docodet_denied.returncode != 0 and "--approve" in docodet_denied.stderr)
-        docodet = invoke(root, "memory", "docodet", imported_id or "invalid", "--approve")
-        check("approved docodet deletes note", bool(imported_id and docodet.returncode == 0 and "deleted locally after approval" in docodet.stdout))
+        docodet_denied = invoke(root, "memory", "forget", imported_id or "invalid")
+        check("forget refuses without approval", docodet_denied.returncode != 0 and "--approve" in docodet_denied.stderr)
+        docodet = invoke(root, "memory", "forget", imported_id or "invalid", "--approve")
+        check("approved forget deletes note", bool(imported_id and docodet.returncode == 0 and "deleted locally after approval" in docodet.stdout))
 
         pilot = invoke(root, "pilot", "Choose a safe local metadata strategy", "--option", "SQLite", "--option", "plain files", "--privacy", "--risk", "medium")
         decision_id_match = UUID_RE.search(pilot.stdout)
@@ -144,7 +149,12 @@ def main() -> int:
         check("approved unfreeze restores normal state", unfreeze.returncode == 0 and "Do Code unfrozen: true" in unfreeze.stdout)
 
         sandbox_status = invoke(root, "sandbox", "status")
-        check("sandbox status honestly discloses missing driver", sandbox_status.returncode == 0 and "NOT IMPLEMENTED" in sandbox_status.stdout)
+        check(
+            "sandbox status honestly discloses driver state",
+            sandbox_status.returncode == 0
+            and "available (qualified)" not in sandbox_status.stdout
+            and ("NOT qualified" in sandbox_status.stdout or "NOT IMPLEMENTED" in sandbox_status.stdout),
+        )
         before = sha256(root / "add.py")
         sandbox_selftest = invoke(root, "sandbox", "self-test")
         check("sandbox self-test fails closed without executing commands", sandbox_selftest.returncode != 0 and "No command was executed" in sandbox_selftest.stderr and sha256(root / "add.py") == before)
