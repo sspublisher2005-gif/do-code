@@ -122,10 +122,10 @@ def main() -> int:
         imported_id_match = UUID_RE.search(imported_list.stdout)
         imported_id = imported_id_match.group(0) if imported_id_match else None
         check("imported memory remains searchable/listed", "Use pathlib" in imported_list.stdout and imported_id is not None)
-        docodet_denied = invoke(root, "memory", "forget", imported_id or "invalid")
-        check("forget refuses without approval", docodet_denied.returncode != 0 and "--approve" in docodet_denied.stderr)
-        docodet = invoke(root, "memory", "forget", imported_id or "invalid", "--approve")
-        check("approved forget deletes note", bool(imported_id and docodet.returncode == 0 and "deleted locally after approval" in docodet.stdout))
+        remove_denied = invoke(root, "memory", "remove", imported_id or "invalid")
+        check("forget refuses without approval", remove_denied.returncode != 0 and "--approve" in remove_denied.stderr)
+        remove = invoke(root, "memory", "remove", imported_id or "invalid", "--approve")
+        check("approved forget deletes note", bool(imported_id and remove.returncode == 0 and "deleted locally after approval" in remove.stdout))
 
         pilot = invoke(root, "pilot", "Choose a safe local metadata strategy", "--option", "SQLite", "--option", "plain files", "--privacy", "--risk", "medium")
         decision_id_match = UUID_RE.search(pilot.stdout)

@@ -185,10 +185,10 @@ pub fn show(root: &Path, id: &str) -> Result<MemoryNote> {
     ))
 }
 
-pub fn docodet(root: &Path, id: &str, approved: bool) -> Result<()> {
+pub fn remove(root: &Path, id: &str, approved: bool) -> Result<()> {
     if !approved {
         return Err(DocodeError::Safety(
-            "docodetting memory requires --approve; no note was deleted.".into(),
+            "removeting memory requires --approve; no note was deleted.".into(),
         ));
     }
     let note = show(root, id)?;
@@ -796,8 +796,8 @@ mod tests {
         let paths = scope_paths(root.path(), "project").unwrap();
         let markdown = fs::read_to_string(paths.notes_dir.join(format!("{}.md", note.id))).unwrap();
         assert_eq!(parse_markdown(&markdown).unwrap().id, note.id);
-        assert!(docodet(root.path(), &note.id, false).is_err());
-        docodet(root.path(), &note.id, true).unwrap();
+        assert!(remove(root.path(), &note.id, false).is_err());
+        remove(root.path(), &note.id, true).unwrap();
         assert!(show(root.path(), &note.id).is_err());
     }
 }

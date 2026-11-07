@@ -203,7 +203,7 @@ impl ApprovalMemory {
         Ok(())
     }
 
-    pub fn docodet(action: &str, records: &mut Vec<ApprovalRecord>) {
+    pub fn remove(action: &str, records: &mut Vec<ApprovalRecord>) {
         records.retain(|r| r.action != action);
     }
 

@@ -10,7 +10,7 @@
 
 ## Product name history (kept for provenance)
 
-The project began as **Forge CLI** (that name was taken elsewhere, so it was renamed); the TypeScript 0.6.0-ts.2 reference remains at `reference/Forge_CLI_TS_0.6.0-ts.2_MemoryDecision_Merge_WIP.zip` (historical archive, filename preserved as provenance) for parity work and rollback. Every user-visible surface now says **Do Code**; the binary is `docode`; the crate id stays `docode-cli` for lockfile/SBOM stability.
+The project began under a previous name that was taken elsewhere, so it was renamed; the TypeScript 0.6.0-ts.2 reference remains at `reference/DoCode_TS_0.6.0-ts.2_MemoryDecision_Merge_WIP.zip` (historical archive) for parity work and rollback. Every user-visible surface says **Do Code**; the binary is `docode`; the crate id is `docode-cli` for lockfile/SBOM stability.
 
 ## Why Rust
 

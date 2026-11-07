@@ -1,6 +1,6 @@
 {
   "artifact": "Do Code Rust implementation source inventory",
-  "generated_at_utc": "2026-11-07T19:13:11.495192+00:00",
+  "generated_at_utc": "2026-11-07T19:23:04.333128+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
   "inventory_count": 77,
@@ -52,8 +52,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 12656,
-      "sha256": "738994804f46e7f9b03a3f2d3c11bb84517f2d3f4e1bea7ada47e07084bc3709"
+      "bytes": 12610,
+      "sha256": "53844663cd9dc6361c3a05181fc6bcf86b5d365541a682527ccd17280e0563d2"
     },
     {
       "path": "artifacts-sandbox/sandbox-adversarial.json",
@@ -156,7 +156,7 @@
       "sha256": "56c16f3b7917fa023f0f4ab4fdaebcb87ef88dfe81e5fb703b39c01bb13b60c3"
     },
     {
-      "path": "reference/Forge_CLI_TS_0.6.0-ts.2_MemoryDecision_Merge_WIP.zip",
+      "path": "reference/DoCode_TS_0.6.0-ts.2_MemoryDecision_Merge_WIP.zip",
       "bytes": 3687200,
       "sha256": "394a5907f865fb07fe01f7b6bec0cf37ad32840d6524698d97907ca437159af9"
     },
@@ -187,8 +187,8 @@
     },
     {
       "path": "scripts/extended_offline_acceptance.py",
-      "bytes": 13008,
-      "sha256": "860b44ed3c6e5c843ea08339f7a25d108c166d04d9c290c0950f0987356c64b1"
+      "bytes": 13002,
+      "sha256": "53a3728ae99c1c678cfb0ea7d63572fc776207d7037fca30ffb23dcdf2d0744d"
     },
     {
       "path": "scripts/extra_safety_probes.py",
@@ -307,13 +307,13 @@
     },
     {
       "path": "src/main.rs",
-      "bytes": 61015,
-      "sha256": "3dc4d170741e86471c21c32c1e5dfb42375471a5b3cbeb0515e4960cd7357bf4"
+      "bytes": 61013,
+      "sha256": "f04ee77b688fe1ab1eca41b0bf3081856b01138ffd77519ff182cb8c08f5e642"
     },
     {
       "path": "src/memory.rs",
-      "bytes": 28472,
-      "sha256": "e8ee9a09dd03b705b785c3a18e31970e61e4c6b3b84f6ee35afafb45a93139bb"
+      "bytes": 28468,
+      "sha256": "e10b81c558d36943d55e2425603acf81c9633d349a69d7f69925a7baa1f1d3f9"
     },
     {
       "path": "src/message_store.rs",
@@ -347,8 +347,8 @@
     },
     {
       "path": "src/risk.rs",
-      "bytes": 11077,
-      "sha256": "ff07be87ac15d49b95e10f35c3aa27dd8a189284792a0fa86a9c2069c362d99a"
+      "bytes": 11076,
+      "sha256": "91d526f6d1a4a61c53b94098b575558a3e79c29fb02a87de43d0a57bef7f788d"
     },
     {
       "path": "src/router.rs",

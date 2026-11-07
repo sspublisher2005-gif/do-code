@@ -205,8 +205,8 @@ enum ModelCommand {
 }
 #[derive(Debug, Subcommand)]
 enum ApprovalsCommand {
-    /// Forget all remembered approvals for one action name.
-    Forget {
+    /// Remove all remembered approvals for one action name.
+    Remove {
         action: String,
     },
     Show,
@@ -374,7 +374,7 @@ enum MemoryCommand {
     Edit {
         id: String,
     },
-    Forget {
+    Remove {
         id: String,
         #[arg(long)]
         approve: bool,
@@ -600,7 +600,7 @@ async fn run(cli: Cli) -> Result<()> {
                     };
                     memory.remember("patch.apply", risk::ApprovalScope::Project, None)?;
                     storage::write_atomic(&path, &memory.to_json()?, true)?;
-                    println!("Approval remembered for this project: future 'docode apply <mission>' will not ask. Forget it by deleting .docode/approvals.json.");
+                    println!("Approval remembered for this project: future 'docode apply <mission>' will not ask. Remove it by deleting .docode/approvals.json.");
                 }
                 audit::append(&root, "patch.applied", "succeeded", BTreeMap::from([("missionId".into(), json!(mission_id)), ("checkpointId".into(), json!(checkpoint)), ("files".into(), json!(paths.len())), ("testsExecuted".into(), json!(false)), ("appliedViaApprovalMemory".into(), json!(applied_with_memory))]))?;
                 println!("Patch applied to {} file(s). Checkpoint: {}", paths.len(), checkpoint);
@@ -1199,8 +1199,8 @@ fn memory_command(root: &Path, command: MemoryCommand) -> Result<()> {
             let note = memory::edit(root, &id)?;
             println!("Edited and reindexed memory {}.", note.id);
         }
-        MemoryCommand::Forget { id, approve } => {
-            memory::docodet(root, &id, approve)?;
+        MemoryCommand::Remove { id, approve } => {
+            memory::remove(root, &id, approve)?;
             println!("Memory {id} deleted locally after approval.");
         }
         MemoryCommand::Verify { id } => {
@@ -1293,9 +1293,9 @@ fn approvals_command(root: &Path, command: Option<ApprovalsCommand>) -> Result<(
                 );
             }
         }
-        ApprovalsCommand::Forget { action } => {
+        ApprovalsCommand::Remove { action } => {
             let mut memory = load()?;
-            risk::ApprovalMemory::docodet(&action, &mut memory.records);
+            risk::ApprovalMemory::remove(&action, &mut memory.records);
             storage::write_atomic(&path, &memory.to_json()?, true)?;
             audit::append(
                 root,
