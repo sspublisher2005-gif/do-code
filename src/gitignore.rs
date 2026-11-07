@@ -1,4 +1,4 @@
-//! Minimal, deterministic .gitignore matching used by Forge's file scanner.
+//! Minimal, deterministic .gitignore matching used by Do Code's file scanner.
 //!
 //! This is a conservative implementation of git's ignore semantics for the
 //! subset that matters to repository scanning:
@@ -12,7 +12,7 @@
 //!
 //! It intentionally does NOT implement git's full glob edge cases (character
 //! classes, escaped metacharacters) — those are rare in real repositories, and
-//! Forge's sensitive-path skip list remains a hard floor regardless of this
+//! Do Code's sensitive-path skip list remains a hard floor regardless of this
 //! matcher. Treat this as a best-effort parity aid, not a git clone.
 
 #[derive(Clone, Debug)]

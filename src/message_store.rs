@@ -1,8 +1,8 @@
 //! Project-bound, bounded, append-only AgentMessage transcripts.
 //!
-//! The transcript is evidence of what Forge recorded, not proof that a model's statements are true.
+//! The transcript is evidence of what Do Code recorded, not proof that a model's statements are true.
 use crate::{
-    error::{ForgeError, Result, io_error},
+    error::{DocodeError, Result, io_error},
     mission::{AgentMessage, Mission},
     mission_store::MissionStore,
     redaction, storage,
@@ -50,9 +50,9 @@ pub fn append(root: &Path, message: AgentMessage) -> Result<AgentMessage> {
         .model
         .map(|v| redaction::safe_terminal(&redaction::redact(&v)));
     let encoded_message =
-        serde_json::to_vec(&safe).map_err(|e| ForgeError::Message(e.to_string()))?;
+        serde_json::to_vec(&safe).map_err(|e| DocodeError::Message(e.to_string()))?;
     if encoded_message.len() > MAX_MESSAGE_BYTES + 64 * 1024 {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "serialized agent message exceeds the transcript entry limit.".into(),
         ));
     }
@@ -68,7 +68,7 @@ pub fn append(root: &Path, message: AgentMessage) -> Result<AgentMessage> {
     )?;
     let previous_events = read_events(&canonical_root, &path, &safe.mission_id)?;
     if previous_events.len() >= MAX_TRANSCRIPT_MESSAGES {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "mission transcript reached its message-count limit.".into(),
         ));
     }
@@ -85,7 +85,7 @@ pub fn append(root: &Path, message: AgentMessage) -> Result<AgentMessage> {
         sha256,
         message: safe.clone(),
     };
-    let mut line = serde_json::to_vec(&event).map_err(|e| ForgeError::Message(e.to_string()))?;
+    let mut line = serde_json::to_vec(&event).map_err(|e| DocodeError::Message(e.to_string()))?;
     line.push(b'\n');
     let existing_bytes = if path.exists() {
         storage::read_bounded_regular(&path, MAX_TRANSCRIPT_BYTES)?
@@ -93,7 +93,7 @@ pub fn append(root: &Path, message: AgentMessage) -> Result<AgentMessage> {
         Vec::new()
     };
     if existing_bytes.len() as u64 + line.len() as u64 > MAX_TRANSCRIPT_BYTES {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "mission transcript reached the 20 MiB limit; archive it before appending.".into(),
         ));
     }
@@ -109,12 +109,12 @@ pub fn append(root: &Path, message: AgentMessage) -> Result<AgentMessage> {
     let mut file = options.open(&path).map_err(|e| io_error(&path, e))?;
     let metadata = file.metadata().map_err(|e| io_error(&path, e))?;
     if !metadata.is_file() || metadata.len() as usize != existing_bytes.len() {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "transcript changed while the append lock was held; refusing to append.".into(),
         ));
     }
     // Compare bytes from the opened handle so a path swap between read and open cannot
-    // silently append to a different same-sized file. The advisory lock coordinates Forge
+    // silently append to a different same-sized file. The advisory lock coordinates Do Code
     // processes; a hostile same-user writer remains outside this local file-lock boundary.
     let mut opened_bytes = Vec::with_capacity(existing_bytes.len());
     file.seek(SeekFrom::Start(0))
@@ -122,7 +122,7 @@ pub fn append(root: &Path, message: AgentMessage) -> Result<AgentMessage> {
     file.read_to_end(&mut opened_bytes)
         .map_err(|e| io_error(&path, e))?;
     if opened_bytes != existing_bytes {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "transcript bytes changed during append setup; refusing to append.".into(),
         ));
     }
@@ -167,7 +167,7 @@ fn read_events(
 ) -> Result<Vec<TranscriptEvent>> {
     let bytes = match storage::read_bounded_regular(path, MAX_TRANSCRIPT_BYTES) {
         Ok(bytes) => bytes,
-        Err(ForgeError::Io { source, .. }) if source.kind() == std::io::ErrorKind::NotFound => {
+        Err(DocodeError::Io { source, .. }) if source.kind() == std::io::ErrorKind::NotFound => {
             return Ok(Vec::new());
         }
         Err(error) => return Err(error),
@@ -179,18 +179,18 @@ fn read_events(
             continue;
         }
         if out.len() >= MAX_TRANSCRIPT_MESSAGES {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "transcript message-count limit exceeded.".into(),
             ));
         }
         let event: TranscriptEvent = serde_json::from_slice(line).map_err(|_| {
-            ForgeError::Safety(format!(
+            DocodeError::Safety(format!(
                 "transcript line {} is invalid JSON; no transcript was returned.",
                 idx + 1
             ))
         })?;
         if event.message.mission_id != expected_mission_id {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "transcript contains a message bound to a different mission.".into(),
             ));
         }
@@ -202,13 +202,13 @@ fn read_events(
             || event.previous_sha256 != previous
             || event.sha256 != event_hash(event.sequence, &event.previous_sha256, &event.message)?
         {
-            return Err(ForgeError::Safety(format!(
+            return Err(DocodeError::Safety(format!(
                 "transcript hash chain or sequence failed at line {}; no transcript was returned.",
                 idx + 1
             )));
         }
         if event.message.content.len() > MAX_MESSAGE_BYTES {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "transcript contains an oversized message.".into(),
             ));
         }
@@ -230,7 +230,7 @@ fn validate_message(mission: &Mission, message: &AgentMessage) -> Result<()> {
         || message.tool_call_ids.len() > 1000
         || message.evidence_ids.len() > 1000
     {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "agent message violates the schema, project binding, or transcript resource limits."
                 .into(),
         ));
@@ -238,7 +238,7 @@ fn validate_message(mission: &Mission, message: &AgentMessage) -> Result<()> {
     if let Some(step_id) = &message.step_id
         && !mission.steps.iter().any(|step| step.id == *step_id)
     {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "agent message references a step outside its mission.".into(),
         ));
     }
@@ -248,7 +248,7 @@ fn validate_message(mission: &Mission, message: &AgentMessage) -> Result<()> {
         .chain(message.tool_call_ids.iter())
     {
         if !valid_uuid(id) {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "agent message contains an invalid evidence/tool-call ID.".into(),
             ));
         }
@@ -260,7 +260,7 @@ fn validate_message(mission: &Mission, message: &AgentMessage) -> Result<()> {
                 .provider_reported_cost_usd
                 .is_some_and(|n| !n.is_finite() || n < 0.0))
     {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "agent message usage metadata is invalid.".into(),
         ));
     }
@@ -280,7 +280,7 @@ fn lock_transcript(path: &Path) -> Result<File> {
     let file = options.open(path).map_err(|e| io_error(path, e))?;
     let metadata = file.metadata().map_err(|e| io_error(path, e))?;
     if !metadata.is_file() {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "transcript lock is not a regular file.".into(),
         ));
     }
@@ -289,7 +289,7 @@ fn lock_transcript(path: &Path) -> Result<File> {
     {
         use std::os::unix::fs::MetadataExt;
         if metadata.nlink() > 1 {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "hard-linked transcript lock is denied.".into(),
             ));
         }
@@ -300,7 +300,7 @@ fn lock_transcript(path: &Path) -> Result<File> {
 
 fn event_hash(sequence: u64, previous: &str, message: &AgentMessage) -> Result<String> {
     let body = serde_json::to_vec(&(1_u8, sequence, previous, message))
-        .map_err(|e| ForgeError::Message(e.to_string()))?;
+        .map_err(|e| DocodeError::Message(e.to_string()))?;
     Ok(storage::sha256(&body))
 }
 fn valid_uuid(id: &str) -> bool {
@@ -308,9 +308,9 @@ fn valid_uuid(id: &str) -> bool {
 }
 fn validate_uuid(id: &str) -> Result<()> {
     let parsed = Uuid::parse_str(id)
-        .map_err(|_| ForgeError::Message("mission ID must be a Forge-generated UUID.".into()))?;
+        .map_err(|_| DocodeError::Message("mission ID must be a Do Code-generated UUID.".into()))?;
     if parsed.to_string() != id {
-        return Err(ForgeError::Message(
+        return Err(DocodeError::Message(
             "mission ID must use a canonical lowercase UUID.".into(),
         ));
     }
@@ -374,7 +374,7 @@ mod tests {
         assert!(items[0].content.contains("[REDACTED]"));
         let path = root
             .path()
-            .join(".forge/transcripts")
+            .join(".docode/transcripts")
             .join(format!("{}.jsonl", mission.id));
         let mut data = fs::read_to_string(&path).unwrap();
         data = data.replace("safe", "tampered");

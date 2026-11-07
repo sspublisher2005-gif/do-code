@@ -7,24 +7,24 @@
     "timestamp": "2026-10-26T06:47:22Z",
     "tools": [
       {
-        "vendor": "Forge CLI project tooling",
-        "name": "Forge offline Cargo.lock SBOM generator",
+        "vendor": "Do Code project tooling",
+        "name": "Do Code offline Cargo.lock SBOM generator",
         "version": "1.0.0"
       }
     ],
     "component": {
       "type": "application",
-      "bom-ref": "pkg:cargo/forge-cli@0.7.0-rs.1",
-      "name": "forge-cli",
+      "bom-ref": "pkg:cargo/docode-cli@0.7.0-rs.1",
+      "name": "docode-cli",
       "version": "0.7.0-rs.1"
     },
     "properties": [
       {
-        "name": "forge:cargo-lock-sha256",
+        "name": "docode:cargo-lock-sha256",
         "value": "69c99d30b108c0565242520b140f850b365b44cef5f835c7aa811011bff3845a"
       },
       {
-        "name": "forge:sbom-scope",
+        "name": "docode:sbom-scope",
         "value": "Locked Cargo package coordinates and registry checksums; licenses intentionally not asserted"
       }
     ]
@@ -38,7 +38,7 @@
       "purl": "pkg:cargo/aho-corasick@1.1.5",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -63,7 +63,7 @@
       "purl": "pkg:cargo/anstyle@1.0.14",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -88,7 +88,7 @@
       "purl": "pkg:cargo/atomic-waker@1.1.2",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -113,7 +113,7 @@
       "purl": "pkg:cargo/aws-lc-rs@1.18.2",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -138,7 +138,7 @@
       "purl": "pkg:cargo/aws-lc-sys@0.46.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -163,7 +163,7 @@
       "purl": "pkg:cargo/base64@0.23.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -188,7 +188,7 @@
       "purl": "pkg:cargo/bitflags@2.13.2",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -213,7 +213,7 @@
       "purl": "pkg:cargo/block-buffer@0.10.4",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -238,7 +238,7 @@
       "purl": "pkg:cargo/bumpalo@3.20.3",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -263,7 +263,7 @@
       "purl": "pkg:cargo/bytes@1.12.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -288,7 +288,7 @@
       "purl": "pkg:cargo/cc@1.10.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -313,7 +313,7 @@
       "purl": "pkg:cargo/cfg-if@1.0.5",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -338,7 +338,7 @@
       "purl": "pkg:cargo/cfg_aliases@0.2.2",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -363,7 +363,7 @@
       "purl": "pkg:cargo/chacha20@0.10.2",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -388,7 +388,7 @@
       "purl": "pkg:cargo/clap@4.6.7",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "direct-runtime"
         }
       ],
@@ -413,7 +413,7 @@
       "purl": "pkg:cargo/clap_builder@4.6.7",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -438,7 +438,7 @@
       "purl": "pkg:cargo/clap_derive@4.6.7",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -463,7 +463,7 @@
       "purl": "pkg:cargo/clap_lex@1.1.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -488,7 +488,7 @@
       "purl": "pkg:cargo/cmake@0.1.58",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -513,7 +513,7 @@
       "purl": "pkg:cargo/combine@4.6.9",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -538,7 +538,7 @@
       "purl": "pkg:cargo/core-foundation@0.10.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -563,7 +563,7 @@
       "purl": "pkg:cargo/core-foundation-sys@0.8.7",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -588,7 +588,7 @@
       "purl": "pkg:cargo/cpufeatures@0.2.17",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -613,7 +613,7 @@
       "purl": "pkg:cargo/cpufeatures@0.3.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -638,7 +638,7 @@
       "purl": "pkg:cargo/crypto-common@0.1.7",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -663,7 +663,7 @@
       "purl": "pkg:cargo/deranged@0.5.9",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -688,7 +688,7 @@
       "purl": "pkg:cargo/digest@0.10.7",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -713,7 +713,7 @@
       "purl": "pkg:cargo/displaydoc@0.2.7",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -738,7 +738,7 @@
       "purl": "pkg:cargo/dunce@1.0.5",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -763,7 +763,7 @@
       "purl": "pkg:cargo/equivalent@1.0.3",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -788,7 +788,7 @@
       "purl": "pkg:cargo/errno@0.3.14",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -813,7 +813,7 @@
       "purl": "pkg:cargo/fastrand@2.5.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -838,7 +838,7 @@
       "purl": "pkg:cargo/find-msvc-tools@0.1.15",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -863,7 +863,7 @@
       "purl": "pkg:cargo/form_urlencoded@1.2.2",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -888,7 +888,7 @@
       "purl": "pkg:cargo/fs2@0.4.3",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "direct-runtime"
         }
       ],
@@ -913,7 +913,7 @@
       "purl": "pkg:cargo/fs_extra@1.3.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -938,7 +938,7 @@
       "purl": "pkg:cargo/futures-channel@0.3.34",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -963,7 +963,7 @@
       "purl": "pkg:cargo/futures-core@0.3.34",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -988,7 +988,7 @@
       "purl": "pkg:cargo/futures-io@0.3.34",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1013,7 +1013,7 @@
       "purl": "pkg:cargo/futures-macro@0.3.34",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1038,7 +1038,7 @@
       "purl": "pkg:cargo/futures-sink@0.3.34",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1063,7 +1063,7 @@
       "purl": "pkg:cargo/futures-task@0.3.34",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1088,7 +1088,7 @@
       "purl": "pkg:cargo/futures-util@0.3.34",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1113,7 +1113,7 @@
       "purl": "pkg:cargo/generic-array@0.14.7",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1138,7 +1138,7 @@
       "purl": "pkg:cargo/getrandom@0.2.17",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1163,7 +1163,7 @@
       "purl": "pkg:cargo/getrandom@0.4.3",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1188,7 +1188,7 @@
       "purl": "pkg:cargo/hashbrown@0.17.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1213,7 +1213,7 @@
       "purl": "pkg:cargo/heck@0.5.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1238,7 +1238,7 @@
       "purl": "pkg:cargo/http@1.5.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1263,7 +1263,7 @@
       "purl": "pkg:cargo/http-body@1.1.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1288,7 +1288,7 @@
       "purl": "pkg:cargo/http-body-util@0.1.5",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1313,7 +1313,7 @@
       "purl": "pkg:cargo/httparse@1.10.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1338,7 +1338,7 @@
       "purl": "pkg:cargo/hyper@1.12.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1363,7 +1363,7 @@
       "purl": "pkg:cargo/hyper-rustls@0.27.10",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1388,7 +1388,7 @@
       "purl": "pkg:cargo/hyper-util@0.1.21",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1413,7 +1413,7 @@
       "purl": "pkg:cargo/icu_collections@2.4.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1438,7 +1438,7 @@
       "purl": "pkg:cargo/icu_locale_core@2.4.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1463,7 +1463,7 @@
       "purl": "pkg:cargo/icu_normalizer@2.4.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1488,7 +1488,7 @@
       "purl": "pkg:cargo/icu_normalizer_data@2.4.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1513,7 +1513,7 @@
       "purl": "pkg:cargo/icu_properties@2.4.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1538,7 +1538,7 @@
       "purl": "pkg:cargo/icu_properties_data@2.4.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1563,7 +1563,7 @@
       "purl": "pkg:cargo/icu_provider@2.4.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1588,7 +1588,7 @@
       "purl": "pkg:cargo/idna@1.1.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1613,7 +1613,7 @@
       "purl": "pkg:cargo/idna_adapter@1.2.2",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1638,7 +1638,7 @@
       "purl": "pkg:cargo/indexmap@2.14.2",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1663,7 +1663,7 @@
       "purl": "pkg:cargo/ipnet@2.12.2",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1688,7 +1688,7 @@
       "purl": "pkg:cargo/itoa@1.0.18",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1713,7 +1713,7 @@
       "purl": "pkg:cargo/jni@0.22.4",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1738,7 +1738,7 @@
       "purl": "pkg:cargo/jni-macros@0.22.4",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1763,7 +1763,7 @@
       "purl": "pkg:cargo/jni-sys@0.4.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1788,7 +1788,7 @@
       "purl": "pkg:cargo/jni-sys-macros@0.4.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1813,7 +1813,7 @@
       "purl": "pkg:cargo/jobserver@0.1.35",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1838,7 +1838,7 @@
       "purl": "pkg:cargo/js-sys@0.3.106",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1863,7 +1863,7 @@
       "purl": "pkg:cargo/libc@0.2.191",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "direct-runtime"
         }
       ],
@@ -1888,7 +1888,7 @@
       "purl": "pkg:cargo/linux-raw-sys@0.12.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1913,7 +1913,7 @@
       "purl": "pkg:cargo/litemap@0.8.3",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1938,7 +1938,7 @@
       "purl": "pkg:cargo/log@0.4.34",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1963,7 +1963,7 @@
       "purl": "pkg:cargo/lru-slab@0.1.3",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -1988,7 +1988,7 @@
       "purl": "pkg:cargo/memchr@2.8.3",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2013,7 +2013,7 @@
       "purl": "pkg:cargo/mio@1.2.4",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2038,7 +2038,7 @@
       "purl": "pkg:cargo/num-conv@0.2.2",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2063,7 +2063,7 @@
       "purl": "pkg:cargo/once_cell@1.21.4",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2088,7 +2088,7 @@
       "purl": "pkg:cargo/openssl-probe@0.2.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2113,7 +2113,7 @@
       "purl": "pkg:cargo/percent-encoding@2.3.2",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2138,7 +2138,7 @@
       "purl": "pkg:cargo/pin-project-lite@0.2.17",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2163,7 +2163,7 @@
       "purl": "pkg:cargo/pkg-config@0.3.34",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2188,7 +2188,7 @@
       "purl": "pkg:cargo/potential_utf@0.1.6",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2213,7 +2213,7 @@
       "purl": "pkg:cargo/powerfmt@0.2.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2238,7 +2238,7 @@
       "purl": "pkg:cargo/proc-macro2@1.0.107",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2263,7 +2263,7 @@
       "purl": "pkg:cargo/quinn@0.11.12",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2288,7 +2288,7 @@
       "purl": "pkg:cargo/quinn-proto@0.11.19",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2313,7 +2313,7 @@
       "purl": "pkg:cargo/quinn-udp@0.5.16",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2338,7 +2338,7 @@
       "purl": "pkg:cargo/quote@1.0.47",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2363,7 +2363,7 @@
       "purl": "pkg:cargo/r-efi@6.0.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2388,7 +2388,7 @@
       "purl": "pkg:cargo/rand@0.10.3",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2413,7 +2413,7 @@
       "purl": "pkg:cargo/rand_core@0.10.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2438,7 +2438,7 @@
       "purl": "pkg:cargo/rand_pcg@0.10.2",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2463,7 +2463,7 @@
       "purl": "pkg:cargo/regex@1.13.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "direct-runtime"
         }
       ],
@@ -2488,7 +2488,7 @@
       "purl": "pkg:cargo/regex-automata@0.4.18",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2513,7 +2513,7 @@
       "purl": "pkg:cargo/regex-syntax@0.8.11",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2538,7 +2538,7 @@
       "purl": "pkg:cargo/reqwest@0.13.5",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "direct-runtime"
         }
       ],
@@ -2563,7 +2563,7 @@
       "purl": "pkg:cargo/ring@0.17.14",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2588,7 +2588,7 @@
       "purl": "pkg:cargo/rustc-hash@2.1.3",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2613,7 +2613,7 @@
       "purl": "pkg:cargo/rustc_version@0.4.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2638,7 +2638,7 @@
       "purl": "pkg:cargo/rustix@1.1.5",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2663,7 +2663,7 @@
       "purl": "pkg:cargo/rustls@0.23.46",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2688,7 +2688,7 @@
       "purl": "pkg:cargo/rustls-native-certs@0.8.5",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2713,7 +2713,7 @@
       "purl": "pkg:cargo/rustls-pki-types@1.15.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2738,7 +2738,7 @@
       "purl": "pkg:cargo/rustls-platform-verifier@0.7.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2763,7 +2763,7 @@
       "purl": "pkg:cargo/rustls-platform-verifier-android@0.2.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2788,7 +2788,7 @@
       "purl": "pkg:cargo/rustls-webpki@0.103.16",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2813,7 +2813,7 @@
       "purl": "pkg:cargo/rustversion@1.0.23",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2838,7 +2838,7 @@
       "purl": "pkg:cargo/same-file@1.0.6",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2863,7 +2863,7 @@
       "purl": "pkg:cargo/schannel@0.1.30",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2888,7 +2888,7 @@
       "purl": "pkg:cargo/security-framework@3.7.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2913,7 +2913,7 @@
       "purl": "pkg:cargo/security-framework-sys@2.17.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2938,7 +2938,7 @@
       "purl": "pkg:cargo/semver@1.0.28",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -2963,7 +2963,7 @@
       "purl": "pkg:cargo/serde@1.0.229",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "direct-runtime"
         }
       ],
@@ -2988,7 +2988,7 @@
       "purl": "pkg:cargo/serde_core@1.0.229",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3013,7 +3013,7 @@
       "purl": "pkg:cargo/serde_derive@1.0.229",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3038,7 +3038,7 @@
       "purl": "pkg:cargo/serde_json@1.0.154",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "direct-runtime"
         }
       ],
@@ -3063,7 +3063,7 @@
       "purl": "pkg:cargo/serde_spanned@1.1.2",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3088,7 +3088,7 @@
       "purl": "pkg:cargo/sha2@0.10.9",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "direct-runtime"
         }
       ],
@@ -3113,7 +3113,7 @@
       "purl": "pkg:cargo/shlex@2.0.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3138,7 +3138,7 @@
       "purl": "pkg:cargo/simd_cesu8@1.2.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3163,7 +3163,7 @@
       "purl": "pkg:cargo/simdutf8@0.1.5",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3188,7 +3188,7 @@
       "purl": "pkg:cargo/slab@0.4.12",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3213,7 +3213,7 @@
       "purl": "pkg:cargo/smallvec@1.16.4",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3238,7 +3238,7 @@
       "purl": "pkg:cargo/socket2@0.6.5",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3263,7 +3263,7 @@
       "purl": "pkg:cargo/stable_deref_trait@1.2.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3288,7 +3288,7 @@
       "purl": "pkg:cargo/subtle@2.6.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3313,7 +3313,7 @@
       "purl": "pkg:cargo/syn@2.0.119",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3338,7 +3338,7 @@
       "purl": "pkg:cargo/syn@3.0.9",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3363,7 +3363,7 @@
       "purl": "pkg:cargo/sync_wrapper@1.0.2",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3388,7 +3388,7 @@
       "purl": "pkg:cargo/synstructure@0.14.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3413,7 +3413,7 @@
       "purl": "pkg:cargo/tempfile@3.27.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "direct-development"
         }
       ],
@@ -3438,7 +3438,7 @@
       "purl": "pkg:cargo/thiserror@2.0.21",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "direct-runtime"
         }
       ],
@@ -3463,7 +3463,7 @@
       "purl": "pkg:cargo/thiserror-impl@2.0.21",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3488,7 +3488,7 @@
       "purl": "pkg:cargo/time@0.3.55",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "direct-runtime"
         }
       ],
@@ -3513,7 +3513,7 @@
       "purl": "pkg:cargo/time-core@0.1.9",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3538,7 +3538,7 @@
       "purl": "pkg:cargo/time-macros@0.2.32",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3563,7 +3563,7 @@
       "purl": "pkg:cargo/tinystr@0.8.5",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3588,7 +3588,7 @@
       "purl": "pkg:cargo/tinyvec@1.13.3",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3613,7 +3613,7 @@
       "purl": "pkg:cargo/tokio@1.54.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "direct-runtime"
         }
       ],
@@ -3638,7 +3638,7 @@
       "purl": "pkg:cargo/tokio-macros@2.7.2",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3663,7 +3663,7 @@
       "purl": "pkg:cargo/tokio-rustls@0.26.6",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3688,7 +3688,7 @@
       "purl": "pkg:cargo/tokio-util@0.7.20",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3713,7 +3713,7 @@
       "purl": "pkg:cargo/toml@0.9.12+spec-1.1.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "direct-runtime"
         }
       ],
@@ -3738,7 +3738,7 @@
       "purl": "pkg:cargo/toml_datetime@0.7.5+spec-1.1.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3763,7 +3763,7 @@
       "purl": "pkg:cargo/toml_parser@1.1.5+spec-1.1.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3788,7 +3788,7 @@
       "purl": "pkg:cargo/toml_writer@1.1.3+spec-1.1.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3813,7 +3813,7 @@
       "purl": "pkg:cargo/tower@0.5.3",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3838,7 +3838,7 @@
       "purl": "pkg:cargo/tower-http@0.6.11",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3863,7 +3863,7 @@
       "purl": "pkg:cargo/tower-layer@0.3.3",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3888,7 +3888,7 @@
       "purl": "pkg:cargo/tower-service@0.3.3",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3913,7 +3913,7 @@
       "purl": "pkg:cargo/tracing@0.1.44",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3938,7 +3938,7 @@
       "purl": "pkg:cargo/tracing-core@0.1.36",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3963,7 +3963,7 @@
       "purl": "pkg:cargo/try-lock@0.2.5",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -3988,7 +3988,7 @@
       "purl": "pkg:cargo/typenum@1.20.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4013,7 +4013,7 @@
       "purl": "pkg:cargo/unicode-ident@1.0.27",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4038,7 +4038,7 @@
       "purl": "pkg:cargo/untrusted@0.9.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4063,7 +4063,7 @@
       "purl": "pkg:cargo/url@2.5.8",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "direct-runtime"
         }
       ],
@@ -4088,7 +4088,7 @@
       "purl": "pkg:cargo/utf8_iter@1.0.4",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4113,7 +4113,7 @@
       "purl": "pkg:cargo/uuid@1.26.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "direct-runtime"
         }
       ],
@@ -4138,7 +4138,7 @@
       "purl": "pkg:cargo/version_check@0.9.5",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4163,7 +4163,7 @@
       "purl": "pkg:cargo/walkdir@2.5.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4188,7 +4188,7 @@
       "purl": "pkg:cargo/want@0.3.2",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4213,7 +4213,7 @@
       "purl": "pkg:cargo/wasi@0.11.1+wasi-snapshot-preview1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4238,7 +4238,7 @@
       "purl": "pkg:cargo/wasm-bindgen@0.2.129",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4263,7 +4263,7 @@
       "purl": "pkg:cargo/wasm-bindgen-futures@0.4.79",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4288,7 +4288,7 @@
       "purl": "pkg:cargo/wasm-bindgen-macro@0.2.129",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4313,7 +4313,7 @@
       "purl": "pkg:cargo/wasm-bindgen-macro-support@0.2.129",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4338,7 +4338,7 @@
       "purl": "pkg:cargo/wasm-bindgen-shared@0.2.129",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4363,7 +4363,7 @@
       "purl": "pkg:cargo/wasm-streams@0.5.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4388,7 +4388,7 @@
       "purl": "pkg:cargo/web-sys@0.3.106",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4413,7 +4413,7 @@
       "purl": "pkg:cargo/web-time@1.1.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4438,7 +4438,7 @@
       "purl": "pkg:cargo/webpki-root-certs@1.0.11",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4463,7 +4463,7 @@
       "purl": "pkg:cargo/winapi@0.3.9",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4488,7 +4488,7 @@
       "purl": "pkg:cargo/winapi-i686-pc-windows-gnu@0.4.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4513,7 +4513,7 @@
       "purl": "pkg:cargo/winapi-util@0.1.11",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4538,7 +4538,7 @@
       "purl": "pkg:cargo/winapi-x86_64-pc-windows-gnu@0.4.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4563,7 +4563,7 @@
       "purl": "pkg:cargo/windows-link@0.2.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4588,7 +4588,7 @@
       "purl": "pkg:cargo/windows-sys@0.52.0",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "target-specific-runtime"
         }
       ],
@@ -4613,7 +4613,7 @@
       "purl": "pkg:cargo/windows-sys@0.61.2",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "target-specific-runtime"
         }
       ],
@@ -4638,7 +4638,7 @@
       "purl": "pkg:cargo/windows-targets@0.52.6",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4663,7 +4663,7 @@
       "purl": "pkg:cargo/windows_aarch64_gnullvm@0.52.6",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4688,7 +4688,7 @@
       "purl": "pkg:cargo/windows_aarch64_msvc@0.52.6",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4713,7 +4713,7 @@
       "purl": "pkg:cargo/windows_i686_gnu@0.52.6",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4738,7 +4738,7 @@
       "purl": "pkg:cargo/windows_i686_gnullvm@0.52.6",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4763,7 +4763,7 @@
       "purl": "pkg:cargo/windows_i686_msvc@0.52.6",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4788,7 +4788,7 @@
       "purl": "pkg:cargo/windows_x86_64_gnu@0.52.6",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4813,7 +4813,7 @@
       "purl": "pkg:cargo/windows_x86_64_gnullvm@0.52.6",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4838,7 +4838,7 @@
       "purl": "pkg:cargo/windows_x86_64_msvc@0.52.6",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4863,7 +4863,7 @@
       "purl": "pkg:cargo/winnow@0.7.15",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4888,7 +4888,7 @@
       "purl": "pkg:cargo/winnow@1.0.4",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4913,7 +4913,7 @@
       "purl": "pkg:cargo/writeable@0.6.4",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4938,7 +4938,7 @@
       "purl": "pkg:cargo/yoke@0.8.4",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4963,7 +4963,7 @@
       "purl": "pkg:cargo/yoke-derive@0.8.4",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -4988,7 +4988,7 @@
       "purl": "pkg:cargo/zerofrom@0.1.8",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -5013,7 +5013,7 @@
       "purl": "pkg:cargo/zerofrom-derive@0.1.8",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -5038,7 +5038,7 @@
       "purl": "pkg:cargo/zeroize@1.9.1",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -5063,7 +5063,7 @@
       "purl": "pkg:cargo/zerotrie@0.2.5",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -5088,7 +5088,7 @@
       "purl": "pkg:cargo/zerovec@0.11.9",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -5113,7 +5113,7 @@
       "purl": "pkg:cargo/zerovec-derive@0.11.7",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -5138,7 +5138,7 @@
       "purl": "pkg:cargo/zmij@1.0.23",
       "properties": [
         {
-          "name": "forge:dependency-class",
+          "name": "docode:dependency-class",
           "value": "transitive-or-development"
         }
       ],
@@ -5348,7 +5348,7 @@
       "dependsOn": []
     },
     {
-      "ref": "pkg:cargo/forge-cli@0.7.0-rs.1",
+      "ref": "pkg:cargo/docode-cli@0.7.0-rs.1",
       "dependsOn": [
         "pkg:cargo/clap@4.6.7",
         "pkg:cargo/fs2@0.4.3",

@@ -5,17 +5,17 @@
 //!   by the mission store, never duplicated here.
 //! - warm: project/global learning notes (existing memory store) plus the
 //!   lessons and playbooks managed here.
-//! - cold: archived lessons and notes (`.forge/memory/<scope>/archive/`),
+//! - cold: archived lessons and notes (`.docode/memory/<scope>/archive/`),
 //!   kept as plain files so the whole memory tree is git-friendly:
 //!   every change is diffable, revertible, and reviewable by the user.
 //!
 //! Compounding loop: a completed mission proposes lessons from its ledger
-//! -> the user approves or rejects each one (`forge lessons approve`) ->
+//! -> the user approves or rejects each one (`docode lessons approve`) ->
 //! approved lessons become playbooks -> future missions whose task text
 //! matches a playbook keyword receive it in the architect's brief. Nothing
 //! is ever auto-saved: proposals wait for explicit user confirmation.
 
-use crate::error::{ForgeError, Result};
+use crate::error::{DocodeError, Result};
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -58,7 +58,7 @@ fn scope_memory_dir(root: &Path, scope: &str) -> Result<PathBuf> {
             crate::storage::ensure_private_dir(&dir)?;
             Ok(dir)
         }
-        other => Err(ForgeError::Config(format!(
+        other => Err(DocodeError::Config(format!(
             "unknown memory scope '{other}'."
         ))),
     }
@@ -91,18 +91,18 @@ pub fn propose_lesson(
     keywords: &[String],
 ) -> Result<Lesson> {
     if title.trim().is_empty() || lesson.trim().is_empty() {
-        return Err(ForgeError::Message(
+        return Err(DocodeError::Message(
             "lesson title and body are required.".into(),
         ));
     }
     if lesson.len() as u64 > MAX_LESSON_BYTES {
-        return Err(ForgeError::Message(
+        return Err(DocodeError::Message(
             "lesson body exceeds the 64 KiB bound.".into(),
         ));
     }
     let dir = lessons_dir(root, scope)?;
     if fs::read_dir(&dir).map(|d| d.count()).unwrap_or(0) >= MAX_LESSONS {
-        return Err(ForgeError::Message(
+        return Err(DocodeError::Message(
             "lesson store is full; archive or reject old lessons first.".into(),
         ));
     }
@@ -121,14 +121,14 @@ pub fn propose_lesson(
         decided_at: None,
     };
     let bytes =
-        serde_json::to_vec_pretty(&record).map_err(|e| ForgeError::Message(e.to_string()))?;
+        serde_json::to_vec_pretty(&record).map_err(|e| DocodeError::Message(e.to_string()))?;
     crate::storage::write_atomic(&lesson_path(&dir, &record.id), &bytes, true)?;
     Ok(record)
 }
 
 fn load_lesson(path: &Path) -> Result<Lesson> {
     let bytes = crate::storage::read_bounded_regular(path, MAX_LESSON_BYTES * 2)?;
-    serde_json::from_slice(&bytes).map_err(|e| ForgeError::Message(e.to_string()))
+    serde_json::from_slice(&bytes).map_err(|e| DocodeError::Message(e.to_string()))
 }
 
 pub fn list_lessons(root: &Path, scope: &str) -> Result<Vec<Lesson>> {
@@ -152,7 +152,7 @@ pub fn approve_lesson(root: &Path, scope: &str, id: &str) -> Result<Lesson> {
     let path = lesson_path(&dir, id);
     let mut lesson = load_lesson(&path)?;
     if lesson.status != LessonStatus::Proposed {
-        return Err(ForgeError::Safety(format!(
+        return Err(DocodeError::Safety(format!(
             "lesson '{id}' is {:?}; only proposed lessons can be approved.",
             lesson.status
         )));
@@ -160,7 +160,7 @@ pub fn approve_lesson(root: &Path, scope: &str, id: &str) -> Result<Lesson> {
     lesson.status = LessonStatus::Approved;
     lesson.decided_at = Some(crate::storage::timestamp());
     let bytes =
-        serde_json::to_vec_pretty(&lesson).map_err(|e| ForgeError::Message(e.to_string()))?;
+        serde_json::to_vec_pretty(&lesson).map_err(|e| DocodeError::Message(e.to_string()))?;
     crate::storage::write_atomic(&path, &bytes, true)?;
     write_playbook(root, scope, &lesson)?;
     Ok(lesson)
@@ -171,7 +171,7 @@ pub fn reject_lesson(root: &Path, scope: &str, id: &str) -> Result<Lesson> {
     let path = lesson_path(&dir, id);
     let mut lesson = load_lesson(&path)?;
     if lesson.status != LessonStatus::Proposed {
-        return Err(ForgeError::Safety(format!(
+        return Err(DocodeError::Safety(format!(
             "lesson '{id}' is {:?}; only proposed lessons can be rejected.",
             lesson.status
         )));
@@ -179,7 +179,7 @@ pub fn reject_lesson(root: &Path, scope: &str, id: &str) -> Result<Lesson> {
     lesson.status = LessonStatus::Rejected;
     lesson.decided_at = Some(crate::storage::timestamp());
     let bytes =
-        serde_json::to_vec_pretty(&lesson).map_err(|e| ForgeError::Message(e.to_string()))?;
+        serde_json::to_vec_pretty(&lesson).map_err(|e| DocodeError::Message(e.to_string()))?;
     crate::storage::write_atomic(&path, &bytes, true)?;
     Ok(lesson)
 }
@@ -210,7 +210,7 @@ pub fn archive_lesson(root: &Path, scope: &str, id: &str) -> Result<Lesson> {
     let mut lesson = load_lesson(&path)?;
     lesson.status = LessonStatus::Archived;
     let bytes =
-        serde_json::to_vec_pretty(&lesson).map_err(|e| ForgeError::Message(e.to_string()))?;
+        serde_json::to_vec_pretty(&lesson).map_err(|e| DocodeError::Message(e.to_string()))?;
     crate::storage::write_atomic(&path, &bytes, true)?;
     let playbook = playbooks_dir(root, scope)?.join(format!("{}.md", lesson.id));
     if playbook.exists() {

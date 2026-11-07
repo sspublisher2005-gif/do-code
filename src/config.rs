@@ -1,4 +1,4 @@
-use crate::error::{ForgeError, Result, io_error};
+use crate::error::{DocodeError, Result, io_error};
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, OpenOptions},
@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct ForgeConfig {
+pub struct DocodeConfig {
     pub project: ProjectConfig,
     pub model: ModelConfig,
     pub privacy: PrivacyConfig,
@@ -55,7 +55,7 @@ pub struct LimitsConfig {
 impl Default for ProjectConfig {
     fn default() -> Self {
         Self {
-            name: "Forge workspace".into(),
+            name: "Do Code workspace".into(),
         }
     }
 }
@@ -90,25 +90,25 @@ impl Default for LimitsConfig {
 }
 
 pub struct LoadedConfig {
-    pub config: ForgeConfig,
+    pub config: DocodeConfig,
     pub exists: bool,
     pub path: PathBuf,
 }
 
 pub fn load(root: &Path) -> Result<LoadedConfig> {
     let canonical_root = fs::canonicalize(root).map_err(|e| io_error(root, e))?;
-    let path = canonical_root.join("forge.config.toml");
+    let path = canonical_root.join("docode.config.toml");
     let metadata = match fs::symlink_metadata(&path) {
         Ok(meta) => {
             if meta.file_type().is_symlink() || !meta.is_file() {
-                return Err(ForgeError::Safety(
-                    "forge.config.toml must be a regular file, not a symlink or special file."
+                return Err(DocodeError::Safety(
+                    "docode.config.toml must be a regular file, not a symlink or special file."
                         .into(),
                 ));
             }
             if meta.len() > 128 * 1024 {
-                return Err(ForgeError::Config(
-                    "forge.config.toml exceeds 128 KiB.".into(),
+                return Err(DocodeError::Config(
+                    "docode.config.toml exceeds 128 KiB.".into(),
                 ));
             }
             Some(meta)
@@ -127,8 +127,8 @@ pub fn load(root: &Path) -> Result<LoadedConfig> {
         let mut file = options.open(&path).map_err(|e| io_error(&path, e))?;
         let opened_meta = file.metadata().map_err(|e| io_error(&path, e))?;
         if !opened_meta.is_file() || opened_meta.len() > 128 * 1024 {
-            return Err(ForgeError::Safety(
-                "opened forge.config.toml is not a bounded regular file.".into(),
+            return Err(DocodeError::Safety(
+                "opened docode.config.toml is not a bounded regular file.".into(),
             ));
         }
         crate::storage::reject_hardlink_handle(&file, &path)?;
@@ -138,14 +138,14 @@ pub fn load(root: &Path) -> Result<LoadedConfig> {
             .read_to_string(&mut source)
             .map_err(|e| io_error(&path, e))?;
         if source.len() > 128 * 1024 {
-            return Err(ForgeError::Config(
-                "forge.config.toml exceeded 128 KiB while being read.".into(),
+            return Err(DocodeError::Config(
+                "docode.config.toml exceeded 128 KiB while being read.".into(),
             ));
         }
-        toml::from_str::<ForgeConfig>(&source)
-            .map_err(|e| ForgeError::Config(format!("invalid forge.config.toml: {e}")))?
+        toml::from_str::<DocodeConfig>(&source)
+            .map_err(|e| DocodeError::Config(format!("invalid docode.config.toml: {e}")))?
     } else {
-        ForgeConfig::default()
+        DocodeConfig::default()
     };
     validate(&config)?;
     Ok(LoadedConfig {
@@ -155,69 +155,69 @@ pub fn load(root: &Path) -> Result<LoadedConfig> {
     })
 }
 
-pub fn validate(config: &ForgeConfig) -> Result<()> {
+pub fn validate(config: &DocodeConfig) -> Result<()> {
     if !["openai-compatible", "ollama", "anthropic", "google"]
         .contains(&config.model.provider.as_str())
     {
-        return Err(ForgeError::Config(
+        return Err(DocodeError::Config(
             "model.provider must be openai-compatible, ollama, anthropic, or google.".into(),
         ));
     }
     if config.model.model.trim().is_empty() || config.model.model.len() > 256 {
-        return Err(ForgeError::Config(
+        return Err(DocodeError::Config(
             "model.model must be a non-empty identifier up to 256 bytes.".into(),
         ));
     }
     if !(1..=128_000).contains(&config.model.max_output_tokens) {
-        return Err(ForgeError::Config(
+        return Err(DocodeError::Config(
             "model.max_output_tokens must be between 1 and 128000.".into(),
         ));
     }
     if !(1_000..=300_000).contains(&config.model.timeout_ms) {
-        return Err(ForgeError::Config(
+        return Err(DocodeError::Config(
             "model.timeout_ms must be between 1000 and 300000.".into(),
         ));
     }
     if config.privacy.telemetry {
-        return Err(ForgeError::Config(
-            "telemetry is disabled by the Forge product policy in this version.".into(),
+        return Err(DocodeError::Config(
+            "telemetry is disabled by the Do Code product policy in this version.".into(),
         ));
     }
     if !["ask", "local-only"].contains(&config.privacy.mode.as_str()) {
-        return Err(ForgeError::Config(
+        return Err(DocodeError::Config(
             "privacy.mode must be ask or local-only.".into(),
         ));
     }
     if !(1024..=16 * 1024 * 1024).contains(&config.limits.max_read_bytes) {
-        return Err(ForgeError::Config(
+        return Err(DocodeError::Config(
             "limits.max_read_bytes must be 1024..=16777216.".into(),
         ));
     }
     if !(1..=100_000).contains(&config.limits.max_files) {
-        return Err(ForgeError::Config(
+        return Err(DocodeError::Config(
             "limits.max_files must be 1..=100000.".into(),
         ));
     }
     if !(1..=10_000).contains(&config.limits.max_search_matches) {
-        return Err(ForgeError::Config(
+        return Err(DocodeError::Config(
             "limits.max_search_matches must be 1..=10000.".into(),
         ));
     }
     let key_allowlist: &[&str] = match config.model.provider.as_str() {
         "openai-compatible" => &[
-            "FORGE_MODEL_API_KEY",
+            "DOCODE_MODEL_API_KEY",
             "OPENAI_API_KEY",
             "OPENAI_COMPATIBLE_API_KEY",
             "OPENROUTER_API_KEY",
             "DEEPSEEK_API_KEY",
         ],
-        "anthropic" => &["FORGE_MODEL_API_KEY", "ANTHROPIC_API_KEY"],
-        "google" => &["FORGE_MODEL_API_KEY", "GOOGLE_API_KEY", "GEMINI_API_KEY"],
-        "ollama" => &["FORGE_MODEL_API_KEY", "OLLAMA_API_KEY"],
+        "anthropic" => &["DOCODE_MODEL_API_KEY", "ANTHROPIC_API_KEY"],
+        "google" => &["DOCODE_MODEL_API_KEY", "GOOGLE_API_KEY", "GEMINI_API_KEY"],
+        "ollama" => &["DOCODE_MODEL_API_KEY", "OLLAMA_API_KEY"],
         _ => &[],
     };
     if !key_allowlist.contains(&config.model.api_key_env.as_str()) {
-        return Err(ForgeError::Config("model.api_key_env must be a provider-allowlisted credential variable; arbitrary environment variables are rejected.".into()));
+        return Err(DocodeError::Config("model.api_key_env must be a provider-allowlisted credential variable; arbitrary environment variables are rejected.".into()));
     }
     validate_base_url(&config.model.base_url)?;
     Ok(())
@@ -225,10 +225,10 @@ pub fn validate(config: &ForgeConfig) -> Result<()> {
 
 pub fn validate_base_url(raw: &str) -> Result<Url> {
     let url = Url::parse(raw)
-        .map_err(|_| ForgeError::Config("model.base_url is not a valid URL.".into()))?;
+        .map_err(|_| DocodeError::Config("model.base_url is not a valid URL.".into()))?;
     let local_http = url.scheme() == "http" && is_loopback(&url);
     if url.scheme() != "https" && !local_http {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "provider endpoint must use HTTPS; HTTP is allowed only for loopback endpoints.".into(),
         ));
     }
@@ -237,7 +237,7 @@ pub fn validate_base_url(raw: &str) -> Result<Url> {
         || url.query().is_some()
         || url.fragment().is_some()
     {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "provider URL must not contain userinfo, query parameters, or a fragment.".into(),
         ));
     }
@@ -246,13 +246,13 @@ pub fn validate_base_url(raw: &str) -> Result<Url> {
         .and_then(parse_ip_host)
         .is_some_and(|ip| ip.is_unspecified())
     {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "unspecified-address provider endpoints are not allowed.".into(),
         ));
     }
     let path = url.path().trim_end_matches('/');
     if path.ends_with("/chat/completions") || path.ends_with("/models") {
-        return Err(ForgeError::Config(
+        return Err(DocodeError::Config(
             "configure the API base path, not an individual API endpoint.".into(),
         ));
     }
@@ -276,11 +276,11 @@ pub fn is_loopback(url: &Url) -> bool {
 
 pub fn initialize(root: &Path) -> Result<(bool, bool)> {
     let canonical_root = fs::canonicalize(root).map_err(|e| io_error(root, e))?;
-    let home = canonical_root.join(".forge");
+    let home = canonical_root.join(".docode");
     match fs::symlink_metadata(&home) {
         Ok(meta) if meta.file_type().is_symlink() || !meta.is_dir() => {
-            return Err(ForgeError::Safety(
-                ".forge must be a real directory, not a symlink or special file.".into(),
+            return Err(DocodeError::Safety(
+                ".docode must be a real directory, not a symlink or special file.".into(),
             ));
         }
         Ok(_) => {
@@ -294,19 +294,19 @@ pub fn initialize(root: &Path) -> Result<(bool, bool)> {
             }
             let after = fs::symlink_metadata(&home).map_err(|e| io_error(&home, e))?;
             if after.file_type().is_symlink() || !after.is_dir() {
-                return Err(ForgeError::Safety(
-                    ".forge must be a real directory, not a symlink or special file.".into(),
+                return Err(DocodeError::Safety(
+                    ".docode must be a real directory, not a symlink or special file.".into(),
                 ));
             }
             set_private_permissions(&home)?;
         }
         Err(e) => return Err(io_error(&home, e)),
     }
-    let config_path = canonical_root.join("forge.config.toml");
-    let config_contents = toml::to_string_pretty(&ForgeConfig::default())
-        .map_err(|e| ForgeError::Config(e.to_string()))?;
+    let config_path = canonical_root.join("docode.config.toml");
+    let config_contents = toml::to_string_pretty(&DocodeConfig::default())
+        .map_err(|e| DocodeError::Config(e.to_string()))?;
     let config_created = create_file_exclusive(&config_path, config_contents.as_bytes(), 0o600)?;
-    let memory_path = canonical_root.join("FORGE.md");
+    let memory_path = canonical_root.join("DOCODE.md");
     let memory_created = create_file_exclusive(&memory_path, DEFAULT_MEMORY.as_bytes(), 0o600)?;
     Ok((config_created, memory_created))
 }
@@ -317,11 +317,11 @@ fn create_file_exclusive(path: &Path, bytes: &[u8], mode: u32) -> Result<bool> {
     let _ = mode;
     let parent = path
         .parent()
-        .ok_or_else(|| ForgeError::Safety("target file has no parent directory.".into()))?;
+        .ok_or_else(|| DocodeError::Safety("target file has no parent directory.".into()))?;
     let file_name = path
         .file_name()
         .and_then(|n| n.to_str())
-        .ok_or_else(|| ForgeError::Safety("target file name is not valid Unicode.".into()))?;
+        .ok_or_else(|| DocodeError::Safety("target file name is not valid Unicode.".into()))?;
     let temp_path = parent.join(format!(".{file_name}.{}.tmp", Uuid::new_v4()));
     let result = (|| {
         let mut options = fs::OpenOptions::new();
@@ -342,7 +342,7 @@ fn create_file_exclusive(path: &Path, bytes: &[u8], mode: u32) -> Result<bool> {
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
                 let meta = fs::symlink_metadata(path).map_err(|e| io_error(path, e))?;
                 if meta.file_type().is_symlink() || !meta.is_file() {
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "{} exists but is not a regular file; refusing to overwrite it.",
                         path.display()
                     )));
@@ -419,7 +419,7 @@ fn enforce_windows_private_acl(path: &Path) -> Result<()> {
     let mut token: HANDLE = std::ptr::null_mut();
     let ok = unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY_VALUE, &mut token) };
     if ok == 0 {
-        return Err(ForgeError::Safety(format!(
+        return Err(DocodeError::Safety(format!(
             "OpenProcessToken failed while protecting '{}'.",
             path.display()
         )));
@@ -438,7 +438,7 @@ fn enforce_windows_private_acl(path: &Path) -> Result<()> {
     }
     if needed == 0 {
         unsafe { CloseHandle(token) };
-        return Err(ForgeError::Safety(format!(
+        return Err(DocodeError::Safety(format!(
             "GetTokenInformation size query failed for '{}'.",
             path.display()
         )));
@@ -446,7 +446,7 @@ fn enforce_windows_private_acl(path: &Path) -> Result<()> {
     let buf = unsafe { LocalAlloc(LMEM_FIXED, needed as usize) };
     if buf.is_null() {
         unsafe { CloseHandle(token) };
-        return Err(ForgeError::Safety(format!(
+        return Err(DocodeError::Safety(format!(
             "LocalAlloc failed while protecting '{}'.",
             path.display()
         )));
@@ -459,7 +459,7 @@ fn enforce_windows_private_acl(path: &Path) -> Result<()> {
             LocalFree(buf);
             CloseHandle(token)
         };
-        return Err(ForgeError::Safety(format!(
+        return Err(DocodeError::Safety(format!(
             "GetTokenInformation failed while protecting '{}'.",
             path.display()
         )));
@@ -494,7 +494,7 @@ fn enforce_windows_private_acl(path: &Path) -> Result<()> {
             LocalFree(buf);
             CloseHandle(token)
         };
-        return Err(ForgeError::Safety(format!(
+        return Err(DocodeError::Safety(format!(
             "SetEntriesInAclW failed (err={}) while protecting '{}'.",
             err,
             path.display()
@@ -524,7 +524,7 @@ fn enforce_windows_private_acl(path: &Path) -> Result<()> {
             LocalFree(buf);
             CloseHandle(token)
         };
-        return Err(ForgeError::Safety(format!(
+        return Err(DocodeError::Safety(format!(
             "SetNamedSecurityInfoW failed (err={}) while protecting '{}'.",
             err,
             path.display()
@@ -554,7 +554,7 @@ fn enforce_windows_private_acl(path: &Path) -> Result<()> {
             LocalFree(buf);
             CloseHandle(token)
         };
-        return Err(ForgeError::Safety(format!(
+        return Err(DocodeError::Safety(format!(
             "GetNamedSecurityInfoW read-back failed (err={}) for '{}'.",
             err,
             path.display()
@@ -579,7 +579,7 @@ fn enforce_windows_private_acl(path: &Path) -> Result<()> {
                     LocalFree(buf);
                     CloseHandle(token)
                 };
-                return Err(ForgeError::Safety(format!(
+                return Err(DocodeError::Safety(format!(
                     "DACL owner SID does not match current user for '{}'; refusing to proceed.",
                     path.display()
                 )));
@@ -611,7 +611,7 @@ pub fn set_private_permissions(path: &Path) -> Result<()> {
     }
     #[cfg(not(any(unix, windows)))]
     {
-        Err(ForgeError::Safety(
+        Err(DocodeError::Safety(
             "private state permissions are unsupported on this platform.".into(),
         ))
     }
@@ -636,9 +636,9 @@ mod tests {
     #[test]
     fn rejects_unknown_config_keys_and_arbitrary_key_sources() {
         let unknown = "[model]\nunknown_key = true\n";
-        assert!(toml::from_str::<ForgeConfig>(unknown).is_err());
+        assert!(toml::from_str::<DocodeConfig>(unknown).is_err());
         let arbitrary = "[model]\napi_key_env = \"AWS_SECRET_ACCESS_KEY\"\n";
-        let parsed = toml::from_str::<ForgeConfig>(arbitrary).unwrap();
+        let parsed = toml::from_str::<DocodeConfig>(arbitrary).unwrap();
         assert!(validate(&parsed).is_err());
     }
 
@@ -656,14 +656,14 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn init_preflights_unsafe_forge_directory_before_writing_project_files() {
+    fn init_preflights_unsafe_docode_directory_before_writing_project_files() {
         use std::os::unix::fs::symlink;
         let root = tempfile::tempdir().unwrap();
         let outside = tempfile::tempdir().unwrap();
-        symlink(outside.path(), root.path().join(".forge")).unwrap();
+        symlink(outside.path(), root.path().join(".docode")).unwrap();
         assert!(initialize(root.path()).is_err());
-        assert!(!root.path().join("forge.config.toml").exists());
-        assert!(!root.path().join("FORGE.md").exists());
+        assert!(!root.path().join("docode.config.toml").exists());
+        assert!(!root.path().join("DOCODE.md").exists());
     }
 
     #[cfg(unix)]
@@ -673,8 +673,12 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let outside = tempfile::tempdir().unwrap();
         let external = outside.path().join("external-config.toml");
-        fs::write(&external, toml::to_string(&ForgeConfig::default()).unwrap()).unwrap();
-        symlink(&external, root.path().join("forge.config.toml")).unwrap();
+        fs::write(
+            &external,
+            toml::to_string(&DocodeConfig::default()).unwrap(),
+        )
+        .unwrap();
+        symlink(&external, root.path().join("docode.config.toml")).unwrap();
         assert!(load(root.path()).is_err());
     }
 
@@ -682,7 +686,7 @@ mod tests {
     fn rejects_oversized_config_before_parsing() {
         let root = tempfile::tempdir().unwrap();
         fs::write(
-            root.path().join("forge.config.toml"),
+            root.path().join("docode.config.toml"),
             "x".repeat(128 * 1024 + 1),
         )
         .unwrap();
@@ -691,7 +695,7 @@ mod tests {
 
     #[test]
     fn missing_sections_get_safe_defaults() {
-        let parsed = toml::from_str::<ForgeConfig>("[project]\nname = \"test\"\n").unwrap();
+        let parsed = toml::from_str::<DocodeConfig>("[project]\nname = \"test\"\n").unwrap();
         validate(&parsed).unwrap();
         assert_eq!(parsed.project.name, "test");
         assert!(!parsed.privacy.telemetry);

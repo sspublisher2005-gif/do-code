@@ -1,7 +1,7 @@
-# Forge CLI — Deep Test & Platform Verification Report
+# Do Code — Deep Test & Platform Verification Report
 
-**Product:** Forge CLI  
-**Implementation:** Rust (`forge-cli` crate), version `0.7.0-rs.1` WIP  
+**Product:** Do Code  
+**Implementation:** Rust (`docode-cli` crate), version `0.7.0-rs.1` WIP  
 **Report date:** 2026-10-24  
 **Status:** **NOT RELEASE-READY — compiler/runtime tests blocked**
 
@@ -25,18 +25,18 @@ A static PASS does not mean that Rust compiles or runtime behavior is correct.
 | Area | Current status | Evidence/next action |
 |---|---|---|
 | Cargo/TOML manifests and example config | Static-checkable | Parse using Python TOML; still need Cargo dependency resolution and build |
-| Python black-box/CI harness syntax | Static PASS | Three harness scripts parsed via Python AST and bytecode compilation; behavioral tests require a compiled `forge` executable |
+| Python black-box/CI harness syntax | Static PASS | Three harness scripts parsed via Python AST and bytecode compilation; behavioral tests require a compiled `docode` executable |
 | Rust source delimiters and workflow structure | Static PASS, limited | Delimiters balance in 20 Rust source files after skipping comments/strings; YAML parses and six OS/toolchain jobs are configured. This is not a Rust parser, compiler, or CI run. |
 | Source inventory hashes | Static PASS in final preflight | Exact SHA-256/length match for all 42 inventoried source files; inventory intentionally does not self-hash |
 | Main source ZIP and TypeScript reference ZIP | Static PASS in final preflight | Source archive has 43 members with ZIP CRC checks and no build/cache/private artifacts; preserved TypeScript archive has 509 structurally readable members. This is not proof of Rust compilability. |
 | `cargo fmt` / `cargo check` / `cargo test` / Clippy | **BLOCKED** | Rust toolchain unavailable |
 | Release executable and black-box acceptance | **BLOCKED** | No executable exists; test harness ready but not run |
-| Linux runtime | **BLOCKED** | Environment OS is Linux but cannot build/run Forge |
+| Linux runtime | **BLOCKED** | Environment OS is Linux but cannot build/run Do Code |
 | macOS/Windows runtime | **BLOCKED** | No actual runner execution evidence |
 | Toolchain install duration | **NOT MEASURED** | Must time a successful setup on a connected runner and mark cache/preinstalled status |
-| Forge installation/startup/operation time | **NOT MEASURED** | There is no built binary or end-user installer |
+| Do Code installation/startup/operation time | **NOT MEASURED** | There is no built binary or end-user installer |
 | Sandbox and test/build/browser execution | **NOT IMPLEMENTED** | Intentionally blocked in CLI; per-OS reviewed isolation is a release gate |
-| Windows `.forge` ACL/private permissions | **INCOMPLETE** | Implement and verify native ACL handling before treating Windows as supported for untrusted repositories |
+| Windows `.docode` ACL/private permissions | **INCOMPLETE** | Implement and verify native ACL handling before treating Windows as supported for untrusted repositories |
 
 ## Rust regression tests authored, not executed
 
@@ -56,7 +56,7 @@ The current source contains 70 Rust test attributes across modules and an integr
 - Terminal file reads and search excerpts use redaction plus terminal-control escaping.
 - Sensitive-path filtering includes common secret directories, private keys and certificate formats. This is heuristic; it cannot guarantee all secret content is found.
 - Unix and Windows opened-file hard-link rejection code is wired into state/config/audit/transcript/file reads, with platform-specific tests authored. These checks are still uncompiled/unverified, and do not substitute for a reviewed path/ACL boundary.
-- Audit IDs use the stable `.forge/project-id`, and existing project IDs must be canonical UUIDs before state is accepted.
+- Audit IDs use the stable `.docode/project-id`, and existing project IDs must be canonical UUIDs before state is accepted.
 - Provider calls require `--live --approve-context-sharing`, reject redirects, use timeouts and response bounds, and avoid echoing provider error bodies.
 - No predicted-cost field, maximum USD budget, estimated-cost stop, or cost-triggered auto-stop exists in the active product domain. Explicit provider-reported cost is optional and missing/invalid cost is `unknown`.
 - No arbitrary shell, build, test or browser command is exposed until an OS sandbox exists.
@@ -71,4 +71,4 @@ Before release, complete Windows private ACL hardening, reviewed Linux/macOS san
 
 ## Final verdict
 
-**This is a growing Forge CLI Rust implementation, not a finished/100%-verified Forge release.** The current session can produce source and static verification evidence, but lacks the compiler/OS runners needed to prove the Rust code builds or works. Treat runtime behavior, OS compatibility, install time and performance as unverified until reports from actual runs are available.
+**This is a growing Do Code Rust implementation, not a finished/100%-verified Do Code release.** The current session can produce source and static verification evidence, but lacks the compiler/OS runners needed to prove the Rust code builds or works. Treat runtime behavior, OS compatibility, install time and performance as unverified until reports from actual runs are available.

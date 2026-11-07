@@ -1,13 +1,13 @@
-# Forge CLI — Rust migration and completion plan
+# Do Code — Rust migration and completion plan
 
-**Product:** Forge CLI  
+**Product:** Do Code  
 **Implementation language:** Rust  
 **Working source version:** `0.7.0-rs.1`  
-**Reference snapshot:** `reference/Forge_CLI_TS_0.6.0-ts.2_MemoryDecision_Merge_WIP.zip`
+**Reference snapshot:** `reference/Do Code_CLI_TS_0.6.0-ts.2_MemoryDecision_Merge_WIP.zip`
 
 ## Non-negotiable migration rules
 
-1. Forge CLI remains the product; Rust is only the implementation language.
+1. Do Code remains the product; Rust is only the implementation language.
 2. The TypeScript branch remains preserved until parity is demonstrated feature-by-feature with tests and evidence. Do not discard it or copy historical test counts into Rust reports.
 3. Do not add predicted USD pricing, `max_cost_usd`, estimated-cost fields, or mission-stop triggers based on guessed price. Actual provider-reported cost may be shown after the request; absent/invalid values are `unknown`.
 4. The CLI must fail closed when approval, path policy, evidence, state integrity, or sandbox readiness is missing. Do not add a host-shell fallback.
@@ -29,7 +29,7 @@
 | Local project/global memory | `memory.rs` | Explicit user confirmation; not silently included in model prompts; verify import atomicity and editor handling |
 | Decision Arena | `decision_arena.rs` | Decision support, not external research or ground-truth scoring; validate triggers and provider handling |
 | Freeze, audit and redaction | `freeze.rs`, `audit.rs`, `redaction.rs` | Regex redaction is heuristic; stress lock/corruption/concurrency/races on each OS |
-| Windows opened-handle hard-link check | `storage.rs` plus Windows-gated test | Newly authored against the Win32 API, still uncompiled/unverified; private `.forge` ACL creation/validation is incomplete |
+| Windows opened-handle hard-link check | `storage.rs` plus Windows-gated test | Newly authored against the Win32 API, still uncompiled/unverified; private `.docode` ACL creation/validation is incomplete |
 | OS command/build/test/browser sandbox | No production driver | **Blocked release gate.** Never execute repository commands until reviewed platform-specific isolation and negative tests pass |
 | Installers, release artifacts and performance | Not release-complete | No compiled binary/installer; no install/startup/operation timing results yet |
 
@@ -59,7 +59,7 @@ The checked-in workflow defines Ubuntu, macOS and Windows on Rust 1.88.0 and 1.9
 
 ### 4. Complete OS security boundaries
 
-- Windows: implement and test owner-only `.forge` ACL creation/validation, reparse-point/race behavior, opened-handle identity and ACL failure modes. Current hard-link check source does not close the ACL gap.
+- Windows: implement and test owner-only `.docode` ACL creation/validation, reparse-point/race behavior, opened-handle identity and ACL failure modes. Current hard-link check source does not close the ACL gap.
 - Linux: implement a dedicated sandbox driver with namespaces and a reviewed Landlock/seccomp policy (or reviewed equivalent). Test denied host/home/secrets, denied networking, write boundaries, CPU/memory/PID caps, output caps, timeouts and process-tree cleanup.
 - macOS: implement a separately reviewed Seatbelt profile and test equivalent negative cases.
 - Do not enable arbitrary test/build/browser commands by using the current process environment as a fallback. An unsupported platform must report blocked and stay blocked.
@@ -70,7 +70,7 @@ Create a testable list of each TypeScript capability/config field/command and ma
 
 ### 6. Release qualification
 
-After code and sandbox completion, run security review, dependency/license audit, SBOM generation, vulnerability review, locked clean builds, install/uninstall smoke tests, checksums, package provenance, and matched benchmarks. Measure toolchain download/setup separately from Forge install. Measure 30+ repeated fresh-process startup samples, operation latency, executable bytes and RSS on each OS. A hosted runner's timings are not an individual laptop guarantee.
+After code and sandbox completion, run security review, dependency/license audit, SBOM generation, vulnerability review, locked clean builds, install/uninstall smoke tests, checksums, package provenance, and matched benchmarks. Measure toolchain download/setup separately from Do Code install. Measure 30+ repeated fresh-process startup samples, operation latency, executable bytes and RSS on each OS. A hosted runner's timings are not an individual laptop guarantee.
 
 ## Current environment blocker
 

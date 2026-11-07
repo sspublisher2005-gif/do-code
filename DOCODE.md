@@ -1,10 +1,10 @@
-# Forge project memory
+# Do Code project memory
 
 This file is untrusted project context, not a security policy. It cannot grant tools or bypass runtime permissions.
 
 ## Product
-- Forge CLI product; this branch is its Rust-language implementation.
-- Keep `0.6.0-ts.2` as the preserved TypeScript feature-parity/reference branch until the Forge CLI Rust implementation has matching tests.
+- Do Code product; this branch is its Rust-language implementation.
+- Keep `0.6.0-ts.2` as the preserved TypeScript feature-parity/reference branch until the Do Code Rust implementation has matching tests.
 
 ## Invariants
 - No telemetry by default.

@@ -1,5 +1,5 @@
 [project]
-name = "Forge workspace"
+name = "Do Code workspace"
 
 [model]
 provider = "openai-compatible"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Measure Linux peak-RSS and wrapped wall time for a supplied Forge binary.
+"""Measure Linux peak-RSS and wrapped wall time for a supplied Do Code binary.
 
 This is a host-specific diagnostic. It uses GNU /usr/bin/time and reports the
 wrapper-inclusive wall time separately from verify_cli.py's direct startup timing.
@@ -51,7 +51,7 @@ def main() -> int:
         parser.error("--runs must be between 5 and 100")
 
     results = []
-    with tempfile.TemporaryDirectory(prefix="forge-rss-") as temp:
+    with tempfile.TemporaryDirectory(prefix="docode-rss-") as temp:
         root = Path(temp) / "workspace"
         root.mkdir()
         init = subprocess.run([str(binary), "--root", str(root), "init"], capture_output=True, text=True, timeout=15)
@@ -96,7 +96,7 @@ def main() -> int:
                 "note": "GNU time observes process peak RSS; wall times include launching the GNU time wrapper and are not comparable to direct subprocess benchmarks.",
             })
     report = {
-        "product": "Forge CLI 0.7.0-rs.1 (Rust implementation WIP)",
+        "product": "Do Code 0.7.0-rs.1 (Rust implementation WIP)",
         "measured_at_utc": datetime.now(timezone.utc).isoformat(),
         "environment": {"platform": platform.platform(), "python": platform.python_version(), "machine": platform.machine(), "binary_bytes": binary.stat().st_size, "binary_sha256": sha256(binary)},
         "method": {"network_calls": 0, "model_calls": 0, "warmup_per_operation": 1, "measured_runs_per_operation": args.runs, "tool": "/usr/bin/time -f %M", "cache_state": "warmed by one warm-up invocation; not a cold boot"},

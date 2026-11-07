@@ -96,7 +96,7 @@ CASES = [
     },
     {
         "id": "PROOF-01",
-        "title": "forged completion refused (no executed-test evidence)",
+        "title": "docoded completion refused (no executed-test evidence)",
         "host_command": "PROOF-01",
         "must_fail": True,
         "must_not_contain": ["MISSION COMPLETE"],
@@ -229,17 +229,17 @@ def run_host_cases(binary, report, all_passed):
     import tempfile
 
     work = tempfile.mkdtemp(prefix="docode-matrix-")
-    # WIN-01: init a real workspace, then read the .forge DACL.
+    # WIN-01: init a real workspace, then read the .docode DACL.
     init = subprocess.run(
         [binary, "--root", work, "init"], capture_output=True, text=True, errors="replace"
     )
     owner = subprocess.run(
         ["powershell", "-NoProfile", "-Command",
-         "(Get-Acl '" + os.path.join(work, ".forge") + "').Owner"],
+         "(Get-Acl '" + os.path.join(work, ".docode") + "').Owner"],
         capture_output=True, text=True, errors="replace"
     )
     icacls = subprocess.run(
-        ["icacls", os.path.join(work, ".forge")], capture_output=True, text=True, errors="replace"
+        ["icacls", os.path.join(work, ".docode")], capture_output=True, text=True, errors="replace"
     )
     dacl_text = (
         "OWNER=" + (owner.stdout or owner.stderr or "").strip()
@@ -249,10 +249,10 @@ def run_host_cases(binary, report, all_passed):
     if init.returncode != 0:
         problems.append(f"docode init failed: {(init.stderr or init.stdout)[:200]}")
     if icacls.returncode != 0:
-        problems.append(f"icacls could not read .forge DACL: {dacl_text[:200]}")
+        problems.append(f"icacls could not read .docode DACL: {dacl_text[:200]}")
     for needle in ["Everyone:(M)", "Everyone:(OI)(CI)(M)", "BUILTIN\\Users:(M)"]:
         if needle in dacl_text:
-            problems.append(f"broad ACE present in .forge DACL: {needle}")
+            problems.append(f"broad ACE present in .docode DACL: {needle}")
     report["executed"].append(
         {
             "id": "WIN-01",
@@ -285,7 +285,7 @@ def run_host_cases(binary, report, all_passed):
     report["executed"].append(
         {
             "id": "PROOF-01",
-            "title": "forged completion refused",
+            "title": "docoded completion refused",
             "observed_exit": complete.returncode,
             "stdout_tail": out[-300:],
             "passed": not problems,

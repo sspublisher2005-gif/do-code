@@ -1,4 +1,4 @@
-name: Forge CLI Dependency Security Audit
+name: Do Code Dependency Security Audit
 
 on:
   push:
@@ -21,7 +21,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: forge-cli-security-audit-${{ github.workflow }}-${{ github.ref }}
+  group: docode-cli-security-audit-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

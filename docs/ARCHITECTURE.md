@@ -1,15 +1,15 @@
-# Forge CLI architecture — Rust implementation
+# Do Code architecture — Rust implementation
 
 ## Product and runtime
 
-Forge CLI is implemented in Rust and distributed as a native `forge` binary when a release is available. Python under `scripts/` only orchestrates CI acceptance tests and benchmark collection; it is not a Forge runtime dependency. The TypeScript branch remains the feature-parity reference.
+Do Code is implemented in Rust and distributed as a native `docode` binary when a release is available. Python under `scripts/` only orchestrates CI acceptance tests and benchmark collection; it is not a Do Code runtime dependency. The TypeScript branch remains the feature-parity reference.
 
 ## Modules
 
 - `main.rs`: Clap CLI dispatch, approval flags and clear non-execution wording.
 - `config.rs`: strict Serde/TOML schema, endpoint/key-source policy, offline initialization.
 - `files.rs`: bounded workspace reads/list/search and sensitive-path exclusions.
-- `context.rs`: bounded heuristic repository index, context selection/rendering, `FORGE.md` prioritization.
+- `context.rs`: bounded heuristic repository index, context selection/rendering, `DOCODE.md` prioritization.
 - `storage.rs`: local private-directory helpers, bounded no-follow reads, atomic writes, project identity.
 - `mission.rs`, `mission_store.rs`, `message_store.rs`: typed mission/step/safety/evidence contracts, project-bound state envelopes, transition/lock operations and bounded append-only AgentMessage transcripts with a local hash chain.
 - `workflow.rs`: sequential model-role plan/proposal flow; no model-provided command is executed.
@@ -23,9 +23,9 @@ Forge CLI is implemented in Rust and distributed as a native `forge` binary when
 
 ## Trust boundaries and current limits
 
-Repository files, `FORGE.md`, task descriptions and provider output are untrusted. Provider calls need explicit `--live --approve-context-sharing`; live consent does not make the provider's claims true. No arbitrary shell/build/test/browser command is exposed and there is no host-shell fallback. Without a sandboxed test runner, Forge intentionally cannot mark a coding mission complete based on model-written test plans or claims.
+Repository files, `DOCODE.md`, task descriptions and provider output are untrusted. Provider calls need explicit `--live --approve-context-sharing`; live consent does not make the provider's claims true. No arbitrary shell/build/test/browser command is exposed and there is no host-shell fallback. Without a sandboxed test runner, Do Code intentionally cannot mark a coding mission complete based on model-written test plans or claims.
 
-The index is heuristic, not AST/LSP. Patches only replace existing text files. Mission resume is inspection-only; the AgentMessage transcript is a first source-level port and has not yet been compiled or stress-tested. Windows opened-handle hard-link denial is implemented in source but uncompiled/unverified; `.forge` private ACL/owner-only permissions are incomplete. No OS is runtime-certified in this authoring environment because the Rust toolchain is unavailable. These are explicit release blockers, not hidden limitations.
+The index is heuristic, not AST/LSP. Patches only replace existing text files. Mission resume is inspection-only; the AgentMessage transcript is a first source-level port and has not yet been compiled or stress-tested. Windows opened-handle hard-link denial is implemented in source but uncompiled/unverified; `.docode` private ACL/owner-only permissions are incomplete. No OS is runtime-certified in this authoring environment because the Rust toolchain is unavailable. These are explicit release blockers, not hidden limitations.
 
 ## Financial behavior invariant
 

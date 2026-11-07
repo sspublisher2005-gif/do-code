@@ -1,6 +1,6 @@
-//! Shared storage primitives for Forge's local project state.
+//! Shared storage primitives for Do Code's local project state.
 //! These routines fail closed on symlinks and publish same-directory temporary files.
-use crate::error::{ForgeError, Result, io_error};
+use crate::error::{DocodeError, Result, io_error};
 use sha2::{Digest, Sha256};
 use std::{
     fs::{self, File, OpenOptions},
@@ -25,7 +25,7 @@ pub fn sha256(bytes: &[u8]) -> String {
 pub fn ensure_private_dir(path: &Path) -> Result<()> {
     match fs::symlink_metadata(path) {
         Ok(meta) if meta.file_type().is_symlink() || !meta.is_dir() => {
-            return Err(ForgeError::Safety(format!(
+            return Err(DocodeError::Safety(format!(
                 "state directory '{}' must be a real directory, not a symlink or special file.",
                 path.display()
             )));
@@ -45,7 +45,7 @@ pub fn ensure_private_dir(path: &Path) -> Result<()> {
                 .map_err(|e| io_error(path, e))?;
             let meta = fs::symlink_metadata(path).map_err(|e| io_error(path, e))?;
             if meta.file_type().is_symlink() || !meta.is_dir() {
-                return Err(ForgeError::Safety(format!(
+                return Err(DocodeError::Safety(format!(
                     "state directory '{}' changed during creation.",
                     path.display()
                 )));
@@ -68,7 +68,7 @@ pub fn ensure_private_dir(path: &Path) -> Result<()> {
 
 pub fn ensure_project_home(root: &Path) -> Result<PathBuf> {
     let canonical = fs::canonicalize(root).map_err(|e| io_error(root, e))?;
-    let home = canonical.join(".forge");
+    let home = canonical.join(".docode");
     ensure_private_dir(&home)?;
     for name in [
         "missions",
@@ -92,42 +92,43 @@ pub fn project_id(root: &Path) -> Result<String> {
     match read_bounded_regular(&path, 128) {
         Ok(value) => {
             let text = std::str::from_utf8(&value).map_err(|_| {
-                ForgeError::Safety(
-                    ".forge/project-id is invalid; refusing to rebind existing state.".into(),
+                DocodeError::Safety(
+                    ".docode/project-id is invalid; refusing to rebind existing state.".into(),
                 )
             })?;
             let id = text.trim();
             let parsed = Uuid::parse_str(id).map_err(|_| {
-                ForgeError::Safety(
-                    ".forge/project-id is invalid; refusing to rebind existing state.".into(),
+                DocodeError::Safety(
+                    ".docode/project-id is invalid; refusing to rebind existing state.".into(),
                 )
             })?;
             if parsed.to_string() != id {
-                return Err(ForgeError::Safety(
-                    ".forge/project-id is not canonical; refusing to rebind existing state.".into(),
+                return Err(DocodeError::Safety(
+                    ".docode/project-id is not canonical; refusing to rebind existing state."
+                        .into(),
                 ));
             }
             Ok(id.to_owned())
         }
-        Err(ForgeError::Io { source, .. }) if source.kind() == std::io::ErrorKind::NotFound => {
+        Err(DocodeError::Io { source, .. }) if source.kind() == std::io::ErrorKind::NotFound => {
             let id = Uuid::new_v4().to_string();
             match write_atomic(&path, format!("{id}\n").as_bytes(), false) {
                 Ok(()) => Ok(id),
                 Err(_) => {
                     let value = read_bounded_regular(&path, 128)?;
                     let text = std::str::from_utf8(&value).map_err(|_| {
-                        ForgeError::Safety(
+                        DocodeError::Safety(
                             "project ID publication raced with invalid state.".into(),
                         )
                     })?;
                     let existing = text.trim();
                     let parsed = Uuid::parse_str(existing).map_err(|_| {
-                        ForgeError::Safety(
+                        DocodeError::Safety(
                             "project ID publication raced with invalid state.".into(),
                         )
                     })?;
                     if parsed.to_string() != existing {
-                        return Err(ForgeError::Safety(
+                        return Err(DocodeError::Safety(
                             "project ID publication raced with non-canonical state.".into(),
                         ));
                     }
@@ -142,7 +143,7 @@ pub fn project_id(root: &Path) -> Result<String> {
 pub fn read_bounded_regular(path: &Path, max_bytes: u64) -> Result<Vec<u8>> {
     let before = fs::symlink_metadata(path).map_err(|e| io_error(path, e))?;
     if before.file_type().is_symlink() || !before.is_file() || before.len() > max_bytes {
-        return Err(ForgeError::Safety(format!(
+        return Err(DocodeError::Safety(format!(
             "'{}' is not a bounded regular file.",
             path.display()
         )));
@@ -158,7 +159,7 @@ pub fn read_bounded_regular(path: &Path, max_bytes: u64) -> Result<Vec<u8>> {
     let file = options.open(path).map_err(|e| io_error(path, e))?;
     let opened = file.metadata().map_err(|e| io_error(path, e))?;
     if !opened.is_file() || opened.len() > max_bytes {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "opened state file changed or exceeds its size limit.".into(),
         ));
     }
@@ -169,7 +170,7 @@ pub fn read_bounded_regular(path: &Path, max_bytes: u64) -> Result<Vec<u8>> {
         .read_to_end(&mut bytes)
         .map_err(|e| io_error(path, e))?;
     if bytes.len() as u64 > max_bytes {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "state file exceeded its bounded read size.".into(),
         ));
     }
@@ -184,35 +185,35 @@ pub fn write_atomic_with_mode(path: &Path, bytes: &[u8], replace: bool, mode: u3
     #[cfg(not(unix))]
     let _ = mode;
     if bytes.len() as u64 > MAX_STATE_FILE_BYTES {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "state write exceeds the 20 MiB limit.".into(),
         ));
     }
     let parent = path
         .parent()
-        .ok_or_else(|| ForgeError::Safety("state file path has no parent directory.".into()))?;
+        .ok_or_else(|| DocodeError::Safety("state file path has no parent directory.".into()))?;
     let parent_meta = fs::symlink_metadata(parent).map_err(|e| io_error(parent, e))?;
     if parent_meta.file_type().is_symlink() || !parent_meta.is_dir() {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "state file parent must be a real directory, not a symlink or special file.".into(),
         ));
     }
     if path.exists() {
         let meta = fs::symlink_metadata(path).map_err(|e| io_error(path, e))?;
         if meta.file_type().is_symlink() || !meta.is_file() {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "refusing to replace a symlink or special state file.".into(),
             ));
         }
         reject_hardlink(&meta, path)?;
         if !replace {
-            return Err(ForgeError::Safety(format!(
+            return Err(DocodeError::Safety(format!(
                 "state file '{}' already exists; refusing to overwrite it.",
                 path.display()
             )));
         }
     }
-    let temp = parent.join(format!(".forge-tmp-{}.tmp", Uuid::new_v4()));
+    let temp = parent.join(format!(".docode-tmp-{}.tmp", Uuid::new_v4()));
     let result = (|| -> Result<()> {
         let mut options = OpenOptions::new();
         options.write(true).create_new(true);
@@ -298,7 +299,7 @@ pub fn reject_hardlink_handle(file: &File, path: &Path) -> Result<()> {
         use std::os::unix::fs::MetadataExt;
         let metadata = file.metadata().map_err(|e| io_error(path, e))?;
         if metadata.is_file() && metadata.nlink() > 1 {
-            return Err(ForgeError::Safety(format!(
+            return Err(DocodeError::Safety(format!(
                 "hard-linked file '{}' is denied.",
                 path.display()
             )));
@@ -320,7 +321,7 @@ pub fn reject_hardlink_handle(file: &File, path: &Path) -> Result<()> {
         // SAFETY: a nonzero return indicates that Windows filled the information structure.
         let info = unsafe { info.assume_init() };
         if info.nNumberOfLinks > 1 {
-            return Err(ForgeError::Safety(format!(
+            return Err(DocodeError::Safety(format!(
                 "hard-linked file '{}' is denied.",
                 path.display()
             )));
@@ -334,7 +335,7 @@ fn reject_hardlink(meta: &fs::Metadata, path: &Path) -> Result<()> {
     {
         use std::os::unix::fs::MetadataExt;
         if meta.nlink() > 1 {
-            return Err(ForgeError::Safety(format!(
+            return Err(DocodeError::Safety(format!(
                 "hard-linked state file '{}' is denied.",
                 path.display()
             )));
@@ -362,7 +363,7 @@ mod tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mode = fs::metadata(root.path().join(".forge"))
+            let mode = fs::metadata(root.path().join(".docode"))
                 .unwrap()
                 .permissions()
                 .mode()

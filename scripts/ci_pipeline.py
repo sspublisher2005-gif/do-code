@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Measure toolchain setup/build time, run Rust checks, and black-box test Forge.
+"""Measure toolchain setup/build time, run Rust checks, and black-box test Do Code.
 
 Used by the Linux/macOS/Windows CI matrix. Python is a CI test harness only, not a
 runtime requirement for the compiled Do Code CLI.
@@ -188,7 +188,7 @@ def main() -> int:
                       "detail": "Generated once in the Linux Rust 1.99.1 matrix job to avoid redundant generator builds on every platform/toolchain."})
 
     binary = Path("target/release/docode.exe" if os.name == "nt" else "target/release/docode")
-    runtime_report_path = args.report_dir / "forge-runtime.json"
+    runtime_report_path = args.report_dir / "docode-runtime.json"
     runtime_step: dict[str, Any] | None = None
     if binary.is_file():
         runtime_script = Path(__file__).with_name("verify_cli.py").resolve()
@@ -210,7 +210,7 @@ def main() -> int:
         steps.append(extended_step)
         if sys.platform.startswith("linux"):
             rss_script = Path(__file__).with_name("measure_linux_rss.py").resolve()
-            rss_report_path = args.report_dir / "forge-linux-rss.json"
+            rss_report_path = args.report_dir / "docode-linux-rss.json"
             rss_step = run_step(
                 "Linux peak-RSS diagnostic",
                 [sys.executable, str(rss_script), "--binary", str(binary.resolve()),
@@ -266,7 +266,7 @@ def write_reports(report_dir: Path, toolchain: str, steps: list[dict[str, Any]],
             "Toolchain install elapsed can be a cached/preinstalled result and is not necessarily first-time installation.",
             "CI timings reflect hosted-runner hardware/network and do not predict the user's personal computer exactly.",
             "Role workflows and approved patch proposal/application are implemented in source, but command/test execution requires a production-reviewed OS sandbox which is not implemented.",
-            "Unix and Windows opened-handle hard-link checks are present in source but remain uncompiled/unverified; Windows private .forge ACL enforcement is incomplete.",
+            "Unix and Windows opened-handle hard-link checks are present in source but remain uncompiled/unverified; Windows private .docode ACL enforcement is incomplete.",
             "CI requires the reviewed Cargo.lock to be present in the source revision and uploads an exact copy as Cargo.lock.artifact; it never resolves a changing dependency graph automatically.",
             "The preliminary offline SBOM does not assert complete license data and does not perform a vulnerability audit; the separate RustSec workflow must actually run and findings must be reviewed.",
             "A passed CI job only confirms the specific code revision and toolchain actually tested by that workflow run.",
@@ -274,7 +274,7 @@ def write_reports(report_dir: Path, toolchain: str, steps: list[dict[str, Any]],
     }
     (report_dir / "ci-pipeline.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     summary = [
-        "# Forge CLI Rust implementation CI summary",
+        "# Do Code Rust implementation CI summary",
         "",
         f"- OS: {report['environment']['os']}",
         f"- Requested Rust toolchain: {toolchain}",

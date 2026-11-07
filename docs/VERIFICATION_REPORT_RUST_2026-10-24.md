@@ -1,7 +1,7 @@
-# Forge CLI Rust Implementation — Verification Report
+# Do Code Rust Implementation — Verification Report
 
 **Date:** 2026-10-24  
-**Product:** Forge CLI  
+**Product:** Do Code  
 **Implementation:** Rust  
 **Version:** `0.7.0-rs.1` WIP  
 **Release verdict:** NOT VERIFIED / NOT RELEASE-READY
@@ -28,14 +28,14 @@ Final static preflight JSON provides current per-check PASS/FAIL/BLOCKED statuse
 - Black-box acceptance/timing harness: authored, requires release binary; not run.
 - Linux runtime: not tested despite Linux authoring host, because no binary can be compiled.
 - macOS/Windows runtime: not tested; only CI configuration authored.
-- toolchain setup time, Forge installation time, startup latency, operation latency, memory/RSS, and binary size: not measured.
+- toolchain setup time, Do Code installation time, startup latency, operation latency, memory/RSS, and binary size: not measured.
 
 ## Current release blockers
 
 1. The compiler/toolchain and all runtime evidence are missing. Generate a real `Cargo.lock` through Cargo, review it, then run a clean locked build and full test suite.
 2. The workflow has a six-combination matrix for Ubuntu/macOS/Windows × Rust 1.88.0/1.99.1. No workflow job was run in this environment; the current GitHub connector exposes no repositories for the user account.
-3. Windows handle-based hard-link rejection is now in source with a gated regression test but uncompiled/unverified. Windows private `.forge` ACL creation/verification remains incomplete.
-4. No production OS sandbox is implemented. Forge deliberately does not run repository shell/build/test/browser commands and cannot verify actual code behavior from the model's test plan.
+3. Windows handle-based hard-link rejection is now in source with a gated regression test but uncompiled/unverified. Windows private `.docode` ACL creation/verification remains incomplete.
+4. No production OS sandbox is implemented. Do Code deliberately does not run repository shell/build/test/browser commands and cannot verify actual code behavior from the model's test plan.
 5. Full parity is not done: mission resume remains inspection-only; patch additions/deletions/renames/binary support, full ignore-file semantics, stronger crash/rollback recovery, complete provider contracts, and complete sandbox-backed test evidence remain partial or absent.
 6. No release installer/binary, SBOM, dependency/license review, external security review, or verified performance data exists yet.
 
@@ -47,4 +47,4 @@ No prediction of USD cost, estimated-cost field, dollar budget/threshold auto-st
 
 Completion requires the feature-parity ledger to be closed with tests; `cargo fmt`, `cargo check`, `cargo test`, Clippy and `cargo build --release --locked` to pass on a connected runner; real black-box tests; passing six-matrix results for the same revision; Windows private ACL hardening; reviewed Linux/macOS/Windows sandbox enforcement and negative tests; clean installer/uninstaller tests; dependency/license/SBOM review; actual measured performance; and independent security review.
 
-Until those results exist, Forge CLI Rust remains a work in progress, not a 100%-complete or cross-platform-certified application.
+Until those results exist, Do Code Rust remains a work in progress, not a 100%-complete or cross-platform-certified application.

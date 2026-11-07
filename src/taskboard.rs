@@ -4,9 +4,9 @@
 //! dependencies, and acceptance criteria. Locks make conflicting concurrent
 //! work detectable before it happens: two tasks that lock the same file
 //! cannot both be ready at once. State persists as JSON next to the mission
-//! so `forge tasks` and resume can show the board.
+//! so `docode tasks` and resume can show the board.
 
-use crate::error::{ForgeError, Result};
+use crate::error::{DocodeError, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
@@ -105,7 +105,7 @@ impl TaskBoard {
             .tasks
             .iter()
             .find(|t| t.id == id)
-            .ok_or_else(|| ForgeError::Message(format!("task '{id}' is not on the board.")))?;
+            .ok_or_else(|| DocodeError::Message(format!("task '{id}' is not on the board.")))?;
         let conflicting: Vec<String> = self
             .tasks
             .iter()
@@ -114,7 +114,7 @@ impl TaskBoard {
             .filter(|f| task.files_locked.contains(f))
             .collect();
         if let Some(file) = conflicting.first() {
-            return Err(ForgeError::Safety(format!(
+            return Err(DocodeError::Safety(format!(
                 "file lock conflict: '{file}' is locked by another in-progress task."
             )));
         }
@@ -132,18 +132,18 @@ impl TaskBoard {
             .tasks
             .iter_mut()
             .find(|t| t.id == id)
-            .ok_or_else(|| ForgeError::Message(format!("task '{id}' is not on the board.")))?;
+            .ok_or_else(|| DocodeError::Message(format!("task '{id}' is not on the board.")))?;
         task.status = TaskStatus::Done;
         Ok(())
     }
 
-    /// Serialize to JSON for `.forge/missions/<id>/tasks.json`.
+    /// Serialize to JSON for `.docode/missions/<id>/tasks.json`.
     pub fn to_json(&self) -> Result<Vec<u8>> {
-        serde_json::to_vec_pretty(self).map_err(|e| ForgeError::Message(e.to_string()))
+        serde_json::to_vec_pretty(self).map_err(|e| DocodeError::Message(e.to_string()))
     }
 
     pub fn from_json(bytes: &[u8]) -> Result<Self> {
-        serde_json::from_slice(bytes).map_err(|e| ForgeError::Message(e.to_string()))
+        serde_json::from_slice(bytes).map_err(|e| DocodeError::Message(e.to_string()))
     }
 }
 

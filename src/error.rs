@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 #[derive(Debug, thiserror::Error)]
-pub enum ForgeError {
+pub enum DocodeError {
     #[error("{0}")]
     Message(String),
     #[error("I/O operation failed for {path:?}: {source}")]
@@ -18,10 +18,10 @@ pub enum ForgeError {
     Provider(String),
 }
 
-pub type Result<T> = std::result::Result<T, ForgeError>;
+pub type Result<T> = std::result::Result<T, DocodeError>;
 
-pub fn io_error(path: impl Into<PathBuf>, source: std::io::Error) -> ForgeError {
-    ForgeError::Io {
+pub fn io_error(path: impl Into<PathBuf>, source: std::io::Error) -> DocodeError {
+    DocodeError::Io {
         path: path.into(),
         source,
     }

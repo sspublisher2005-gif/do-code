@@ -1,6 +1,6 @@
 //! Content-addressed local evidence records. A digest proves integrity, not truth.
 use crate::{
-    error::{ForgeError, Result, io_error},
+    error::{DocodeError, Result, io_error},
     storage,
 };
 use serde::{Deserialize, Serialize};
@@ -52,7 +52,7 @@ pub fn put(
         || media_type.len() > 200
         || content.len() > MAX_EVIDENCE_BYTES
     {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "evidence fields or content exceed their permitted limits.".into(),
         ));
     }
@@ -71,7 +71,7 @@ pub fn put(
         Err(_) => (content.to_vec(), false),
     };
     if stored_content.len() > MAX_EVIDENCE_BYTES {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "evidence exceeds its content limit after validation/redaction.".into(),
         ));
     }
@@ -100,13 +100,13 @@ pub fn put(
         verified: false,
         redacted,
     };
-    let payload = serde_json::to_vec(&manifest).map_err(|e| ForgeError::Message(e.to_string()))?;
+    let payload = serde_json::to_vec(&manifest).map_err(|e| DocodeError::Message(e.to_string()))?;
     let envelope = Envelope {
         store_version: EVIDENCE_VERSION,
         manifest_sha256: hash(&payload),
         manifest: manifest.clone(),
     };
-    let bytes = serde_json::to_vec(&envelope).map_err(|e| ForgeError::Message(e.to_string()))?;
+    let bytes = serde_json::to_vec(&envelope).map_err(|e| DocodeError::Message(e.to_string()))?;
     storage::write_atomic(&mission_dir.join(format!("{id}.json")), &bytes, false)?;
     Ok(manifest)
 }
@@ -151,12 +151,12 @@ pub fn mark_verified(
     validate_uuid(mission_id)?;
     validate_uuid(evidence_id)?;
     if sandbox_run_id.trim().is_empty() {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "sandbox run ID is required to mark evidence as verified.".into(),
         ));
     }
     // Fail-closed: no qualified sandbox driver exists yet.
-    Err(ForgeError::Safety(
+    Err(DocodeError::Safety(
         "no qualified sandbox driver is available; evidence cannot be marked verified.".into(),
     ))
 }
@@ -181,7 +181,7 @@ pub fn read(
         MAX_EVIDENCE_BYTES as u64,
     )?;
     if content.len() != manifest.byte_length || hash(&content) != manifest.sha256 {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "evidence content hash/length mismatch.".into(),
         ));
     }
@@ -191,11 +191,11 @@ pub fn read(
 fn load_manifest(root: &Path, mission_id: &str, path: &Path) -> Result<EvidenceManifest> {
     let bytes = storage::read_bounded_regular(path, 512 * 1024)?;
     let envelope: Envelope = serde_json::from_slice(&bytes)
-        .map_err(|_| ForgeError::Safety("evidence manifest is corrupt.".into()))?;
+        .map_err(|_| DocodeError::Safety("evidence manifest is corrupt.".into()))?;
     let payload =
-        serde_json::to_vec(&envelope.manifest).map_err(|e| ForgeError::Message(e.to_string()))?;
+        serde_json::to_vec(&envelope.manifest).map_err(|e| DocodeError::Message(e.to_string()))?;
     if envelope.store_version != EVIDENCE_VERSION || hash(&payload) != envelope.manifest_sha256 {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "evidence manifest checksum failed.".into(),
         ));
     }
@@ -204,7 +204,7 @@ fn load_manifest(root: &Path, mission_id: &str, path: &Path) -> Result<EvidenceM
         || envelope.manifest.root != root.to_string_lossy()
         || envelope.manifest.project_id != storage::project_id(root)?
     {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "evidence manifest project or identity binding failed.".into(),
         ));
     }
@@ -224,10 +224,10 @@ fn sanitize_metadata(input: BTreeMap<String, Value>) -> BTreeMap<String, Value> 
 }
 fn validate_uuid(id: &str) -> Result<()> {
     let parsed = Uuid::parse_str(id).map_err(|_| {
-        ForgeError::Message("evidence and mission IDs must be Forge-generated UUIDs.".into())
+        DocodeError::Message("evidence and mission IDs must be Do Code-generated UUIDs.".into())
     })?;
     if parsed.to_string() != id {
-        return Err(ForgeError::Message(
+        return Err(DocodeError::Message(
             "evidence and mission IDs must use canonical lowercase UUIDs.".into(),
         ));
     }
@@ -283,7 +283,7 @@ mod tests {
         );
         let body = root
             .path()
-            .join(".forge/evidence")
+            .join(".docode/evidence")
             .join(&mission)
             .join(format!("{}.txt", entry.id));
         fs::write(body, b"tampered evidence").unwrap();

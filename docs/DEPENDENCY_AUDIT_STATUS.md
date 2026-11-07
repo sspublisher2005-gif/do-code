@@ -1,10 +1,10 @@
-# Forge CLI dependency and supply-chain status
+# Do Code dependency and supply-chain status
 
 **Status as of 2026-10-26: preliminary inventory generated; security advisory status unknown. Not a release clearance.**
 
 ## What is available
 
-- `sbom/forge-cli.cdx.json` is a preliminary offline CycloneDX 1.5 component/dependency inventory generated from `Cargo.lock` without invoking Cargo build scripts.
+- `sbom/docode-cli.cdx.json` is a preliminary offline CycloneDX 1.5 component/dependency inventory generated from `Cargo.lock` without invoking Cargo build scripts.
 - The generator records 205 third-party locked package coordinates and package archive SHA-256 values where Cargo.lock provides them.
 - `scripts/test_sbom_generator.py` checks JSON/spec structure, locked component count, hashes, dependency references, and that no license claims are fabricated.
 - `scripts/ci_pipeline.py` runs the source inventory validation, preliminary SBOM generation, and SBOM generator tests as required CI steps.

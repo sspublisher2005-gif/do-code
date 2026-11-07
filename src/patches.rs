@@ -1,6 +1,6 @@
 //! Reviewable source patches with hash-conflict checks and recoverable checkpoints.
 use crate::{
-    error::{ForgeError, Result, io_error},
+    error::{DocodeError, Result, io_error},
     files, storage,
 };
 use serde::{Deserialize, Serialize};
@@ -142,7 +142,7 @@ pub fn create_proposal(
 ) -> Result<ProposedPatch> {
     validate_uuid(mission_id)?;
     if changes.is_empty() || changes.len() > MAX_PATCH_FILES {
-        return Err(ForgeError::Safety(format!(
+        return Err(DocodeError::Safety(format!(
             "patch must change 1..{MAX_PATCH_FILES} files."
         )));
     }
@@ -151,7 +151,7 @@ pub fn create_proposal(
     for change in changes {
         let op = change.op.to_ascii_lowercase();
         if !matches!(op.as_str(), "edit" | "create" | "delete" | "rename") {
-            return Err(ForgeError::Safety(format!(
+            return Err(DocodeError::Safety(format!(
                 "unsupported patch operation '{op}'."
             )));
         }
@@ -163,7 +163,7 @@ pub fn create_proposal(
                 .unwrap_or("")
                 .is_empty()
         {
-            return Err(ForgeError::Safety(format!(
+            return Err(DocodeError::Safety(format!(
                 "rename of '{}' is missing a destination path.",
                 change.path
             )));
@@ -173,13 +173,13 @@ pub fn create_proposal(
             .clone()
             .unwrap_or_else(|| change.path.clone());
         if !seen.insert(display_path.clone()) {
-            return Err(ForgeError::Safety(format!(
+            return Err(DocodeError::Safety(format!(
                 "patch contains duplicate path '{display_path}'."
             )));
         }
         for p in std::iter::once(&change.path).chain(change.new_path.as_ref()) {
             if files::is_sensitive_path(p) {
-                return Err(ForgeError::Safety(format!(
+                return Err(DocodeError::Safety(format!(
                     "patch cannot target sensitive path '{p}'."
                 )));
             }
@@ -190,19 +190,19 @@ pub fn create_proposal(
             String::new()
         };
         if (op == "edit" || op == "create") && content.contains('\0') {
-            return Err(ForgeError::Safety(format!(
+            return Err(DocodeError::Safety(format!(
                 "proposed file '{}' contains NUL bytes.",
                 change.path
             )));
         }
         if content.len() as u64 > MAX_FILE_BYTES {
-            return Err(ForgeError::Safety(format!(
+            return Err(DocodeError::Safety(format!(
                 "proposed file '{}' exceeds the 2 MiB limit.",
                 change.path
             )));
         }
         if !content.is_empty() && crate::redaction::redact(&content) != content {
-            return Err(ForgeError::Safety(format!(
+            return Err(DocodeError::Safety(format!(
                 "proposed file '{}' appears to contain a credential; remove it before saving the patch.",
                 change.path
             )));
@@ -213,7 +213,10 @@ pub fn create_proposal(
                 let absolute = files::resolve_workspace_file(root, &change.path)?;
                 let current_bytes = storage::read_bounded_regular(&absolute, MAX_FILE_BYTES)?;
                 let current = String::from_utf8(current_bytes).map_err(|_| {
-                    ForgeError::Safety(format!("patch target '{}' is not UTF-8 text.", change.path))
+                    DocodeError::Safety(format!(
+                        "patch target '{}' is not UTF-8 text.",
+                        change.path
+                    ))
                 })?;
                 if current == content {
                     continue;
@@ -223,7 +226,7 @@ pub fn create_proposal(
             "create" => {
                 let absolute = files::resolve_new_workspace_file(root, &change.path)?;
                 if fs::symlink_metadata(&absolute).is_ok() {
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "create refused: '{}' already exists.",
                         change.path
                     )));
@@ -234,7 +237,7 @@ pub fn create_proposal(
                 let absolute = files::resolve_workspace_file(root, &change.path)?;
                 let current_bytes = storage::read_bounded_regular(&absolute, MAX_FILE_BYTES)?;
                 let current = String::from_utf8(current_bytes).map_err(|_| {
-                    ForgeError::Safety(format!(
+                    DocodeError::Safety(format!(
                         "delete target '{}' is not UTF-8 text.",
                         change.path
                     ))
@@ -246,7 +249,7 @@ pub fn create_proposal(
             "rename" => {
                 let to = change.new_path.clone().expect("checked above");
                 if files::is_sensitive_path(&to) {
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "patch cannot rename into sensitive path '{to}'."
                     )));
                 }
@@ -254,13 +257,13 @@ pub fn create_proposal(
                 let to_absolute = files::resolve_new_workspace_file(root, &to)?;
                 let current_bytes = storage::read_bounded_regular(&from_absolute, MAX_FILE_BYTES)?;
                 let current = String::from_utf8(current_bytes).map_err(|_| {
-                    ForgeError::Safety(format!(
+                    DocodeError::Safety(format!(
                         "rename source '{}' is not UTF-8 text.",
                         change.path
                     ))
                 })?;
                 if fs::symlink_metadata(&to_absolute).is_ok() {
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "rename refused: destination '{to}' already exists."
                     )));
                 }
@@ -279,7 +282,7 @@ pub fn create_proposal(
         });
     }
     if files_out.is_empty() {
-        return Err(ForgeError::Message(
+        return Err(DocodeError::Message(
             "model proposal did not change any files.".into(),
         ));
     }
@@ -301,13 +304,13 @@ pub fn save_patch(root: &Path, patch: &ProposedPatch) -> Result<()> {
     let path = home
         .join("patches")
         .join(format!("{}.json", patch.mission_id));
-    let canonical = serde_json::to_vec(patch).map_err(|e| ForgeError::Message(e.to_string()))?;
+    let canonical = serde_json::to_vec(patch).map_err(|e| DocodeError::Message(e.to_string()))?;
     let envelope = PatchEnvelope {
         store_version: PATCH_VERSION,
         sha256: hash(&canonical),
         patch: patch.clone(),
     };
-    let bytes = serde_json::to_vec(&envelope).map_err(|e| ForgeError::Message(e.to_string()))?;
+    let bytes = serde_json::to_vec(&envelope).map_err(|e| DocodeError::Message(e.to_string()))?;
     storage::write_atomic(&path, &bytes, path.exists())
 }
 
@@ -317,23 +320,23 @@ pub fn load_patch(root: &Path, mission_id: &str) -> Result<ProposedPatch> {
     let path = home.join("patches").join(format!("{mission_id}.json"));
     let bytes = storage::read_bounded_regular(&path, MAX_PATCH_BYTES)?;
     let envelope: PatchEnvelope = serde_json::from_slice(&bytes).map_err(|_| {
-        ForgeError::Safety("patch proposal is corrupt; no files were changed.".into())
+        DocodeError::Safety("patch proposal is corrupt; no files were changed.".into())
     })?;
     if envelope.store_version != PATCH_VERSION {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "unsupported patch store version.".into(),
         ));
     }
     let payload =
-        serde_json::to_vec(&envelope.patch).map_err(|e| ForgeError::Message(e.to_string()))?;
+        serde_json::to_vec(&envelope.patch).map_err(|e| DocodeError::Message(e.to_string()))?;
     if hash(&payload) != envelope.sha256 {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "patch proposal checksum mismatch; no files were changed.".into(),
         ));
     }
     validate_patch(&envelope.patch)?;
     if envelope.patch.mission_id != mission_id {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "patch mission identity mismatch.".into(),
         ));
     }
@@ -385,7 +388,7 @@ pub fn apply(
     let canonical_root = fs::canonicalize(root).map_err(|e| io_error(root, e))?;
     let patch = load_patch(&canonical_root, mission_id)?;
     if patch.files.len() > MAX_PATCH_FILES {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "patch file-count limit exceeded.".into(),
         ));
     }
@@ -422,13 +425,16 @@ pub fn apply(
                 let before = storage::read_bounded_regular(&absolute, MAX_FILE_BYTES)?;
                 let before_hash = hash(&before);
                 if before_hash != change.expected_sha256 {
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "PATCH_CONFLICT: '{}' changed after proposal creation; no files were changed.",
                         change.path
                     )));
                 }
                 let text = String::from_utf8(before).map_err(|_| {
-                    ForgeError::Safety(format!("patch target '{}' is not UTF-8 text.", change.path))
+                    DocodeError::Safety(format!(
+                        "patch target '{}' is not UTF-8 text.",
+                        change.path
+                    ))
                 })?;
                 #[cfg(unix)]
                 let mode = {
@@ -452,19 +458,19 @@ pub fn apply(
             "create" => {
                 let absolute = files::resolve_new_workspace_file(&canonical_root, &change.path)?;
                 if fs::symlink_metadata(&absolute).is_ok() {
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "PATCH_CONFLICT: '{}' was created after the proposal; no files were changed.",
                         change.path
                     )));
                 }
                 let parent = absolute.parent().ok_or_else(|| {
-                    ForgeError::Safety(format!(
+                    DocodeError::Safety(format!(
                         "create target '{}' has no parent directory.",
                         change.path
                     ))
                 })?;
                 if !parent.is_dir() {
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "create refused: parent directory of '{}' does not exist.",
                         change.path
                     )));
@@ -482,13 +488,13 @@ pub fn apply(
                 let before = storage::read_bounded_regular(&absolute, MAX_FILE_BYTES)?;
                 let before_hash = hash(&before);
                 if before_hash != change.expected_sha256 {
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "PATCH_CONFLICT: '{}' changed after proposal creation; no files were changed.",
                         change.path
                     )));
                 }
                 let text = String::from_utf8(before).map_err(|_| {
-                    ForgeError::Safety(format!(
+                    DocodeError::Safety(format!(
                         "delete target '{}' is not UTF-8 text.",
                         change.path
                     ))
@@ -504,7 +510,7 @@ pub fn apply(
             }
             "rename" => {
                 let to = change.new_path.clone().ok_or_else(|| {
-                    ForgeError::Safety(format!(
+                    DocodeError::Safety(format!(
                         "rename of '{}' is missing its destination.",
                         change.path
                     ))
@@ -514,19 +520,19 @@ pub fn apply(
                 let before = storage::read_bounded_regular(&from, MAX_FILE_BYTES)?;
                 let before_hash = hash(&before);
                 if before_hash != change.expected_sha256 {
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "PATCH_CONFLICT: '{}' changed after proposal creation; no files were changed.",
                         change.path
                     )));
                 }
                 let text = String::from_utf8(before).map_err(|_| {
-                    ForgeError::Safety(format!(
+                    DocodeError::Safety(format!(
                         "rename source '{}' is not UTF-8 text.",
                         change.path
                     ))
                 })?;
                 if fs::symlink_metadata(&to_absolute).is_ok() {
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "PATCH_CONFLICT: rename destination '{to}' appeared after the proposal; no files were changed."
                     )));
                 }
@@ -550,7 +556,7 @@ pub fn apply(
                 ));
             }
             other => {
-                return Err(ForgeError::Safety(format!(
+                return Err(DocodeError::Safety(format!(
                     "unsupported patch operation '{other}'; no files were changed."
                 )));
             }
@@ -625,14 +631,14 @@ pub fn apply(
         .join(mission_id);
     storage::ensure_private_dir(&checkpoint_dir)?;
     let canonical =
-        serde_json::to_vec(&checkpoint).map_err(|e| ForgeError::Message(e.to_string()))?;
+        serde_json::to_vec(&checkpoint).map_err(|e| DocodeError::Message(e.to_string()))?;
     let checkpoint_envelope = CheckpointEnvelope {
         store_version: 1,
         sha256: hash(&canonical),
         checkpoint,
     };
-    let checkpoint_bytes =
-        serde_json::to_vec(&checkpoint_envelope).map_err(|e| ForgeError::Message(e.to_string()))?;
+    let checkpoint_bytes = serde_json::to_vec(&checkpoint_envelope)
+        .map_err(|e| DocodeError::Message(e.to_string()))?;
     storage::write_atomic(
         &checkpoint_dir.join(format!("{checkpoint_id}.json")),
         &checkpoint_bytes,
@@ -651,7 +657,7 @@ pub fn apply(
                 let current = storage::read_bounded_regular(absolute, MAX_FILE_BYTES)?;
                 if hash(&current) != *before_hash {
                     rollback_applied(&changed);
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "PATCH_RACE_DETECTED: '{}' changed while the patch was being applied; rollback was attempted for prior files.",
                         change.path
                     )));
@@ -680,7 +686,7 @@ pub fn apply(
             } => {
                 if fs::symlink_metadata(absolute).is_ok() {
                     rollback_applied(&changed);
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "PATCH_RACE_DETECTED: '{}' appeared while the patch was being applied; rollback was attempted for prior files.",
                         change.path
                     )));
@@ -710,7 +716,7 @@ pub fn apply(
                 let current = storage::read_bounded_regular(absolute, MAX_FILE_BYTES)?;
                 if hash(&current) != *before_hash {
                     rollback_applied(&changed);
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "PATCH_RACE_DETECTED: '{}' changed while the patch was being applied; rollback was attempted for prior files.",
                         change.path
                     )));
@@ -739,14 +745,14 @@ pub fn apply(
                 let current = storage::read_bounded_regular(from, MAX_FILE_BYTES)?;
                 if hash(&current) != *before_hash {
                     rollback_applied(&changed);
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "PATCH_RACE_DETECTED: '{}' changed while the patch was being applied; rollback was attempted for prior files.",
                         change.path
                     )));
                 }
                 if fs::symlink_metadata(to).is_ok() {
                     rollback_applied(&changed);
-                    return Err(ForgeError::Safety(
+                    return Err(DocodeError::Safety(
                         "PATCH_RACE_DETECTED: rename destination appeared while applying; rollback was attempted for prior files.".into(),
                     ));
                 }
@@ -824,7 +830,7 @@ pub fn undo(
     approved: bool,
 ) -> Result<Vec<String>> {
     if !approved {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "rollback requires --approve; no files were modified.".into(),
         ));
     }
@@ -845,11 +851,11 @@ pub fn undo(
         paths.sort_by_key(|p| fs::metadata(p).and_then(|m| m.modified()).ok());
         paths
             .pop()
-            .ok_or_else(|| ForgeError::Message("no checkpoint exists for this mission.".into()))?
+            .ok_or_else(|| DocodeError::Message("no checkpoint exists for this mission.".into()))?
     };
     let bytes = storage::read_bounded_regular(&checkpoint_path, MAX_PATCH_BYTES)?;
     let envelope: CheckpointEnvelope = serde_json::from_slice(&bytes)
-        .map_err(|_| ForgeError::Safety("checkpoint is corrupt; no restore attempted.".into()))?;
+        .map_err(|_| DocodeError::Safety("checkpoint is corrupt; no restore attempted.".into()))?;
     if envelope.store_version != 1
         || envelope.checkpoint.schema_version != 1
         || envelope.checkpoint.mission_id != mission_id
@@ -857,14 +863,14 @@ pub fn undo(
         || envelope.checkpoint.files.is_empty()
         || envelope.checkpoint.files.len() > MAX_PATCH_FILES
     {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "checkpoint identity or schema is invalid; no restore attempted.".into(),
         ));
     }
-    let canonical =
-        serde_json::to_vec(&envelope.checkpoint).map_err(|e| ForgeError::Message(e.to_string()))?;
+    let canonical = serde_json::to_vec(&envelope.checkpoint)
+        .map_err(|e| DocodeError::Message(e.to_string()))?;
     if hash(&canonical) != envelope.sha256 {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "checkpoint checksum mismatch; no restore attempted.".into(),
         ));
     }
@@ -875,25 +881,25 @@ pub fn undo(
             "delete" => {
                 let absolute = files::resolve_new_workspace_file(&canonical_root, &item.path)?;
                 if fs::symlink_metadata(&absolute).is_ok() {
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "UNDO_CONFLICT: '{}' exists again since the checkpoint; nothing was restored.",
                         item.path
                     )));
                 }
                 if hash(item.before_content.as_bytes()) != item.before_sha256 {
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "checkpoint integrity failed for '{}'.",
                         item.path
                     )));
                 }
                 ready.push((item.clone(), absolute));
             }
-            // Create undo: the created file must still be exactly what Forge wrote.
+            // Create undo: the created file must still be exactly what Do Code wrote.
             "create" => {
                 let absolute = files::resolve_workspace_file(&canonical_root, &item.path)?;
                 let current = storage::read_bounded_regular(&absolute, MAX_FILE_BYTES)?;
                 if hash(&current) != item.after_sha256 {
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "UNDO_CONFLICT: '{}' changed since the checkpoint; nothing was restored.",
                         item.path
                     )));
@@ -903,20 +909,20 @@ pub fn undo(
             // Rename undo: destination must hold the moved bytes and the source be gone.
             "rename" => {
                 let to = item.new_path.clone().ok_or_else(|| {
-                    ForgeError::Safety("checkpoint rename is missing its destination.".into())
+                    DocodeError::Safety("checkpoint rename is missing its destination.".into())
                 })?;
                 // Source must be gone; the destination must exist.
                 let source_gone = files::resolve_new_workspace_file(&canonical_root, &item.path)?;
                 let to_absolute = files::resolve_workspace_file(&canonical_root, &to)?;
                 let moved = storage::read_bounded_regular(&to_absolute, MAX_FILE_BYTES)?;
                 if hash(&moved) != item.after_sha256 || fs::symlink_metadata(&source_gone).is_ok() {
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "UNDO_CONFLICT: rename '{}' -> '{}' changed since the checkpoint; nothing was restored.",
                         item.path, to
                     )));
                 }
                 if hash(item.before_content.as_bytes()) != item.before_sha256 {
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "checkpoint integrity failed for '{}'.",
                         item.path
                     )));
@@ -927,13 +933,13 @@ pub fn undo(
                 let absolute = files::resolve_workspace_file(&canonical_root, &item.path)?;
                 let current = storage::read_bounded_regular(&absolute, MAX_FILE_BYTES)?;
                 if hash(&current) != item.after_sha256 {
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "UNDO_CONFLICT: '{}' changed since the checkpoint; nothing was restored.",
                         item.path
                     )));
                 }
                 if hash(item.before_content.as_bytes()) != item.before_sha256 {
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "checkpoint integrity failed for '{}'.",
                         item.path
                     )));
@@ -944,11 +950,11 @@ pub fn undo(
     }
     for (item, path) in &ready {
         match item.op.as_str() {
-            // Create undo removes the file Forge added.
+            // Create undo removes the file Do Code added.
             "create" => {
                 let current = storage::read_bounded_regular(path, MAX_FILE_BYTES)?;
                 if hash(&current) != item.after_sha256 {
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "UNDO_CONFLICT: '{}' changed during restore; no further files were restored.",
                         item.path
                     )));
@@ -959,7 +965,7 @@ pub fn undo(
             "rename" => {
                 let original = files::resolve_new_workspace_file(&canonical_root, &item.path)?;
                 if fs::symlink_metadata(&original).is_ok() {
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "UNDO_CONFLICT: '{}' appeared during restore; no further files were restored.",
                         item.path
                     )));
@@ -970,7 +976,7 @@ pub fn undo(
             "edit" => {
                 let current = storage::read_bounded_regular(path, MAX_FILE_BYTES)?;
                 if hash(&current) != item.after_sha256 {
-                    return Err(ForgeError::Safety(format!(
+                    return Err(DocodeError::Safety(format!(
                         "UNDO_CONFLICT: '{}' changed during restore; no further files were restored.",
                         item.path
                     )));
@@ -1005,12 +1011,12 @@ pub fn undo(
 }
 
 fn rollback_applied(changed: &[(String, PathBuf, String, String, String, u32, String)]) {
-    // Failure rollback never touches a target that no longer matches Forge's output.
+    // Failure rollback never touches a target that no longer matches Do Code's output.
     for (relative, absolute, before_content, _before_hash, after_hash, _mode, op) in
         changed.iter().rev()
     {
         match op.as_str() {
-            // A created file rolls back by removal; only remove what Forge wrote.
+            // A created file rolls back by removal; only remove what Do Code wrote.
             "create" => {
                 let exists = fs::symlink_metadata(absolute)
                     .map(|m| !m.is_dir())
@@ -1020,7 +1026,7 @@ fn rollback_applied(changed: &[(String, PathBuf, String, String, String, u32, St
                     .unwrap_or(false);
                 if exists && matches && fs::remove_file(absolute).is_err() {
                     eprintln!(
-                        "forge: rollback incomplete for '{}'; use the retained checkpoint for manual recovery.",
+                        "docode: rollback incomplete for '{}'; use the retained checkpoint for manual recovery.",
                         crate::redaction::safe_terminal(relative)
                     );
                 }
@@ -1042,7 +1048,7 @@ fn rollback_applied(changed: &[(String, PathBuf, String, String, String, u32, St
                 .is_err()
                 {
                     eprintln!(
-                        "forge: rollback incomplete for '{}'; use the retained checkpoint for manual recovery.",
+                        "docode: rollback incomplete for '{}'; use the retained checkpoint for manual recovery.",
                         crate::redaction::safe_terminal(relative)
                     );
                 }
@@ -1056,7 +1062,7 @@ fn validate_patch(patch: &ProposedPatch) -> Result<()> {
         || patch.files.is_empty()
         || patch.files.len() > MAX_PATCH_FILES
     {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "patch schema or resource limits are invalid.".into(),
         ));
     }
@@ -1072,17 +1078,17 @@ fn validate_patch(patch: &ProposedPatch) -> Result<()> {
             || item.new_content.len() as u64 > MAX_FILE_BYTES
             || item.new_content.contains('\0')
         {
-            return Err(ForgeError::Safety("patch contains an invalid path, duplicate, hash, sensitive target, or oversized content.".into()));
+            return Err(DocodeError::Safety("patch contains an invalid path, duplicate, hash, sensitive target, or oversized content.".into()));
         }
     }
     Ok(())
 }
 fn validate_uuid(id: &str) -> Result<()> {
     let parsed = Uuid::parse_str(id)
-        .map_err(|_| ForgeError::Message("expected a Forge-generated UUID.".into()))?;
+        .map_err(|_| DocodeError::Message("expected a Do Code-generated UUID.".into()))?;
     if parsed.to_string() != id {
-        return Err(ForgeError::Message(
-            "expected a canonical lowercase Forge UUID.".into(),
+        return Err(DocodeError::Message(
+            "expected a canonical lowercase Do Code UUID.".into(),
         ));
     }
     Ok(())

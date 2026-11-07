@@ -109,7 +109,7 @@ def main() -> int:
             "version": version,
             "purl": ref,
             "properties": [
-                {"name": "forge:dependency-class", "value": direct_classes.get(name, "transitive-or-development")},
+                {"name": "docode:dependency-class", "value": direct_classes.get(name, "transitive-or-development")},
             ],
         }
         checksum = package.get("checksum")
@@ -124,7 +124,7 @@ def main() -> int:
                 "url": f"https://crates.io/crates/{name}/{version}",
             }]
         elif source.startswith("git+"):
-            component["properties"].append({"name": "forge:cargo-source", "value": source})
+            component["properties"].append({"name": "docode:cargo-source", "value": source})
         components.append(component)
 
     app_ref = package_ref(app_name, app_version)
@@ -172,11 +172,11 @@ def main() -> int:
         "version": 1,
         "metadata": {
             "timestamp": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-            "tools": [{"vendor": "Forge CLI project tooling", "name": "Forge offline Cargo.lock SBOM generator", "version": "1.0.0"}],
+            "tools": [{"vendor": "Do Code project tooling", "name": "Do Code offline Cargo.lock SBOM generator", "version": "1.0.0"}],
             "component": {"type": "application", "bom-ref": app_ref, "name": app_name, "version": app_version},
             "properties": [
-                {"name": "forge:cargo-lock-sha256", "value": lock_sha},
-                {"name": "forge:sbom-scope", "value": "Locked Cargo package coordinates and registry checksums; licenses intentionally not asserted"},
+                {"name": "docode:cargo-lock-sha256", "value": lock_sha},
+                {"name": "docode:sbom-scope", "value": "Locked Cargo package coordinates and registry checksums; licenses intentionally not asserted"},
             ],
         },
         "components": sorted(components, key=lambda item: (item["name"], item["version"])),

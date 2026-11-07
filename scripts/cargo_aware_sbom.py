@@ -153,11 +153,11 @@ def main() -> int:
         payload = json.loads(source_bom.read_text(encoding="utf-8"))
         validation = validate_bom(payload)
         if "docode-cli" not in str(validation["root_component"]["name"]).lower().replace("_", "-"):
-            raise ValueError(f"SBOM root component does not appear to describe Forge CLI: {validation['root_component']}")
+            raise ValueError(f"SBOM root component does not appear to describe Do Code: {validation['root_component']}")
         output.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         report = {
             "status": "PASS",
-            "product": "Forge CLI",
+            "product": "Do Code",
             "generator": {"name": "cargo-cyclonedx", "version": GENERATOR_VERSION},
             "toolchain": args.toolchain,
             "source_manifest_sha256": sha256(manifest),
@@ -174,7 +174,7 @@ def main() -> int:
         print("VALIDATED: Cargo-aware CycloneDX 1.5 SBOM", flush=True)
         print(json.dumps({"output": str(output), "sha256": report["output_sha256"], "validation": validation}, indent=2), flush=True)
     except (RuntimeError, ValueError, json.JSONDecodeError, OSError) as exc:
-        error_report = {"status": "FAIL", "product": "Forge CLI", "generator": {"name": "cargo-cyclonedx", "version": GENERATOR_VERSION},
+        error_report = {"status": "FAIL", "product": "Do Code", "generator": {"name": "cargo-cyclonedx", "version": GENERATOR_VERSION},
                         "toolchain": args.toolchain, "error": str(exc), "steps": step_records}
         if args.report:
             report_path = args.report.resolve()

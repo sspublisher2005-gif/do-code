@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate or validate Forge's SHA-256 source inventory, excluding self and caches."""
+"""Generate or validate Do Code's SHA-256 source inventory, excluding self and caches."""
 from __future__ import annotations
 import argparse
 import hashlib
@@ -7,7 +7,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-EXCLUDED_PARTS = {".git", "target", "__pycache__", ".forge", "test-results", "node_modules"}
+EXCLUDED_PARTS = {".git", "target", "__pycache__", ".docode", "test-results", "node_modules"}
 EXCLUDED_SUFFIXES = {".pyc", ".pyo"}
 
 
@@ -40,7 +40,7 @@ def main() -> int:
     rows = collect(root)
     target = root / "SOURCE_INVENTORY.json"
     value = {
-        "artifact": "Forge CLI Rust implementation source inventory",
+        "artifact": "Do Code Rust implementation source inventory",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "compiled": False,
         "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",

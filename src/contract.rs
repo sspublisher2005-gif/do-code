@@ -8,7 +8,7 @@
 //! are enforced as data before the first patch request is sent.
 
 use crate::context::ContextPack;
-use crate::error::{ForgeError, Result};
+use crate::error::{DocodeError, Result};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -60,7 +60,7 @@ impl MissionContract {
                 "no secrets or credentials may appear in the patch".into(),
                 "no network access is performed by this mission".into(),
             ],
-            rollback_plan: "forge undo --approve restores checkpointed file bytes exactly".into(),
+            rollback_plan: "docode undo --approve restores checkpointed file bytes exactly".into(),
             approved: true,
         }
     }
@@ -68,17 +68,17 @@ impl MissionContract {
     /// Validate the contract before the implement step may start.
     pub fn validate(&self) -> Result<()> {
         if !self.approved {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "mission contract is not approved; the coder may not start.".into(),
             ));
         }
         if self.goal.trim().len() < 8 {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "mission contract goal is missing or too short.".into(),
             ));
         }
         if self.allowed_paths.is_empty() {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "mission contract allows no files; nothing can be implemented.".into(),
             ));
         }
@@ -98,7 +98,7 @@ fn forbidden_path_floor() -> Vec<String> {
         ".env",
         ".env.*",
         ".git/",
-        ".forge/",
+        ".docode/",
         "node_modules/",
         "id_rsa",
         "credentials",

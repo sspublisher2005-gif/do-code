@@ -1,9 +1,9 @@
-# Forge CLI — independent test results, 26 October 2026
+# Do Code — independent test results, 26 October 2026
 
 ## Tested artifact
 
-- Product/version: Forge CLI `0.7.0-rs.1`.
-- Artifact: `01_CURRENT_VERIFIED_RUST/binaries/forge-linux-x86_64`.
+- Product/version: Do Code `0.7.0-rs.1`.
+- Artifact: `01_CURRENT_VERIFIED_RUST/binaries/docode-linux-x86_64`.
 - Format: dynamically linked, stripped ELF x86-64 for Linux/glibc.
 - Size: 8,052,120 bytes.
 - SHA-256: `a861235a713b8375b6eeccdfc699ccda046e603e5e6eed4ef658cc6a8d704962`.
@@ -15,8 +15,8 @@
 Command (from the handoff root):
 
 ```sh
-python3 01_CURRENT_VERIFIED_RUST/source/forge-cli/scripts/verify_cli.py \
-  --binary 01_CURRENT_VERIFIED_RUST/binaries/forge-linux-x86_64 \
+python3 01_CURRENT_VERIFIED_RUST/source/docode-cli/scripts/verify_cli.py \
+  --binary 01_CURRENT_VERIFIED_RUST/binaries/docode-linux-x86_64 \
   --benchmark-runs 30 \
   --report 04_INDEPENDENT_VERIFICATION/independent_verify_cli_rerun_2026-10-26.json
 ```
@@ -29,7 +29,7 @@ Command:
 
 ```sh
 python3 04_INDEPENDENT_VERIFICATION/reproduce_loopback_e2e.py \
-  --binary 01_CURRENT_VERIFIED_RUST/binaries/forge-linux-x86_64
+  --binary 01_CURRENT_VERIFIED_RUST/binaries/docode-linux-x86_64
 ```
 
 **Result: PASS, exit code 0.** Full log: `04_INDEPENDENT_VERIFICATION/independent_fixture_mission_lifecycle_2026-10-26.log`.
@@ -39,7 +39,7 @@ python3 04_INDEPENDENT_VERIFICATION/reproduce_loopback_e2e.py \
 3. Proves `run` only creates a patch proposal; original file is unchanged until approval.
 4. Proves apply preview does not mutate the file.
 5. Explicitly approved apply changes the file and SHA-256 from `765af0fb59be2b2dc941a19176f2f444a54f6070af67e3b341819ab769d2aaac` to `18c4bd58e485f329ac43825af4423332540003ca2b7a290a2f8c9a440356bbd5`.
-6. `forge verify` refuses to claim task completion because project tests were not actually executed.
+6. `docode verify` refuses to claim task completion because project tests were not actually executed.
 7. Undo without approval is refused and does not mutate the file.
 8. Approved undo restores the exact original content and SHA-256.
 9. Fixture traffic stays on `127.0.0.1`; no external key or service is used.
@@ -54,10 +54,10 @@ Fresh subprocess startup used 30 samples after warmup; command measurements used
 
 | Operation | Samples | Median | p95 | Maximum |
 |---|---:|---:|---:|---:|
-| New-process `forge --version` startup | 30 | 1.288 ms | 1.900 ms | 1.942 ms |
-| `forge doctor` | 10 | 3.614 ms | 4.267 ms | 4.267 ms |
-| `forge files list` | 10 | 3.786 ms | 5.765 ms | 5.765 ms |
-| `forge config show` | 10 | 4.015 ms | 5.494 ms | 5.494 ms |
+| New-process `docode --version` startup | 30 | 1.288 ms | 1.900 ms | 1.942 ms |
+| `docode doctor` | 10 | 3.614 ms | 4.267 ms | 4.267 ms |
+| `docode files list` | 10 | 3.786 ms | 5.765 ms | 5.765 ms |
+| `docode config show` | 10 | 4.015 ms | 5.494 ms | 5.494 ms |
 
 These are warm-cache timings on one CI-like Linux container, not cold-start measurements or a promise for end-user hardware. At the time of this initial timing run, RSS was not yet measured; a later Linux RSS sample is included in `PERFORMANCE_BASELINE_LINUX_2026-10-26.md`. Toolchain installation duration and matched-hardware TypeScript comparison remain unmeasured.
 
@@ -70,13 +70,13 @@ These are warm-cache timings on one CI-like Linux container, not cold-start meas
 
 ## Parity and security gaps
 
-Read `01_CURRENT_VERIFIED_RUST/source/forge-cli/docs/FEATURE_PARITY_LEDGER.md`. Key gaps remain: native OS sandbox/command runner; evidence/completion wiring; automatic mission resume; review-first memory proposal and `memory open`; patch create/delete/rename/full-diff and crash recovery; ignore/index freshness; complete Windows ACLs; macOS/Windows builds/tests; provider quality checks; supply-chain/installer/release qualification.
+Read `01_CURRENT_VERIFIED_RUST/source/docode-cli/docs/FEATURE_PARITY_LEDGER.md`. Key gaps remain: native OS sandbox/command runner; evidence/completion wiring; automatic mission resume; review-first memory proposal and `memory open`; patch create/delete/rename/full-diff and crash recovery; ignore/index freshness; complete Windows ACLs; macOS/Windows builds/tests; provider quality checks; supply-chain/installer/release qualification.
 
-`SANDBOX_DESIGN_AND_TEST_SPEC.md` gives reviewed platform design guidance. `SANDBOX_ACCEPTANCE_MATRIX.json` lists **26 adversarial/release tests**. These sandbox driver tests are **NOT RUN / driver not implemented**. The current binary intentionally fails closed; it must not execute project commands until a driver has passed its OS-specific isolation suite and its results are integrated with `forge verify`.
+`SANDBOX_DESIGN_AND_TEST_SPEC.md` gives reviewed platform design guidance. `SANDBOX_ACCEPTANCE_MATRIX.json` lists **26 adversarial/release tests**. These sandbox driver tests are **NOT RUN / driver not implemented**. The current binary intentionally fails closed; it must not execute project commands until a driver has passed its OS-specific isolation suite and its results are integrated with `docode verify`.
 
 ## Release verdict
 
-The supplied Linux binary has reproducible command and fixture-E2E evidence. **Forge CLI is not yet 100% complete or production-ready for executing untrusted project commands.** The Rust tests/build are reported passing by the supplying environment, but this host has not rerun Cargo and the final format/check logs are missing. Never claim macOS/Windows support or sandbox isolation without real OS-specific evidence.
+The supplied Linux binary has reproducible command and fixture-E2E evidence. **Do Code is not yet 100% complete or production-ready for executing untrusted project commands.** The Rust tests/build are reported passing by the supplying environment, but this host has not rerun Cargo and the final format/check logs are missing. Never claim macOS/Windows support or sandbox isolation without real OS-specific evidence.
 
 ## Cost-policy invariant
 

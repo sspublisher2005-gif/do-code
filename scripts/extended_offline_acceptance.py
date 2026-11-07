@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Extended no-network black-box tests for Forge CLI's local workflows.
+"""Extended no-network black-box tests for Do Code's local workflows.
 
-All commands run against a supplied compiled Forge binary in isolated temporary
+All commands run against a supplied compiled Do Code binary in isolated temporary
 projects. No provider keys are required; no live model or external network call is
 made by this harness. This is a runtime acceptance harness, not a Rust test runner.
 """
@@ -44,12 +44,12 @@ def main() -> int:
         results.append({"name": name, "status": "PASS" if predicate else "FAIL", "detail": detail})
         print(f"{'PASS' if predicate else 'FAIL'} {name}" + (f": {detail}" if detail and not predicate else ""), flush=True)
 
-    with tempfile.TemporaryDirectory(prefix="forge-extended-acceptance-") as work:
+    with tempfile.TemporaryDirectory(prefix="docode-extended-acceptance-") as work:
         root = Path(work) / "workspace with spaces – 中文"
         root.mkdir()
         (root / "add.py").write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
         (root / "README.md").write_text("# Offline acceptance fixture\n", encoding="utf-8")
-        (root / ".env").write_text("FORGE_ACCEPTANCE_SECRET=never-show-this-secret\n", encoding="utf-8")
+        (root / ".env").write_text("DOCODE_ACCEPTANCE_SECRET=never-show-this-secret\n", encoding="utf-8")
 
         version = subprocess.run([str(binary), "--version"], capture_output=True, text=True, timeout=10)
         check("version command", version.returncode == 0 and "docode " in version.stdout, version.stdout.strip())
@@ -57,9 +57,9 @@ def main() -> int:
         init = invoke(root, "init")
         check("init succeeds offline", init.returncode == 0 and "Network: not used" in init.stdout,
               init.stdout[-400:].strip())
-        (root / "FORGE.md").write_text("# user-customized file\nkeep-me\n", encoding="utf-8")
+        (root / "DOCODE.md").write_text("# user-customized file\nkeep-me\n", encoding="utf-8")
         init_again = invoke(root, "init")
-        check("init preserves user FORGE.md", init_again.returncode == 0 and "keep-me" in (root / "FORGE.md").read_text())
+        check("init preserves user DOCODE.md", init_again.returncode == 0 and "keep-me" in (root / "DOCODE.md").read_text())
 
         doctor = invoke(root, "doctor")
         check("doctor does not claim sandbox is implemented", doctor.returncode == 0 and "Sandbox: not implemented" in doctor.stdout)
@@ -117,10 +117,10 @@ def main() -> int:
         imported_id_match = UUID_RE.search(imported_list.stdout)
         imported_id = imported_id_match.group(0) if imported_id_match else None
         check("imported memory remains searchable/listed", "Use pathlib" in imported_list.stdout and imported_id is not None)
-        forget_denied = invoke(root, "memory", "forget", imported_id or "invalid")
-        check("forget refuses without approval", forget_denied.returncode != 0 and "--approve" in forget_denied.stderr)
-        forget = invoke(root, "memory", "forget", imported_id or "invalid", "--approve")
-        check("approved forget deletes note", bool(imported_id and forget.returncode == 0 and "deleted locally after approval" in forget.stdout))
+        docodet_denied = invoke(root, "memory", "docodet", imported_id or "invalid")
+        check("docodet refuses without approval", docodet_denied.returncode != 0 and "--approve" in docodet_denied.stderr)
+        docodet = invoke(root, "memory", "docodet", imported_id or "invalid", "--approve")
+        check("approved docodet deletes note", bool(imported_id and docodet.returncode == 0 and "deleted locally after approval" in docodet.stdout))
 
         pilot = invoke(root, "pilot", "Choose a safe local metadata strategy", "--option", "SQLite", "--option", "plain files", "--privacy", "--risk", "medium")
         decision_id_match = UUID_RE.search(pilot.stdout)
@@ -133,15 +133,15 @@ def main() -> int:
         check("Decision Arena detail is retrievable", bool(decision_id and decision.returncode == 0 and "Choose a safe local metadata strategy" in decision.stdout))
 
         freeze = invoke(root, "freeze", "now", "extended offline acceptance safety test")
-        check("emergency freeze activates", freeze.returncode == 0 and "Forge frozen" in freeze.stdout)
+        check("emergency freeze activates", freeze.returncode == 0 and "Do Code frozen" in freeze.stdout)
         status = invoke(root, "freeze", "status")
         check("freeze status confirms active state", status.returncode == 0 and "Frozen: true" in status.stdout)
         live_attempt = invoke(root, "pilot", "must be blocked while frozen", "--option", "A", "--option", "B", "--live", "--approve-context-sharing")
-        check("freeze blocks live model workflow before network", live_attempt.returncode != 0 and "FORGE_FROZEN" in live_attempt.stderr and "No prompt was sent" not in live_attempt.stdout)
+        check("freeze blocks live model workflow before network", live_attempt.returncode != 0 and "DOCODE_FROZEN" in live_attempt.stderr and "No prompt was sent" not in live_attempt.stdout)
         unfreeze_denied = invoke(root, "unfreeze")
         check("unfreeze requires explicit approval", unfreeze_denied.returncode != 0 and "--approve" in unfreeze_denied.stderr)
         unfreeze = invoke(root, "unfreeze", "--approve")
-        check("approved unfreeze restores normal state", unfreeze.returncode == 0 and "Forge unfrozen: true" in unfreeze.stdout)
+        check("approved unfreeze restores normal state", unfreeze.returncode == 0 and "Do Code unfrozen: true" in unfreeze.stdout)
 
         sandbox_status = invoke(root, "sandbox", "status")
         check("sandbox status honestly discloses missing driver", sandbox_status.returncode == 0 and "NOT IMPLEMENTED" in sandbox_status.stdout)
@@ -162,7 +162,7 @@ def main() -> int:
 
     failed = [item for item in results if item["status"] != "PASS"]
     report = {
-        "suite": "Forge CLI extended offline acceptance",
+        "suite": "Do Code extended offline acceptance",
         "measured_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "environment": {"system": platform.system(), "platform": platform.platform(), "machine": platform.machine()},
         "binary": str(binary),

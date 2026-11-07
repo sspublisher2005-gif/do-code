@@ -1,7 +1,7 @@
 use crate::{
     audit,
-    config::{self, ForgeConfig},
-    error::{ForgeError, Result},
+    config::{self, DocodeConfig},
+    error::{DocodeError, Result},
     redaction,
 };
 use reqwest::{Client, redirect::Policy};
@@ -13,7 +13,7 @@ use std::{
 };
 
 const MAX_RESPONSE_BYTES: usize = 2 * 1024 * 1024;
-const DIAGNOSTIC_PROMPT: &str = "Reply exactly: FORGE_MODEL_TEST_OK";
+const DIAGNOSTIC_PROMPT: &str = "Reply exactly: DOCODE_MODEL_TEST_OK";
 
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct UsageReport {
@@ -34,7 +34,7 @@ pub struct ModelResponse {
 
 pub async fn test_model(
     root: &Path,
-    config: &ForgeConfig,
+    config: &DocodeConfig,
     live: bool,
     approve_context_sharing: bool,
 ) -> Result<()> {
@@ -63,10 +63,10 @@ pub async fn test_model(
         return Ok(());
     }
     if !approve_context_sharing {
-        return Err(ForgeError::Safety("live model test blocked: both --live and --approve-context-sharing are required. No request was sent.".into()));
+        return Err(DocodeError::Safety("live model test blocked: both --live and --approve-context-sharing are required. No request was sent.".into()));
     }
     if config.privacy.mode == "local-only" && !config::is_loopback(&parsed_url) {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "privacy.mode is local-only; remote endpoint is blocked. No request was sent.".into(),
         ));
     }
@@ -75,17 +75,17 @@ pub async fn test_model(
         .filter(|value| !value.trim().is_empty());
     let local_endpoint = config::is_loopback(&parsed_url);
     if api_key.is_none() && !local_endpoint {
-        return Err(ForgeError::Provider(format!(
-            "set {} in the current shell; Forge does not save API keys to disk. No request was sent.",
+        return Err(DocodeError::Provider(format!(
+            "set {} in the current shell; Do Code does not save API keys to disk. No request was sent.",
             config.model.api_key_env
         )));
     }
     println!(
-        "Live request approved for {}. Only a fixed diagnostic prompt is sent; no workspace, FORGE.md, or memory is attached. Provider billing and retention policies may apply.",
+        "Live request approved for {}. Only a fixed diagnostic prompt is sent; no workspace, DOCODE.md, or memory is attached. Provider billing and retention policies may apply.",
         parsed_url.origin().ascii_serialization()
     );
-    let response = generate_text(root, config, "You are testing a model connection. Do not request or reveal secrets. Reply with the exact text FORGE_MODEL_TEST_OK and nothing else.", DIAGNOSTIC_PROMPT, 32.min(config.model.max_output_tokens), true, true).await?;
-    let passed = response.text.trim() == "FORGE_MODEL_TEST_OK";
+    let response = generate_text(root, config, "You are testing a model connection. Do not request or reveal secrets. Reply with the exact text DOCODE_MODEL_TEST_OK and nothing else.", DIAGNOSTIC_PROMPT, 32.min(config.model.max_output_tokens), true, true).await?;
+    let passed = response.text.trim() == "DOCODE_MODEL_TEST_OK";
     println!(
         "Model test: {}",
         if passed {
@@ -140,7 +140,7 @@ pub async fn test_model(
         extra,
     )?;
     if !passed {
-        return Err(ForgeError::Provider(
+        return Err(DocodeError::Provider(
             "provider responded, but the fixed diagnostic response did not match.".into(),
         ));
     }
@@ -148,18 +148,21 @@ pub async fn test_model(
 }
 
 #[cfg(test)]
-async fn generate_diagnostic(config: &ForgeConfig, api_key: Option<&str>) -> Result<ModelResponse> {
+async fn generate_diagnostic(
+    config: &DocodeConfig,
+    api_key: Option<&str>,
+) -> Result<ModelResponse> {
     let base = config::validate_base_url(&config.model.base_url)?;
     let endpoint = format!("{}/chat/completions", base.as_str().trim_end_matches('/'));
     let client = Client::builder()
         .timeout(Duration::from_millis(config.model.timeout_ms))
         .redirect(Policy::none())
         .build()
-        .map_err(|_| ForgeError::Provider("could not initialize HTTPS provider client.".into()))?;
+        .map_err(|_| DocodeError::Provider("could not initialize HTTPS provider client.".into()))?;
     let body = json!({
         "model": config.model.model,
         "messages": [
-            {"role":"system", "content":"You are testing a model connection. Do not request or reveal secrets. Reply with the exact text FORGE_MODEL_TEST_OK and nothing else."},
+            {"role":"system", "content":"You are testing a model connection. Do not request or reveal secrets. Reply with the exact text DOCODE_MODEL_TEST_OK and nothing else."},
             {"role":"user", "content":DIAGNOSTIC_PROMPT}
         ],
         "max_tokens": 32,
@@ -175,15 +178,15 @@ async fn generate_diagnostic(config: &ForgeConfig, api_key: Option<&str>) -> Res
     let started = Instant::now();
     let mut response = request.send().await.map_err(|error| {
         if error.is_timeout() {
-            ForgeError::Provider("provider request timed out.".into())
+            DocodeError::Provider("provider request timed out.".into())
         } else {
-            ForgeError::Provider("provider endpoint could not be reached.".into())
+            DocodeError::Provider("provider endpoint could not be reached.".into())
         }
     })?;
     let status = response.status();
     if !status.is_success() {
         // Deliberately do not print response bodies; they may echo credentials or private data.
-        return Err(ForgeError::Provider(format!(
+        return Err(DocodeError::Provider(format!(
             "provider returned HTTP {status}; response body was not logged."
         )));
     }
@@ -191,7 +194,7 @@ async fn generate_diagnostic(config: &ForgeConfig, api_key: Option<&str>) -> Res
         .content_length()
         .is_some_and(|n| n > MAX_RESPONSE_BYTES as u64)
     {
-        return Err(ForgeError::Provider(
+        return Err(DocodeError::Provider(
             "provider response exceeded the 2 MiB safety limit.".into(),
         ));
     }
@@ -199,17 +202,17 @@ async fn generate_diagnostic(config: &ForgeConfig, api_key: Option<&str>) -> Res
     while let Some(chunk) = response
         .chunk()
         .await
-        .map_err(|_| ForgeError::Provider("provider response stream failed.".into()))?
+        .map_err(|_| DocodeError::Provider("provider response stream failed.".into()))?
     {
         if bytes.len() + chunk.len() > MAX_RESPONSE_BYTES {
-            return Err(ForgeError::Provider(
+            return Err(DocodeError::Provider(
                 "provider response exceeded the 2 MiB safety limit.".into(),
             ));
         }
         bytes.extend_from_slice(&chunk);
     }
     let payload: Value = serde_json::from_slice(&bytes)
-        .map_err(|_| ForgeError::Provider("provider response was not valid JSON.".into()))?;
+        .map_err(|_| DocodeError::Provider("provider response was not valid JSON.".into()))?;
     let text = payload
         .get("choices")
         .and_then(Value::as_array)
@@ -218,7 +221,7 @@ async fn generate_diagnostic(config: &ForgeConfig, api_key: Option<&str>) -> Res
         .and_then(|m| m.get("content"))
         .and_then(Value::as_str)
         .ok_or_else(|| {
-            ForgeError::Provider(
+            DocodeError::Provider(
                 "provider response did not contain text completion content.".into(),
             )
         })?
@@ -241,11 +244,11 @@ async fn generate_diagnostic(config: &ForgeConfig, api_key: Option<&str>) -> Res
     })
 }
 
-/// Send an explicitly consented user prompt through one of Forge's configured provider adapters.
+/// Send an explicitly consented user prompt through one of Do Code's configured provider adapters.
 /// This is deliberately a text API; tool execution, browser access and file writes are not exposed here.
 pub async fn generate_text(
     root: &Path,
-    config: &ForgeConfig,
+    config: &DocodeConfig,
     system_prompt: &str,
     user_prompt: &str,
     max_output_tokens: usize,
@@ -274,7 +277,7 @@ pub async fn generate_text(
 #[allow(clippy::too_many_arguments)]
 async fn generate_text_with_key(
     root: &Path,
-    config: &ForgeConfig,
+    config: &DocodeConfig,
     system_prompt: &str,
     user_prompt: &str,
     max_output_tokens: usize,
@@ -283,29 +286,29 @@ async fn generate_text_with_key(
     key: Option<&str>,
 ) -> Result<ModelResponse> {
     if !live || !approve_context_sharing {
-        return Err(ForgeError::Safety("model request blocked: pass both --live and --approve-context-sharing. No prompt was sent.".into()));
+        return Err(DocodeError::Safety("model request blocked: pass both --live and --approve-context-sharing. No prompt was sent.".into()));
     }
     if crate::redaction::redact(system_prompt) != system_prompt
         || crate::redaction::redact(user_prompt) != user_prompt
     {
-        return Err(ForgeError::Safety("prompt appears to contain a credential. Remove it before a live request; no prompt was sent. Secret detection is heuristic.".into()));
+        return Err(DocodeError::Safety("prompt appears to contain a credential. Remove it before a live request; no prompt was sent. Secret detection is heuristic.".into()));
     }
     let base = config::validate_base_url(&config.model.base_url)?;
     if config.privacy.mode == "local-only" && !config::is_loopback(&base) {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "privacy.mode is local-only; remote model requests are blocked. No prompt was sent."
                 .into(),
         ));
     }
     if !(1..=config.model.max_output_tokens).contains(&max_output_tokens) {
-        return Err(ForgeError::Config(
+        return Err(DocodeError::Config(
             "requested output token limit must be between 1 and the configured maximum.".into(),
         ));
     }
     let is_local = config::is_loopback(&base);
     if key.is_none() && !is_local && config.model.provider != "ollama" {
-        return Err(ForgeError::Provider(format!(
-            "set {} in the current shell; Forge never writes API keys to disk. No prompt was sent.",
+        return Err(DocodeError::Provider(format!(
+            "set {} in the current shell; Do Code never writes API keys to disk. No prompt was sent.",
             config.model.api_key_env
         )));
     }
@@ -315,7 +318,7 @@ async fn generate_text_with_key(
         || model_name.contains('/')
         || model_name.contains('\0')
     {
-        return Err(ForgeError::Config(
+        return Err(DocodeError::Config(
             "model identifier is empty, oversized, or contains a forbidden path separator.".into(),
         ));
     }
@@ -348,7 +351,7 @@ async fn generate_text_with_key(
             let clean = base.as_str().trim_end_matches('/');
             let endpoint = url::Url::parse(&format!("{clean}/models/{model_name}:generateContent"))
                 .map_err(|_| {
-                    ForgeError::Config(
+                    DocodeError::Config(
                         "could not construct Google Generative Language endpoint.".into(),
                     )
                 })?;
@@ -362,7 +365,7 @@ async fn generate_text_with_key(
             )
         }
         provider => {
-            return Err(ForgeError::Config(format!(
+            return Err(DocodeError::Config(format!(
                 "unsupported model provider '{provider}'."
             )));
         }
@@ -373,7 +376,7 @@ async fn generate_text_with_key(
         .redirect(Policy::none())
         .build()
         .map_err(|_| {
-            ForgeError::Provider("could not initialize a bounded provider client.".into())
+            DocodeError::Provider("could not initialize a bounded provider client.".into())
         })?;
     let mut request = client
         .post(endpoint.clone())
@@ -381,12 +384,12 @@ async fn generate_text_with_key(
     match config.model.provider.as_str() {
         "anthropic" => {
             let key = key.ok_or_else(|| {
-                ForgeError::Provider(
+                DocodeError::Provider(
                     "Anthropic provider requires an API key; no request was sent.".into(),
                 )
             })?;
             let value = reqwest::header::HeaderValue::from_str(key).map_err(|_| {
-                ForgeError::Provider(
+                DocodeError::Provider(
                     "API key contains invalid header characters; no request was sent.".into(),
                 )
             })?;
@@ -396,12 +399,12 @@ async fn generate_text_with_key(
         }
         "google" => {
             let key = key.ok_or_else(|| {
-                ForgeError::Provider(
+                DocodeError::Provider(
                     "Google provider requires an API key; no request was sent.".into(),
                 )
             })?;
             let value = reqwest::header::HeaderValue::from_str(key).map_err(|_| {
-                ForgeError::Provider(
+                DocodeError::Provider(
                     "API key contains invalid header characters; no request was sent.".into(),
                 )
             })?;
@@ -432,7 +435,7 @@ async fn generate_text_with_key(
     let mut response = None;
     for attempt in 0..=MAX_PROVIDER_RETRIES {
         let attempt_request = prepared.try_clone().ok_or_else(|| {
-            ForgeError::Provider("could not prepare the provider request.".into())
+            DocodeError::Provider("could not prepare the provider request.".into())
         })?;
         match attempt_request.send().await {
             Ok(sent) => {
@@ -461,9 +464,9 @@ async fn generate_text_with_key(
             }
             Err(error) => {
                 if error.is_timeout() {
-                    return Err(ForgeError::Provider("provider request timed out.".into()));
+                    return Err(DocodeError::Provider("provider request timed out.".into()));
                 }
-                return Err(ForgeError::Provider(
+                return Err(DocodeError::Provider(
                     "provider endpoint could not be reached; endpoint details were not logged."
                         .into(),
                 ));
@@ -471,16 +474,16 @@ async fn generate_text_with_key(
         }
     }
     let response = response
-        .ok_or_else(|| ForgeError::Provider("provider request could not be completed.".into()))?;
+        .ok_or_else(|| DocodeError::Provider("provider request could not be completed.".into()))?;
     let status = response.status();
     if !status.is_success() {
         if status.as_u16() == 429 {
-            return Err(ForgeError::Provider(
+            return Err(DocodeError::Provider(
                 "RATE_LIMITED: provider rate limit persisted after retries; response body was not logged. Mission state is preserved."
                     .into(),
             ));
         }
-        return Err(ForgeError::Provider(format!(
+        return Err(DocodeError::Provider(format!(
             "provider returned HTTP {status}; response body was not logged."
         )));
     }
@@ -488,7 +491,7 @@ async fn generate_text_with_key(
         .content_length()
         .is_some_and(|n| n > MAX_RESPONSE_BYTES as u64)
     {
-        return Err(ForgeError::Provider(
+        return Err(DocodeError::Provider(
             "provider response exceeded the 2 MiB safety limit.".into(),
         ));
     }
@@ -497,17 +500,17 @@ async fn generate_text_with_key(
     while let Some(chunk) = stream
         .chunk()
         .await
-        .map_err(|_| ForgeError::Provider("provider response stream failed.".into()))?
+        .map_err(|_| DocodeError::Provider("provider response stream failed.".into()))?
     {
         if bytes.len().saturating_add(chunk.len()) > MAX_RESPONSE_BYTES {
-            return Err(ForgeError::Provider(
+            return Err(DocodeError::Provider(
                 "provider response exceeded the 2 MiB safety limit.".into(),
             ));
         }
         bytes.extend_from_slice(&chunk);
     }
     let payload: Value = serde_json::from_slice(&bytes)
-        .map_err(|_| ForgeError::Provider("provider response was not valid JSON.".into()))?;
+        .map_err(|_| DocodeError::Provider("provider response was not valid JSON.".into()))?;
     let text = match config.model.provider.as_str() {
         "anthropic" => payload
             .get("content")
@@ -544,10 +547,10 @@ async fn generate_text_with_key(
             .map(str::to_owned),
     }
     .ok_or_else(|| {
-        ForgeError::Provider("provider response did not contain a supported text field.".into())
+        DocodeError::Provider("provider response did not contain a supported text field.".into())
     })?;
     if text.len() > MAX_RESPONSE_BYTES {
-        return Err(ForgeError::Provider(
+        return Err(DocodeError::Provider(
             "provider text exceeded the response safety limit.".into(),
         ));
     }
@@ -644,7 +647,7 @@ fn append_endpoint(base: &url::Url, suffix: &str) -> Result<url::Url> {
         suffix.trim_start_matches('/')
     );
     url::Url::parse(&value).map_err(|_| {
-        ForgeError::Config("configured provider endpoint could not be constructed.".into())
+        DocodeError::Config("configured provider endpoint could not be constructed.".into())
     })
 }
 
@@ -692,7 +695,7 @@ fn display_cost(value: Option<f64>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::ForgeConfig;
+    use crate::config::DocodeConfig;
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt},
         net::TcpListener,
@@ -830,8 +833,8 @@ mod tests {
         format!("http://{address}/v1")
     }
 
-    fn local_config(base_url: String) -> ForgeConfig {
-        let mut config = ForgeConfig::default();
+    fn local_config(base_url: String) -> DocodeConfig {
+        let mut config = DocodeConfig::default();
         config.model.base_url = base_url;
         config.model.timeout_ms = 1_000;
         config
@@ -856,12 +859,12 @@ mod tests {
 
     #[tokio::test]
     async fn diagnostic_success_parses_text_tokens_and_provider_reported_cost() {
-        let body = r#"{"id":"req-fixture","model":"fixture-model","choices":[{"message":{"content":"FORGE_MODEL_TEST_OK"}}],"usage":{"prompt_tokens":3,"completion_tokens":4,"cost_usd":0.0002}}"#;
+        let body = r#"{"id":"req-fixture","model":"fixture-model","choices":[{"message":{"content":"DOCODE_MODEL_TEST_OK"}}],"usage":{"prompt_tokens":3,"completion_tokens":4,"cost_usd":0.0002}}"#;
         let base_url = local_server(http_response("200 OK", body, "")).await;
         let result = generate_diagnostic(&local_config(base_url), None)
             .await
             .unwrap();
-        assert_eq!(result.text, "FORGE_MODEL_TEST_OK");
+        assert_eq!(result.text, "DOCODE_MODEL_TEST_OK");
         assert_eq!(result.model, "fixture-model");
         assert_eq!(result.request_id.as_deref(), Some("req-fixture"));
         assert_eq!(result.usage.input_tokens, Some(3));
@@ -871,14 +874,14 @@ mod tests {
 
     #[tokio::test]
     async fn sends_configured_bearer_token_in_authorization_header() {
-        let body = r#"{"choices":[{"message":{"content":"FORGE_MODEL_TEST_OK"}}]}"#;
+        let body = r#"{"choices":[{"message":{"content":"DOCODE_MODEL_TEST_OK"}}]}"#;
         let (base_url, server) =
             local_server_capture_headers(http_response("200 OK", body, "")).await;
         let result = generate_diagnostic(&local_config(base_url), Some("fixture-api-key-not-real"))
             .await
             .unwrap();
         let headers = server.await.unwrap().to_ascii_lowercase();
-        assert_eq!(result.text, "FORGE_MODEL_TEST_OK");
+        assert_eq!(result.text, "DOCODE_MODEL_TEST_OK");
         assert!(
             headers.contains("authorization: bearer fixture-api-key-not-real"),
             "provider authorization header missing"
@@ -938,7 +941,7 @@ mod tests {
     async fn redirects_are_not_followed() {
         let target_listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let target_address = target_listener.local_addr().unwrap();
-        let target_body = r#"{"choices":[{"message":{"content":"FORGE_MODEL_TEST_OK"}}]}"#;
+        let target_body = r#"{"choices":[{"message":{"content":"DOCODE_MODEL_TEST_OK"}}]}"#;
         tokio::spawn(async move {
             if let Ok((mut stream, _)) = target_listener.accept().await {
                 let mut request = [0_u8; 4096];
@@ -1073,7 +1076,7 @@ mod tests {
     }
     #[test]
     fn no_cost_budget_fields_exist_in_rust_config() {
-        let value = toml::to_string(&ForgeConfig::default()).unwrap();
+        let value = toml::to_string(&DocodeConfig::default()).unwrap();
         assert!(!value.contains("max_cost"));
         assert!(!value.contains("estimated_cost"));
         let mission = crate::mission::Mission {

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Cross-platform black-box acceptance tests and process-startup benchmarks for Forge.
+"""Cross-platform black-box acceptance tests and process-startup benchmarks for Do Code.
 
-This script runs against a compiled Forge binary. It never performs a live model call.
-It uses Python only as a test harness; Python is not a Forge runtime dependency.
+This script runs against a compiled Do Code binary. It never performs a live model call.
+It uses Python only as a test harness; Python is not a Do Code runtime dependency.
 """
 from __future__ import annotations
 
@@ -98,7 +98,7 @@ class Verifier:
         self.check("version command", version_test)
         self.check("help command", lambda: self.require((lambda p: p.returncode == 0 and "Do Code" in p.stdout)(self.run(["--help"])), "--help failed or omitted product name"))
 
-        with tempfile.TemporaryDirectory(prefix="forge-verify-") as temp_name:
+        with tempfile.TemporaryDirectory(prefix="docode-verify-") as temp_name:
             root = Path(temp_name) / "workspace"
             root.mkdir()
 
@@ -106,32 +106,32 @@ class Verifier:
                 proc = self.run(["--root", str(root), "init"])
                 self.require(proc.returncode == 0, proc.stderr)
                 self.require("Network: not used" in proc.stdout, proc.stdout)
-                self.require((root / "forge.config.toml").is_file(), "config file not created")
-                self.require((root / "FORGE.md").is_file(), "FORGE.md not created")
-                self.require((root / ".forge").is_dir(), ".forge directory not created")
+                self.require((root / "docode.config.toml").is_file(), "config file not created")
+                self.require((root / "DOCODE.md").is_file(), "DOCODE.md not created")
+                self.require((root / ".docode").is_dir(), ".docode directory not created")
                 if os.name != "nt":
-                    forge_mode = stat.S_IMODE((root / ".forge").stat().st_mode)
-                    audit_mode = stat.S_IMODE((root / ".forge" / "audit.jsonl").stat().st_mode)
-                    self.require(forge_mode == 0o700, f".forge mode is {oct(forge_mode)}, expected 0o700")
+                    docode_mode = stat.S_IMODE((root / ".docode").stat().st_mode)
+                    audit_mode = stat.S_IMODE((root / ".docode" / "audit.jsonl").stat().st_mode)
+                    self.require(docode_mode == 0o700, f".docode mode is {oct(docode_mode)}, expected 0o700")
                     self.require(audit_mode == 0o600, f"audit mode is {oct(audit_mode)}, expected 0o600")
                 return "created; Unix private modes checked where applicable; no intentional network call"
 
             self.check("offline init creates workspace", initialize)
 
             def idempotent_init() -> None:
-                before = {name: (root / name).read_bytes() for name in ("forge.config.toml", "FORGE.md")}
+                before = {name: (root / name).read_bytes() for name in ("docode.config.toml", "DOCODE.md")}
                 proc = self.run(["init", "--root", str(root)])
                 self.require(proc.returncode == 0, proc.stderr)
-                self.require(before["forge.config.toml"] == (root / "forge.config.toml").read_bytes(), "config overwritten on second init")
-                self.require(before["FORGE.md"] == (root / "FORGE.md").read_bytes(), "project memory overwritten on second init")
+                self.require(before["docode.config.toml"] == (root / "docode.config.toml").read_bytes(), "config overwritten on second init")
+                self.require(before["DOCODE.md"] == (root / "DOCODE.md").read_bytes(), "project memory overwritten on second init")
 
             self.check("init idempotency / no overwrite", idempotent_init)
 
             def preserve_custom_files() -> None:
                 other = Path(temp_name) / "custom"
                 other.mkdir()
-                config = other / "forge.config.toml"
-                memory = other / "FORGE.md"
+                config = other / "docode.config.toml"
+                memory = other / "DOCODE.md"
                 config.write_text("custom config marker\n", encoding="utf-8")
                 memory.write_text("custom memory marker\n", encoding="utf-8")
                 proc = self.run(["--root", str(other), "init"])
@@ -147,7 +147,7 @@ class Verifier:
                 self.require("Sandbox: not implemented" in proc.stdout, "doctor does not disclose sandbox limitation")
                 self.require("no predicted cost" in proc.stdout, "doctor does not disclose the cost policy")
                 if os.name == "nt":
-                    self.require("Windows .forge ACL hardening" in proc.stdout, "Windows security warning missing")
+                    self.require("Windows .docode ACL hardening" in proc.stdout, "Windows security warning missing")
 
             self.check("doctor reports actual limits and platform warning", doctor_test)
 
@@ -170,14 +170,14 @@ class Verifier:
             self.check("config show emits valid JSON and safe defaults", config_show_test)
 
             def unicode_and_space_paths_are_supported() -> None:
-                other = Path(temp_name) / "Forge workspace – हिन्दी"
+                other = Path(temp_name) / "Do Code workspace – हिन्दी"
                 other.mkdir()
                 init = self.run(["--root", str(other), "init"])
                 self.require(init.returncode == 0, init.stderr)
                 show = self.run(["--root", str(other), "config", "show"])
                 self.require(show.returncode == 0, show.stderr)
                 parsed = json.loads(show.stdout)
-                self.require("Forge workspace – हिन्दी" in parsed["path"], parsed["path"])
+                self.require("Do Code workspace – हिन्दी" in parsed["path"], parsed["path"])
 
             self.check("workspace paths with spaces and Unicode", unicode_and_space_paths_are_supported)
 
@@ -199,7 +199,7 @@ class Verifier:
                 help_text = self.run(["--help"]).stdout
                 self.require("--max-cost-usd" not in help_text, "cost-stop flag was exposed")
                 self.require("--estimated-cost" not in help_text, "cost-estimation flag was exposed")
-                config_text = (root / "forge.config.toml").read_text(encoding="utf-8")
+                config_text = (root / "docode.config.toml").read_text(encoding="utf-8")
                 self.require("max_cost" not in config_text and "estimated_cost" not in config_text, "cost budget was added to configuration")
 
             self.check("no predicted-cost or cost-budget stop flags", cost_policy_test)
@@ -293,7 +293,7 @@ class Verifier:
             self.check("audit JSONL is readable, ordered, and contains no file contents", audit_test)
 
             def invalid_config_test() -> None:
-                config_path = root / "forge.config.toml"
+                config_path = root / "docode.config.toml"
                 good = config_path.read_text(encoding="utf-8")
                 try:
                     config_path.write_text(good + "\nunknown_injected_key = true\n", encoding="utf-8")
@@ -305,7 +305,7 @@ class Verifier:
             self.check("unknown config keys are rejected", invalid_config_test)
 
             def insecure_url_test() -> None:
-                config_path = root / "forge.config.toml"
+                config_path = root / "docode.config.toml"
                 good = config_path.read_text(encoding="utf-8")
                 try:
                     changed, count = re.subn(
@@ -359,7 +359,7 @@ class Verifier:
     def report(self, benchmark_runs: int, timings: dict[str, Any]) -> dict[str, Any]:
         version_proc = self.run(["--version"]) if self.binary.is_file() else None
         report: dict[str, Any] = {
-            "product": "Forge CLI 0.7.0-rs.1 (Rust implementation WIP)",
+            "product": "Do Code 0.7.0-rs.1 (Rust implementation WIP)",
             "measured_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "environment": {
                 "os": platform.platform(),

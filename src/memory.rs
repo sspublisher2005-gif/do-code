@@ -1,6 +1,6 @@
 //! Human-readable, user-confirmed local learning memory (Markdown notes + JSON index).
 use crate::{
-    error::{ForgeError, Result, io_error},
+    error::{DocodeError, Result, io_error},
     storage,
 };
 use serde::{Deserialize, Serialize};
@@ -89,7 +89,7 @@ pub fn save(
     confirmed: bool,
 ) -> Result<MemoryNote> {
     if !confirmed {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "learning memory is never saved without explicit --confirm. No note was written."
                 .into(),
         ));
@@ -135,7 +135,7 @@ pub fn list(root: &Path, scope: &str) -> Result<Vec<MemoryNote>> {
 
 pub fn search(root: &Path, query: &str, scope: &str) -> Result<Vec<MemoryNote>> {
     if query.trim().len() < 2 || query.len() > 500 {
-        return Err(ForgeError::Message(
+        return Err(DocodeError::Message(
             "memory search query must be 2..500 bytes.".into(),
         ));
     }
@@ -172,21 +172,23 @@ pub fn show(root: &Path, id: &str) -> Result<MemoryNote> {
         let path = paths.notes_dir.join(format!("{id}.md"));
         match read_note(&paths, &path) {
             Ok(note) => return Ok(note),
-            Err(ForgeError::Io { source, .. }) if source.kind() == std::io::ErrorKind::NotFound => {
+            Err(DocodeError::Io { source, .. })
+                if source.kind() == std::io::ErrorKind::NotFound =>
+            {
                 continue;
             }
             Err(error) => return Err(error),
         }
     }
-    Err(ForgeError::Message(
+    Err(DocodeError::Message(
         "memory note was not found in the current project or global store.".into(),
     ))
 }
 
-pub fn forget(root: &Path, id: &str, approved: bool) -> Result<()> {
+pub fn docodet(root: &Path, id: &str, approved: bool) -> Result<()> {
     if !approved {
-        return Err(ForgeError::Safety(
-            "forgetting memory requires --approve; no note was deleted.".into(),
+        return Err(DocodeError::Safety(
+            "docodetting memory requires --approve; no note was deleted.".into(),
         ));
     }
     let note = show(root, id)?;
@@ -217,7 +219,7 @@ pub fn edit(root: &Path, id: &str) -> Result<MemoryNote> {
             ch.is_whitespace() || ['\'', '\"', '`', ';', '$', '|', '&', '<', '>'].contains(&ch)
         })
     {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "EDITOR/VISUAL must name one executable without arguments or shell expressions.".into(),
         ));
     }
@@ -225,26 +227,26 @@ pub fn edit(root: &Path, id: &str) -> Result<MemoryNote> {
         .arg(&path)
         .status()
         .map_err(|_| {
-            ForgeError::Message(
+            DocodeError::Message(
                 "could not start the configured editor; memory was not reindexed.".into(),
             )
         })?;
     if !status.success() {
-        return Err(ForgeError::Message(format!(
+        return Err(DocodeError::Message(format!(
             "editor exited with status {}; memory was not reindexed.",
             status.code().unwrap_or(1)
         )));
     }
     let bytes = storage::read_bounded_regular(&path, MAX_NOTE_BYTES)?;
     let source = String::from_utf8(bytes)
-        .map_err(|_| ForgeError::Safety("edited memory note is not UTF-8.".into()))?;
+        .map_err(|_| DocodeError::Safety("edited memory note is not UTF-8.".into()))?;
     let edited = parse_markdown(&source)?;
     validate_note(&edited)?;
     if edited.id != original.id
         || edited.scope != original.scope
         || edited.project_id != original.project_id
     {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "editing changed the memory ID, scope or project binding; refusing to reindex.".into(),
         ));
     }
@@ -275,7 +277,7 @@ pub fn reindex(root: &Path, scope: &str) -> Result<usize> {
 pub fn export(root: &Path, destination: &Path, scope: &str) -> Result<usize> {
     let notes = list(root, scope)?;
     if notes.len() > MAX_NOTES {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "memory export exceeds the note-count limit.".into(),
         ));
     }
@@ -285,9 +287,9 @@ pub fn export(root: &Path, destination: &Path, scope: &str) -> Result<usize> {
         notes,
     };
     let bytes =
-        serde_json::to_vec_pretty(&bundle).map_err(|e| ForgeError::Message(e.to_string()))?;
+        serde_json::to_vec_pretty(&bundle).map_err(|e| DocodeError::Message(e.to_string()))?;
     if bytes.len() as u64 > MAX_EXPORT_BYTES {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "memory export exceeds the 20 MiB limit.".into(),
         ));
     }
@@ -297,16 +299,16 @@ pub fn export(root: &Path, destination: &Path, scope: &str) -> Result<usize> {
 
 pub fn import(root: &Path, source: &Path, confirmed: bool) -> Result<usize> {
     if !confirmed {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "memory import requires explicit --confirm. No notes were written.".into(),
         ));
     }
     let bytes = storage::read_bounded_regular(source, MAX_EXPORT_BYTES)?;
     let bundle: ExportBundle = serde_json::from_slice(&bytes).map_err(|_| {
-        ForgeError::Safety("memory import is not a valid Forge JSON export.".into())
+        DocodeError::Safety("memory import is not a valid Do Code JSON export.".into())
     })?;
     if bundle.schema_version != 1 || bundle.notes.len() > MAX_NOTES {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "memory import schema or note-count limit is invalid.".into(),
         ));
     }
@@ -315,7 +317,7 @@ pub fn import(root: &Path, source: &Path, confirmed: bool) -> Result<usize> {
     for note in &bundle.notes {
         validate_note(note)?;
         if note.scope == "project" && note.project_id.as_deref() != Some(project_id.as_str()) {
-            return Err(ForgeError::Safety("memory import contains project notes bound to another project; no notes were written.".into()));
+            return Err(DocodeError::Safety("memory import contains project notes bound to another project; no notes were written.".into()));
         }
     }
     for source_note in &bundle.notes {
@@ -333,7 +335,7 @@ pub fn import(root: &Path, source: &Path, confirmed: bool) -> Result<usize> {
 
 pub fn reset(root: &Path, scope: &str, confirmed: bool) -> Result<usize> {
     if !confirmed {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "memory reset requires explicit --confirm. No notes were deleted.".into(),
         ));
     }
@@ -352,30 +354,30 @@ pub fn reset(root: &Path, scope: &str, confirmed: bool) -> Result<usize> {
 pub fn render_markdown(note: &MemoryNote) -> Result<String> {
     validate_note(note)?;
     let mut fields = vec![
-        ("forge_schema_version", json!(note.schema_version)),
-        ("forge_id", json!(note.id)),
-        ("forge_type", json!(note.note_type)),
-        ("forge_title", json!(note.title)),
-        ("forge_problem", json!(note.problem)),
-        ("forge_decision", json!(note.decision)),
-        ("forge_reason", json!(note.reason)),
-        ("forge_rejected_options", json!(note.rejected_options)),
-        ("forge_limitations", json!(note.limitations)),
-        ("forge_evidence", json!(note.evidence)),
-        ("forge_confidence", json!(note.confidence)),
-        ("forge_created_at", json!(note.created_at)),
-        ("forge_last_verified_at", json!(note.last_verified_at)),
-        ("forge_status", json!(note.status)),
-        ("forge_scope", json!(note.scope)),
-        ("forge_project_id", json!(note.project_id)),
-        ("forge_user_confirmed", json!(note.user_confirmed)),
+        ("docode_schema_version", json!(note.schema_version)),
+        ("docode_id", json!(note.id)),
+        ("docode_type", json!(note.note_type)),
+        ("docode_title", json!(note.title)),
+        ("docode_problem", json!(note.problem)),
+        ("docode_decision", json!(note.decision)),
+        ("docode_reason", json!(note.reason)),
+        ("docode_rejected_options", json!(note.rejected_options)),
+        ("docode_limitations", json!(note.limitations)),
+        ("docode_evidence", json!(note.evidence)),
+        ("docode_confidence", json!(note.confidence)),
+        ("docode_created_at", json!(note.created_at)),
+        ("docode_last_verified_at", json!(note.last_verified_at)),
+        ("docode_status", json!(note.status)),
+        ("docode_scope", json!(note.scope)),
+        ("docode_project_id", json!(note.project_id)),
+        ("docode_user_confirmed", json!(note.user_confirmed)),
     ];
     fields.sort_by(|a, b| a.0.cmp(b.0));
     let mut output = String::from("---\n");
     for (key, value) in fields {
         output.push_str(&format!(
             "{key}: {}\n",
-            serde_json::to_string(&value).map_err(|e| ForgeError::Message(e.to_string()))?
+            serde_json::to_string(&value).map_err(|e| DocodeError::Message(e.to_string()))?
         ));
     }
     output.push_str(&format!("---\n\n# {}\n\n## Problem\n\n{}\n\n## Decision / solution\n\n{}\n\n## Reason\n\n{}\n\n## Rejected options\n\n{}\n\n## Limitations\n\n{}\n\n## Evidence / sources\n\n{}\n\n## Verification\n\n- Confidence: {:.2}\n- Created: {}\n- Last verified: {}\n- Status: {}\n- Scope: {}\n- User confirmed: {}\n",
@@ -399,19 +401,19 @@ fn scope_paths(root: &Path, scope: &str) -> Result<ScopePaths> {
                 .or_else(|| std::env::var_os("HOME"))
                 .map(PathBuf::from)
                 .ok_or_else(|| {
-                    ForgeError::Config(
+                    DocodeError::Config(
                         "could not resolve the user home directory for global memory.".into(),
                     )
                 })?;
             let canonical_home = fs::canonicalize(&home).map_err(|e| io_error(&home, e))?;
-            let app_home = canonical_home.join(".forge");
+            let app_home = canonical_home.join(".docode");
             storage::ensure_private_dir(&app_home)?;
             let memory_home = app_home.join("memory");
             storage::ensure_private_dir(&memory_home)?;
             (memory_home.join("global"), "global".to_owned(), None)
         }
         _ => {
-            return Err(ForgeError::Message(
+            return Err(DocodeError::Message(
                 "memory scope must be project, global, or all.".into(),
             ));
         }
@@ -435,7 +437,7 @@ fn selected_scopes(root: &Path, scope: &str) -> Result<Vec<ScopePaths>> {
             scope_paths(root, "global")?,
         ]),
         "project" | "global" => Ok(vec![scope_paths(root, scope)?]),
-        _ => Err(ForgeError::Message(
+        _ => Err(DocodeError::Message(
             "memory scope must be project, global, or all.".into(),
         )),
     }
@@ -455,14 +457,14 @@ fn load_scope(paths: &ScopePaths) -> Result<Vec<MemoryNote>> {
 fn read_note(paths: &ScopePaths, path: &Path) -> Result<MemoryNote> {
     let bytes = storage::read_bounded_regular(path, MAX_NOTE_BYTES)?;
     let source = String::from_utf8(bytes)
-        .map_err(|_| ForgeError::Safety("memory note is not UTF-8 text.".into()))?;
+        .map_err(|_| DocodeError::Safety("memory note is not UTF-8 text.".into()))?;
     let note = parse_markdown(&source)?;
     validate_note(&note)?;
     if note.scope != paths.scope
         || note.project_id != paths.project_id
         || path.file_stem().and_then(|s| s.to_str()) != Some(note.id.as_str())
     {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "memory note scope/project/filename binding failed.".into(),
         ));
     }
@@ -471,14 +473,14 @@ fn read_note(paths: &ScopePaths, path: &Path) -> Result<MemoryNote> {
 fn persist(paths: &ScopePaths, note: &MemoryNote, replace: bool) -> Result<()> {
     validate_note(note)?;
     if note.scope != paths.scope || note.project_id != paths.project_id {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "memory note belongs to a different scope or project.".into(),
         ));
     }
     let path = paths.notes_dir.join(format!("{}.md", note.id));
     let markdown = render_markdown(note)?;
     if markdown.len() as u64 > MAX_NOTE_BYTES {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "memory note exceeds the 256 KiB limit.".into(),
         ));
     }
@@ -487,7 +489,7 @@ fn persist(paths: &ScopePaths, note: &MemoryNote, replace: bool) -> Result<()> {
 fn rebuild_index_path(paths: &ScopePaths) -> Result<usize> {
     let notes = load_scope(paths)?;
     if notes.len() > MAX_NOTES {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "memory scope exceeds 10000 notes.".into(),
         ));
     }
@@ -512,17 +514,17 @@ fn rebuild_index_path(paths: &ScopePaths) -> Result<usize> {
         schema_version: NOTE_VERSION,
         entries,
     };
-    let bytes = serde_json::to_vec(&index).map_err(|e| ForgeError::Message(e.to_string()))?;
+    let bytes = serde_json::to_vec(&index).map_err(|e| DocodeError::Message(e.to_string()))?;
     storage::write_atomic(&paths.index_path, &bytes, paths.index_path.exists())?;
     Ok(index.entries.len())
 }
 fn parse_markdown(source: &str) -> Result<MemoryNote> {
     if source.len() as u64 > MAX_NOTE_BYTES {
-        return Err(ForgeError::Safety("memory note exceeds 256 KiB.".into()));
+        return Err(DocodeError::Safety("memory note exceeds 256 KiB.".into()));
     }
     let lines = source.lines().collect::<Vec<_>>();
     if lines.first() != Some(&"---") {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "memory note has no YAML frontmatter.".into(),
         ));
     }
@@ -532,55 +534,55 @@ fn parse_markdown(source: &str) -> Result<MemoryNote> {
         .skip(1)
         .find(|(_, line)| **line == "---")
         .map(|(i, _)| i)
-        .ok_or_else(|| ForgeError::Safety("memory note frontmatter is not closed.".into()))?;
+        .ok_or_else(|| DocodeError::Safety("memory note frontmatter is not closed.".into()))?;
     let mut meta = Map::new();
     for line in &lines[1..end] {
         let (key, raw) = line.split_once(": ").ok_or_else(|| {
-            ForgeError::Safety("memory note frontmatter contains a malformed line.".into())
+            DocodeError::Safety("memory note frontmatter contains a malformed line.".into())
         })?;
-        if !key.starts_with("forge_") || meta.contains_key(key) {
-            return Err(ForgeError::Safety(
+        if !key.starts_with("docode_") || meta.contains_key(key) {
+            return Err(DocodeError::Safety(
                 "memory frontmatter contains an unknown/duplicate key.".into(),
             ));
         }
         let value: Value = serde_json::from_str(raw).map_err(|_| {
-            ForgeError::Safety("memory frontmatter contains a non-JSON value.".into())
+            DocodeError::Safety("memory frontmatter contains a non-JSON value.".into())
         })?;
         meta.insert(key.to_owned(), value);
     }
     let get = |key: &str| {
         meta.get(key)
             .cloned()
-            .ok_or_else(|| ForgeError::Safety(format!("memory frontmatter is missing {key}.")))
+            .ok_or_else(|| DocodeError::Safety(format!("memory frontmatter is missing {key}.")))
     };
     Ok(MemoryNote {
-        schema_version: u8::try_from(value_u64(get("forge_schema_version")?)?)
-            .map_err(|_| ForgeError::Safety("memory schema version is out of range.".into()))?,
-        id: value_string(get("forge_id")?)?,
-        note_type: value_string(get("forge_type")?)?,
-        title: value_string(get("forge_title")?)?,
-        problem: value_string(get("forge_problem")?)?,
-        decision: value_string(get("forge_decision")?)?,
-        reason: value_string(get("forge_reason")?)?,
-        rejected_options: value_strings(get("forge_rejected_options")?)?,
-        limitations: value_strings(get("forge_limitations")?)?,
-        evidence: value_strings(get("forge_evidence")?)?,
-        confidence: get("forge_confidence")?
+        schema_version: u8::try_from(value_u64(get("docode_schema_version")?)?)
+            .map_err(|_| DocodeError::Safety("memory schema version is out of range.".into()))?,
+        id: value_string(get("docode_id")?)?,
+        note_type: value_string(get("docode_type")?)?,
+        title: value_string(get("docode_title")?)?,
+        problem: value_string(get("docode_problem")?)?,
+        decision: value_string(get("docode_decision")?)?,
+        reason: value_string(get("docode_reason")?)?,
+        rejected_options: value_strings(get("docode_rejected_options")?)?,
+        limitations: value_strings(get("docode_limitations")?)?,
+        evidence: value_strings(get("docode_evidence")?)?,
+        confidence: get("docode_confidence")?
             .as_f64()
-            .ok_or_else(|| ForgeError::Safety("memory confidence must be a number.".into()))?,
-        created_at: value_string(get("forge_created_at")?)?,
-        last_verified_at: match get("forge_last_verified_at")? {
+            .ok_or_else(|| DocodeError::Safety("memory confidence must be a number.".into()))?,
+        created_at: value_string(get("docode_created_at")?)?,
+        last_verified_at: match get("docode_last_verified_at")? {
             Value::Null => None,
             v => Some(value_string(v)?),
         },
-        status: value_string(get("forge_status")?)?,
-        scope: value_string(get("forge_scope")?)?,
-        project_id: match get("forge_project_id")? {
+        status: value_string(get("docode_status")?)?,
+        scope: value_string(get("docode_scope")?)?,
+        project_id: match get("docode_project_id")? {
             Value::Null => None,
             v => Some(value_string(v)?),
         },
-        user_confirmed: get("forge_user_confirmed")?.as_bool().ok_or_else(|| {
-            ForgeError::Safety("memory confirmation marker must be boolean.".into())
+        user_confirmed: get("docode_user_confirmed")?.as_bool().ok_or_else(|| {
+            DocodeError::Safety("memory confirmation marker must be boolean.".into())
         })?,
     })
 }
@@ -600,7 +602,7 @@ fn validate_note(note: &MemoryNote) -> Result<()> {
         || !["active", "outdated", "disputed"].contains(&note.status.as_str())
         || !["global", "project"].contains(&note.scope.as_str())
     {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "memory note schema, type, status, or scope is invalid.".into(),
         ));
     }
@@ -617,18 +619,18 @@ fn validate_note(note: &MemoryNote) -> Result<()> {
         || !note.confidence.is_finite()
         || !note.user_confirmed
     {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "memory note exceeds a field limit, has invalid confidence, or was not user-confirmed."
                 .into(),
         ));
     }
     if note.scope == "global" && note.project_id.is_some() {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "global memory must not be bound to a project ID.".into(),
         ));
     }
     if note.scope == "project" && note.project_id.as_deref().is_none_or(str::is_empty) {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "project memory must be bound to a project ID.".into(),
         ));
     }
@@ -637,7 +639,7 @@ fn validate_note(note: &MemoryNote) -> Result<()> {
         "solution" | "research" | "failure" | "workflow"
     ) && note.evidence.is_empty()
     {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "solution/research/failure/workflow memory requires at least one evidence reference."
                 .into(),
         ));
@@ -657,7 +659,7 @@ fn validate_note(note: &MemoryNote) -> Result<()> {
             .chain(note.limitations.iter())
             .any(|s| crate::redaction::redact(s) != *s)
     {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "memory contains recognizable credential-like content; it was not saved.".into(),
         ));
     }
@@ -667,30 +669,30 @@ fn value_string(value: Value) -> Result<String> {
     value
         .as_str()
         .map(str::to_owned)
-        .ok_or_else(|| ForgeError::Safety("memory frontmatter value must be a string.".into()))
+        .ok_or_else(|| DocodeError::Safety("memory frontmatter value must be a string.".into()))
 }
 fn value_strings(value: Value) -> Result<Vec<String>> {
     let array = value
         .as_array()
-        .ok_or_else(|| ForgeError::Safety("memory list field must be an array.".into()))?;
+        .ok_or_else(|| DocodeError::Safety("memory list field must be an array.".into()))?;
     array
         .iter()
         .map(|v| {
             v.as_str()
                 .map(str::to_owned)
-                .ok_or_else(|| ForgeError::Safety("memory list entries must be strings.".into()))
+                .ok_or_else(|| DocodeError::Safety("memory list entries must be strings.".into()))
         })
         .collect()
 }
 fn value_u64(value: Value) -> Result<u64> {
     value
         .as_u64()
-        .ok_or_else(|| ForgeError::Safety("memory schema version must be an integer.".into()))
+        .ok_or_else(|| DocodeError::Safety("memory schema version must be an integer.".into()))
 }
 fn validate_uuid(id: &str) -> Result<()> {
     Uuid::parse_str(id)
         .map(|_| ())
-        .map_err(|_| ForgeError::Message("memory note ID must be a UUID.".into()))
+        .map_err(|_| DocodeError::Message("memory note ID must be a UUID.".into()))
 }
 fn bullet_list(items: &[String]) -> String {
     if items.is_empty() {
@@ -794,8 +796,8 @@ mod tests {
         let paths = scope_paths(root.path(), "project").unwrap();
         let markdown = fs::read_to_string(paths.notes_dir.join(format!("{}.md", note.id))).unwrap();
         assert_eq!(parse_markdown(&markdown).unwrap().id, note.id);
-        assert!(forget(root.path(), &note.id, false).is_err());
-        forget(root.path(), &note.id, true).unwrap();
+        assert!(docodet(root.path(), &note.id, false).is_err());
+        docodet(root.path(), &note.id, true).unwrap();
         assert!(show(root.path(), &note.id).is_err());
     }
 }

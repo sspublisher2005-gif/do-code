@@ -7,8 +7,8 @@
 //! switchover is recorded in the audit log. Privacy rules (loopback,
 //! consent, local-only) are re-checked for every route.
 
-use crate::config::{ForgeConfig, ModelConfig};
-use crate::error::{ForgeError, Result};
+use crate::config::{DocodeConfig, ModelConfig};
+use crate::error::{DocodeError, Result};
 use crate::mission::AgentRole;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -25,21 +25,21 @@ pub struct RoutingConfig {
 /// Parse "provider/model" into its two parts.
 pub fn parse_target(target: &str) -> Result<(String, String)> {
     let (provider, model) = target.split_once('/').ok_or_else(|| {
-        ForgeError::Config(format!(
+        DocodeError::Config(format!(
             "routing target '{target}' must be 'provider/model'."
         ))
     })?;
     let provider = provider.trim().to_ascii_lowercase();
     let model = model.trim().to_string();
     if provider.is_empty() || model.is_empty() {
-        return Err(ForgeError::Config(format!(
+        return Err(DocodeError::Config(format!(
             "routing target '{target}' has an empty provider or model."
         )));
     }
     match provider.as_str() {
         "openai-compatible" | "ollama" | "anthropic" | "google" => {}
         other => {
-            return Err(ForgeError::Config(format!(
+            return Err(DocodeError::Config(format!(
                 "routing target '{target}' uses unsupported provider '{other}'."
             )));
         }
@@ -62,7 +62,11 @@ pub fn role_key(role: AgentRole) -> &'static str {
 
 /// The ordered list of routes for a role: the role override first, then the
 /// base config, then the fallback chain.
-pub fn routes_for(cfg: &ForgeConfig, routing: &RoutingConfig, role: AgentRole) -> Vec<ModelConfig> {
+pub fn routes_for(
+    cfg: &DocodeConfig,
+    routing: &RoutingConfig,
+    role: AgentRole,
+) -> Vec<ModelConfig> {
     let mut routes = Vec::new();
     let key = role_key(role);
     if let Some((provider, model)) = routing.roles.get(key).and_then(|t| parse_target(t).ok()) {
@@ -108,7 +112,7 @@ fn override_model(base: &ModelConfig, provider: &str, model: &str) -> ModelConfi
 
 /// Build the routed config for one attempt. Validation of the resulting
 /// model block happens in the provider layer, fail-closed as usual.
-pub fn config_for_route(base: &ForgeConfig, route: &ModelConfig) -> ForgeConfig {
+pub fn config_for_route(base: &DocodeConfig, route: &ModelConfig) -> DocodeConfig {
     let mut cfg = base.clone();
     cfg.model = route.clone();
     cfg
@@ -118,8 +122,8 @@ pub fn config_for_route(base: &ForgeConfig, route: &ModelConfig) -> ForgeConfig 
 mod tests {
     use super::*;
 
-    fn cfg() -> ForgeConfig {
-        ForgeConfig::default()
+    fn cfg() -> DocodeConfig {
+        DocodeConfig::default()
     }
 
     #[test]

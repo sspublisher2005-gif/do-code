@@ -1,4 +1,4 @@
-name: Forge CLI Rust Implementation — Cross-Platform Verification
+name: Do Code Rust Implementation — Cross-Platform Verification
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: forge-cli-rust-${{ github.workflow }}-${{ github.ref }}
+  group: docode-cli-rust-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -33,7 +33,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: forge-rust-evidence-${{ matrix.os }}-${{ matrix.toolchain }}
+          name: docode-rust-evidence-${{ matrix.os }}-${{ matrix.toolchain }}
           path: test-results/
           if-no-files-found: warn
           retention-days: 30

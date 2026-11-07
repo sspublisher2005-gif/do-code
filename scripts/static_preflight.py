@@ -37,7 +37,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--archive", type=Path, default=None)
-    parser.add_argument("--binary", type=Path, default=None, help="optional separately built forge/forge.exe executable to probe; this does not replace the black-box test harness")
+    parser.add_argument("--binary", type=Path, default=None, help="optional separately built docode/docode.exe executable to probe; this does not replace the black-box test harness")
     parser.add_argument("--report", type=Path, default=None)
     args = parser.parse_args()
     root = args.repo.resolve()
@@ -60,7 +60,7 @@ def main() -> int:
     def toml_check() -> str:
         cargo = tomllib.loads((root / "Cargo.toml").read_text(encoding="utf-8"))
         toolchain = tomllib.loads((root / "rust-toolchain.toml").read_text(encoding="utf-8"))
-        sample = tomllib.loads((root / "forge.config.toml.example").read_text(encoding="utf-8"))
+        sample = tomllib.loads((root / "docode.config.toml.example").read_text(encoding="utf-8"))
         assert cargo["package"]["edition"] == "2024"
         assert cargo["package"]["rust-version"] == "1.88"
         assert cargo["bin"][0]["name"] == "docode"
@@ -271,7 +271,7 @@ def main() -> int:
         assert "Test CI required-gate evaluator" in ci_pipeline
         harness = (root / "scripts/verify_cli.py").read_text(encoding="utf-8")
         assert "elapsed_ms = (time.perf_counter() - started) * 1000.0" in harness
-        assert '"Windows .forge ACL hardening"' in harness
+        assert '"Windows .docode ACL hardening"' in harness
         assert "Validate source inventory hashes" in ci_pipeline
         assert "Generate preliminary offline CycloneDX SBOM" in ci_pipeline
         assert "Test offline SBOM generator" in ci_pipeline
@@ -305,7 +305,7 @@ def main() -> int:
             required = {"Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "SOURCE_INVENTORY.json", "scripts/verify_cli.py", "scripts/ci_pipeline.py", "scripts/static_preflight.py", "scripts/generate_sbom.py", "scripts/test_sbom_generator.py", "scripts/cargo_aware_sbom.py", "scripts/test_cargo_aware_sbom.py", "scripts/test_ci_pipeline_gates.py", "scripts/update_source_inventory.py", "scripts/measure_linux_rss.py", ".github/workflows/security-audit.yml", "sbom/docode-cli.cdx.json", "reference/docode_cli_TS_0.6.0-ts.2_MemoryDecision_Merge_WIP.zip"}
             missing = required - names
             assert not missing, f"package missing required files: {sorted(missing)}"
-            forbidden_fragments = ("target/", "__pycache__/", ".forge/", ".git/")
+            forbidden_fragments = ("target/", "__pycache__/", ".docode/", ".git/")
             assert not any(any(fragment in name for fragment in forbidden_fragments) or name.endswith(".pyc") or name.endswith(".env") for name in names), "build/cache/private artifact leaked into source ZIP"
             return f"source ZIP verifies ({len(raw_names)} members); required sources present, no build/cache/private state or Python bytecode"
 
@@ -340,7 +340,7 @@ def main() -> int:
         record(item["name"], "BLOCKED", item["detail"])
 
     summary = {
-        "artifact": "Forge CLI 0.7.0-rs.1 (Rust implementation WIP)",
+        "artifact": "Do Code 0.7.0-rs.1 (Rust implementation WIP)",
         "measured_at_utc": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
         "environment": {"system": sys.platform, "python": sys.version.split()[0], "rustc": shutil.which("rustc"), "cargo": shutil.which("cargo"), "rustfmt": shutil.which("rustfmt")},
         "results": results,

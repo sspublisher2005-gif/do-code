@@ -1,6 +1,6 @@
 //! Explicit emergency freeze gate for new model requests and patch writes.
 use crate::{
-    error::{ForgeError, Result, io_error},
+    error::{DocodeError, Result, io_error},
     storage,
 };
 use serde::{Deserialize, Serialize};
@@ -27,8 +27,8 @@ pub fn ensure_not_frozen(root: &Path, action: &str) -> Result<()> {
         return Ok(());
     };
     if state.frozen {
-        return Err(ForgeError::Safety(format!(
-            "FORGE_FROZEN: {action} is blocked. Reason: {}. Use 'forge unfreeze --approve' after reviewing the risk.",
+        return Err(DocodeError::Safety(format!(
+            "DOCODE_FROZEN: {action} is blocked. Reason: {}. Use 'docode unfreeze --approve' after reviewing the risk.",
             state.reason
         )));
     }
@@ -43,12 +43,12 @@ pub fn freeze(root: &Path, reason: &str) -> Result<FreezeState> {
     let root = fs::canonicalize(root).map_err(|e| io_error(root, e))?;
     let reason = reason.trim();
     if reason.len() < 3 || reason.len() > 2_000 {
-        return Err(ForgeError::Message(
+        return Err(DocodeError::Message(
             "freeze reason must be 3..2000 bytes.".into(),
         ));
     }
     if crate::redaction::redact(reason) != reason {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "freeze reason appears to contain a credential.".into(),
         ));
     }
@@ -65,13 +65,14 @@ pub fn freeze(root: &Path, reason: &str) -> Result<FreezeState> {
 
 pub fn unfreeze(root: &Path, approved: bool) -> Result<FreezeState> {
     if !approved {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "unfreezing requires explicit --approve. No change was made.".into(),
         ));
     }
     let root = fs::canonicalize(root).map_err(|e| io_error(root, e))?;
-    let mut state = load(&root)?
-        .ok_or_else(|| ForgeError::Message("Forge is not frozen; no change was needed.".into()))?;
+    let mut state = load(&root)?.ok_or_else(|| {
+        DocodeError::Message("Do Code is not frozen; no change was needed.".into())
+    })?;
     state.frozen = false;
     state.updated_at = storage::timestamp();
     save(&root, &state)?;
@@ -84,32 +85,32 @@ fn load(root: &Path) -> Result<Option<FreezeState>> {
     let path = home.join("freeze.json");
     let bytes = match storage::read_bounded_regular(&path, 64 * 1024) {
         Ok(bytes) => bytes,
-        Err(ForgeError::Io { source, .. }) if source.kind() == std::io::ErrorKind::NotFound => {
+        Err(DocodeError::Io { source, .. }) if source.kind() == std::io::ErrorKind::NotFound => {
             return Ok(None);
         }
         Err(error) => return Err(error),
     };
-    let envelope: Envelope = serde_json::from_slice(&bytes).map_err(|_| ForgeError::Safety("freeze record is corrupt; live requests and patch application remain blocked until repaired.".into()))?;
+    let envelope: Envelope = serde_json::from_slice(&bytes).map_err(|_| DocodeError::Safety("freeze record is corrupt; live requests and patch application remain blocked until repaired.".into()))?;
     let payload =
-        serde_json::to_vec(&envelope.state).map_err(|e| ForgeError::Message(e.to_string()))?;
+        serde_json::to_vec(&envelope.state).map_err(|e| DocodeError::Message(e.to_string()))?;
     if envelope.schema_version != 1
         || envelope.state.schema_version != 1
         || hash(&payload) != envelope.sha256
         || envelope.state.root != root.to_string_lossy()
     {
-        return Err(ForgeError::Safety("freeze record integrity or project binding failed; live requests and patch application remain blocked.".into()));
+        return Err(DocodeError::Safety("freeze record integrity or project binding failed; live requests and patch application remain blocked.".into()));
     }
     Ok(Some(envelope.state))
 }
 fn save(root: &Path, state: &FreezeState) -> Result<()> {
     let home = storage::ensure_project_home(root)?;
-    let payload = serde_json::to_vec(state).map_err(|e| ForgeError::Message(e.to_string()))?;
+    let payload = serde_json::to_vec(state).map_err(|e| DocodeError::Message(e.to_string()))?;
     let envelope = Envelope {
         schema_version: 1,
         sha256: hash(&payload),
         state: state.clone(),
     };
-    let bytes = serde_json::to_vec(&envelope).map_err(|e| ForgeError::Message(e.to_string()))?;
+    let bytes = serde_json::to_vec(&envelope).map_err(|e| DocodeError::Message(e.to_string()))?;
     let path = home.join("freeze.json");
     storage::write_atomic(&path, &bytes, path.exists())
 }

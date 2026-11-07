@@ -28,7 +28,7 @@ mod workflow;
 mod workspace;
 
 use clap::{Args, Parser, Subcommand};
-use error::{ForgeError, Result};
+use error::{DocodeError, Result};
 use serde_json::json;
 use std::{
     collections::BTreeMap,
@@ -47,11 +47,11 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Initialize local Forge files without using the network.
+    /// Initialize local Do Code files without using the network.
     Init,
     /// Diagnose local configuration, privacy, state storage, and execution limits.
     Doctor,
-    /// Read validated Forge configuration.
+    /// Read validated Do Code configuration.
     Config {
         #[command(subcommand)]
         command: ConfigCommand,
@@ -83,7 +83,7 @@ enum Command {
         #[arg(long, default_value_t = 96 * 1024)]
         max_chars: usize,
     },
-    /// List the available Forge AI roles and their current execution limits.
+    /// List the available Do Code AI roles and their current execution limits.
     Agents {
         #[command(subcommand)]
         command: Option<AgentsCommand>,
@@ -462,7 +462,7 @@ fn which_exe(name: &str) -> Option<String> {
 async fn main() {
     if let Err(error) = run(Cli::parse()).await {
         eprintln!(
-            "forge: {}",
+            "docode: {}",
             redaction::safe_terminal(&redaction::redact(&error.to_string()))
         );
         std::process::exit(1);
@@ -481,9 +481,9 @@ async fn run(cli: Cli) -> Result<()> {
             details.insert("networkUsed".into(), json!(false));
             details.insert("projectId".into(), json!(project_id));
             audit::append(&root, "workspace.init", "succeeded", details)?;
-            println!("Forge CLI workspace initialized.");
+            println!("Do Code workspace initialized.");
             println!("Config: {}", if config_created { "created" } else { "preserved existing file" });
-            println!("FORGE.md: {}", if memory_created { "created" } else { "preserved existing file" });
+            println!("DOCODE.md: {}", if memory_created { "created" } else { "preserved existing file" });
             println!("Project state: initialized locally; no network used.");
             println!("Network: not used");
             println!("Security boundary: no shell/test execution is enabled in this build.");
@@ -493,15 +493,15 @@ async fn run(cli: Cli) -> Result<()> {
             let loaded = config::load(&root)?;
             let mut output = json!({"exists": loaded.exists, "path": loaded.path, "config": loaded.config});
             redaction::sanitize_json_strings(&mut output);
-            println!("{}", serde_json::to_string_pretty(&output).map_err(|e| ForgeError::Message(e.to_string()))?);
+            println!("{}", serde_json::to_string_pretty(&output).map_err(|e| DocodeError::Message(e.to_string()))?);
             audit::append(&root, "config.show", "succeeded", BTreeMap::from([(String::from("configExists"), json!(loaded.exists))]))?;
         }
         Command::Files { command } => files_command(&root, command)?,
         Command::Audit { count } => {
             let events = audit::tail(&root, count)?;
-            let mut output = serde_json::to_value(events).map_err(|e| ForgeError::Message(e.to_string()))?;
+            let mut output = serde_json::to_value(events).map_err(|e| DocodeError::Message(e.to_string()))?;
             redaction::redact_json(&mut output);
-            println!("{}", serde_json::to_string_pretty(&output).map_err(|e| ForgeError::Message(e.to_string()))?);
+            println!("{}", serde_json::to_string_pretty(&output).map_err(|e| DocodeError::Message(e.to_string()))?);
         }
         Command::Index { max_files, max_file_bytes, max_total_bytes } => {
             let index = context::build_index(&root, max_files, max_file_bytes, max_total_bytes)?;
@@ -523,7 +523,7 @@ async fn run(cli: Cli) -> Result<()> {
             audit::append(&root, "context.pack_created", "succeeded", BTreeMap::from([("files".into(), json!(pack.files.len())), ("bytes".into(), json!(pack.total_bytes)), ("networkUsed".into(), json!(false))]))?;
         }
         Command::Agents { command: _ } => {
-            println!("Forge CLI roles (role perspectives are not independent human experts):");
+            println!("Do Code roles (role perspectives are not independent human experts):");
             for (name, description) in workflow::list_agents() { println!("- {name}: {description}"); }
             println!();
             println!("Complexity-gated team staffing (assigned automatically per mission):");
@@ -545,7 +545,7 @@ async fn run(cli: Cli) -> Result<()> {
             println!("Mission: {}\nStatus: {:?}\nContext files: {}\nModel requests: {}", outcome.mission.id, outcome.mission.status, outcome.context_files.len(), outcome.model_requests);
             println!("\nRESEARCH (model-generated; not external research)\n{}", redaction::safe_terminal(&redaction::redact(&outcome.research)));
             println!("\nARCHITECT PLAN (not executed)\n{}", redaction::safe_terminal(&redaction::redact(&outcome.plan)));
-            println!("\nNo project files were changed. No tests were executed. Inspect with: forge mission show {}", outcome.mission.id);
+            println!("\nNo project files were changed. No tests were executed. Inspect with: docode mission show {}", outcome.mission.id);
         }
         Command::Run(args) => {
             let outcome = workflow::run(&root, &args.task, args.live, args.approve_context_sharing, args.best_of_n).await?;
@@ -555,14 +555,14 @@ async fn run(cli: Cli) -> Result<()> {
             println!("\nADVISORY SECURITY REVIEW (not a security certification)\n{}", redaction::safe_terminal(&redaction::redact(&outcome.security_review)));
             if let Some(patch) = &outcome.patch {
                 println!("\n{}", patches::preview(patch));
-                println!("Patch is not yet applied. Preview again: forge apply {}\nTo approve writes after review: forge apply {} --approve", outcome.mission.id, outcome.mission.id);
+                println!("Patch is not yet applied. Preview again: docode apply {}\nTo approve writes after review: docode apply {} --approve", outcome.mission.id, outcome.mission.id);
             }
             println!("IMPORTANT: no shell, tests, build, or browser commands were executed. This mission is not complete.");
         }
         Command::Mission { command } => mission_command(&root, command)?,
         Command::Apply { mission_id, approve, remember } => {
             // Approval memory: an explicit --approve may be remembered for
-            // this project (--remember), after which plain `forge apply`
+            // this project (--remember), after which plain `docode apply`
             // applies reviewable patches without asking again. The decision
             // is scoped to this project, covers only this risk-2 action,
             // and dangerous classes never use memory.
@@ -600,12 +600,12 @@ async fn run(cli: Cli) -> Result<()> {
                     };
                     memory.remember("patch.apply", risk::ApprovalScope::Project, None)?;
                     storage::write_atomic(&path, &memory.to_json()?, true)?;
-                    println!("Approval remembered for this project: future 'forge apply <mission>' will not ask. Forget it by deleting .forge/approvals.json.");
+                    println!("Approval remembered for this project: future 'docode apply <mission>' will not ask. Forget it by deleting .docode/approvals.json.");
                 }
                 audit::append(&root, "patch.applied", "succeeded", BTreeMap::from([("missionId".into(), json!(mission_id)), ("checkpointId".into(), json!(checkpoint)), ("files".into(), json!(paths.len())), ("testsExecuted".into(), json!(false)), ("appliedViaApprovalMemory".into(), json!(applied_with_memory))]))?;
                 println!("Patch applied to {} file(s). Checkpoint: {}", paths.len(), checkpoint);
                 println!("Changed files: {}", paths.join(", "));
-                println!("Tests/build/lint were NOT run; mission remains unverified. Undo with: forge undo {mission_id} {checkpoint} --approve");
+                println!("Tests/build/lint were NOT run; mission remains unverified. Undo with: docode undo {mission_id} {checkpoint} --approve");
                 // Shared task board: mark tasks whose locked files were all
                 // applied as done, so the board reflects reality.
                 let board_path = storage::ensure_project_home(&root)?
@@ -643,7 +643,7 @@ async fn run(cli: Cli) -> Result<()> {
             println!("{}", workflow::complete(&root, &mission_id)?);
             println!();
             println!("Compounding: capture what this mission taught for next time.");
-            println!("  forge lessons propose {mission_id} --title \"...\" --lesson \"...\" --keywords \"topic1,topic2\"");
+            println!("  docode lessons propose {mission_id} --title \"...\" --lesson \"...\" --keywords \"topic1,topic2\"");
         }
         Command::Resume { mission_id } => {
             let store = mission_store::MissionStore::open(&root)?;
@@ -657,7 +657,7 @@ async fn run(cli: Cli) -> Result<()> {
                     for step in &mission.steps { println!("- {} [{:?}] attempts={} failure={}", step.kind, step.status, step.attempt, step.failure_code.as_deref().unwrap_or("none")); }
                     println!("Evidence IDs: {}", mission.evidence_ids.join(", "));
                     println!("\nNext safe action: {action}");
-                    println!("\nResume is inspection-only: it does not repeat model calls or re-run commands automatically. Use 'forge run' for a new proposal or 'forge verify' to check evidence.");
+                    println!("\nResume is inspection-only: it does not repeat model calls or re-run commands automatically. Use 'docode run' for a new proposal or 'docode verify' to check evidence.");
                 }
                 None => {
                     let mission = store.get(&mission_id)?;
@@ -675,12 +675,12 @@ async fn run(cli: Cli) -> Result<()> {
         }
         Command::Freeze { command } => match command {
             FreezeCommand::Status => match freeze::status(&root)? {
-                None => println!("Forge is not frozen."),
+                None => println!("Do Code is not frozen."),
                 Some(state) => println!("Frozen: {}\nReason: {}\nUpdated: {}", state.frozen, redaction::safe_terminal(&state.reason), state.updated_at),
             },
-            FreezeCommand::Now { reason } => { let state = freeze::freeze(&root, &reason)?; println!("Forge frozen. New live-model workflows and patch writes are blocked. Reason: {}", state.reason); }
+            FreezeCommand::Now { reason } => { let state = freeze::freeze(&root, &reason)?; println!("Do Code frozen. New live-model workflows and patch writes are blocked. Reason: {}", state.reason); }
         },
-        Command::Unfreeze { approve } => { let state = freeze::unfreeze(&root, approve)?; println!("Forge unfrozen: {}", !state.frozen); }
+        Command::Unfreeze { approve } => { let state = freeze::unfreeze(&root, approve)?; println!("Do Code unfrozen: {}", !state.frozen); }
         Command::Sandbox { command } => match command {
             SandboxCommand::Status => {
                 println!("{}", sandbox::status_text());
@@ -688,11 +688,11 @@ async fn run(cli: Cli) -> Result<()> {
                 println!("Windows DACL enforcement: implemented (owner-only protected DACL).");
                 println!("Windows launch path: AppContainer (zero capabilities = OS network deny) + restricted token + Job Object assigned before resume + sanitized environment.");
             }
-            SandboxCommand::SelfTest => return Err(ForgeError::Safety("sandbox self-test cannot pass: no native sandbox driver is implemented. No command was executed.".into())),
+            SandboxCommand::SelfTest => return Err(DocodeError::Safety("sandbox self-test cannot pass: no native sandbox driver is implemented. No command was executed.".into())),
             SandboxCommand::Exec { timeout_ms, command } => {
                 let timeout_ms = timeout_ms.clamp(1_000, 600_000);
                 if command.is_empty() {
-                    return Err(ForgeError::Message("no command given; usage: docode sandbox exec -- <exe> [args...]".into()));
+                    return Err(DocodeError::Message("no command given; usage: docode sandbox exec -- <exe> [args...]".into()));
                 }
                 #[cfg(windows)]
                 {
@@ -703,7 +703,7 @@ async fn run(cli: Cli) -> Result<()> {
                     } else if let Some(found) = which_exe(&exe) {
                         found
                     } else {
-                        return Err(ForgeError::Message(format!("executable not found in PATH: {exe}")));
+                        return Err(DocodeError::Message(format!("executable not found in PATH: {exe}")));
                     };
                     let limits = sandbox::ResourceLimits {
                         max_wall_time_ms: timeout_ms,
@@ -719,7 +719,7 @@ async fn run(cli: Cli) -> Result<()> {
                 #[cfg(not(windows))]
                 {
                     let _ = timeout_ms;
-                    return Err(ForgeError::Safety(
+                    return Err(DocodeError::Safety(
                         "sandbox exec not implemented on this platform; no command was executed.".into(),
                     ));
                 }
@@ -762,12 +762,12 @@ async fn run(cli: Cli) -> Result<()> {
             let contract_manifest = manifests
                 .iter()
                 .find(|m| m.kind == "contract")
-                .ok_or_else(|| ForgeError::Message(format!(
-                    "mission {mission_id} has no stored contract; contracts are created by 'forge run'."
+                .ok_or_else(|| DocodeError::Message(format!(
+                    "mission {mission_id} has no stored contract; contracts are created by 'docode run'."
                 )))?;
             let (_, bytes) = evidence::read(&root, &mission_id, &contract_manifest.id)?;
             let contract: crate::contract::MissionContract = serde_json::from_slice(&bytes)
-                .map_err(|e| ForgeError::Message(format!("stored contract is corrupt: {e}")))?;
+                .map_err(|e| DocodeError::Message(format!("stored contract is corrupt: {e}")))?;
             println!("Mission contract: {mission_id}");
             println!("Goal: {}", redaction::safe_terminal(&contract.goal));
             println!("Approved: {}", contract.approved);
@@ -824,9 +824,9 @@ fn doctor(root: &Path) -> Result<()> {
         "{}  Config: {}",
         if loaded.exists { "PASS" } else { "WARN" },
         if loaded.exists {
-            "validated forge.config.toml"
+            "validated docode.config.toml"
         } else {
-            "missing; run forge init"
+            "missing; run docode init"
         }
     );
     println!("PASS  Telemetry: disabled by product policy");
@@ -979,12 +979,12 @@ fn mission_command(root: &Path, command: MissionCommand) -> Result<()> {
         MissionCommand::Show { id } => {
             let mission = store.get(&id)?;
             let mut output =
-                serde_json::to_value(mission).map_err(|e| ForgeError::Message(e.to_string()))?;
+                serde_json::to_value(mission).map_err(|e| DocodeError::Message(e.to_string()))?;
             redaction::redact_json(&mut output);
             println!(
                 "{}",
                 serde_json::to_string_pretty(&output)
-                    .map_err(|e| ForgeError::Message(e.to_string()))?
+                    .map_err(|e| DocodeError::Message(e.to_string()))?
             );
             let evidence = evidence::list(root, &id)?;
             println!(
@@ -1055,15 +1055,15 @@ fn memory_command(root: &Path, command: MemoryCommand) -> Result<()> {
                 .or_else(|| std::env::var_os("HOME"))
                 .map(PathBuf::from)
                 .ok_or_else(|| {
-                    ForgeError::Config("could not resolve user home directory.".into())
+                    DocodeError::Config("could not resolve user home directory.".into())
                 })?;
             println!(
                 "Project memory vault: {}",
-                project_root.join(".forge/memory/project").display()
+                project_root.join(".docode/memory/project").display()
             );
             println!(
                 "Global memory vault: {}",
-                home.join(".forge/memory/global").display()
+                home.join(".docode/memory/global").display()
             );
             println!(
                 "Paths only; no external application was launched and no memory was uploaded."
@@ -1200,7 +1200,7 @@ fn memory_command(root: &Path, command: MemoryCommand) -> Result<()> {
             println!("Edited and reindexed memory {}.", note.id);
         }
         MemoryCommand::Forget { id, approve } => {
-            memory::forget(root, &id, approve)?;
+            memory::docodet(root, &id, approve)?;
             println!("Memory {id} deleted locally after approval.");
         }
         MemoryCommand::Verify { id } => {
@@ -1253,12 +1253,12 @@ fn decisions_command(root: &Path, command: DecisionHistoryCommand) -> Result<()>
         DecisionHistoryCommand::Show { id } => {
             let record = decision_arena::get(root, &id)?;
             let mut output =
-                serde_json::to_value(record).map_err(|e| ForgeError::Message(e.to_string()))?;
+                serde_json::to_value(record).map_err(|e| DocodeError::Message(e.to_string()))?;
             redaction::redact_json(&mut output);
             println!(
                 "{}",
                 serde_json::to_string_pretty(&output)
-                    .map_err(|e| ForgeError::Message(e.to_string()))?
+                    .map_err(|e| DocodeError::Message(e.to_string()))?
             );
         }
     }
@@ -1295,7 +1295,7 @@ fn approvals_command(root: &Path, command: Option<ApprovalsCommand>) -> Result<(
         }
         ApprovalsCommand::Forget { action } => {
             let mut memory = load()?;
-            risk::ApprovalMemory::forget(&action, &mut memory.records);
+            risk::ApprovalMemory::docodet(&action, &mut memory.records);
             storage::write_atomic(&path, &memory.to_json()?, true)?;
             audit::append(
                 root,
@@ -1331,7 +1331,7 @@ fn lessons_command(root: &Path, command: LessonsCommand) -> Result<()> {
                 ]),
             )?;
             println!(
-                "Lesson proposed: {}\nStatus: proposed (nothing is saved to playbooks until you approve)\nReview with: forge lessons list --scope {scope}\nApprove with: forge lessons approve {} --scope {scope}",
+                "Lesson proposed: {}\nStatus: proposed (nothing is saved to playbooks until you approve)\nReview with: docode lessons list --scope {scope}\nApprove with: docode lessons approve {} --scope {scope}",
                 record.id, record.id
             );
         }
@@ -1439,7 +1439,7 @@ async fn pilot_command(root: &Path, args: DecisionArgs) -> Result<()> {
     if !["low", "medium", "high"].contains(&args.risk.as_str())
         || !["low", "medium", "high"].contains(&args.uncertainty.as_str())
     {
-        return Err(ForgeError::Message(
+        return Err(DocodeError::Message(
             "--risk and --uncertainty must be low, medium, or high.".into(),
         ));
     }
@@ -1461,7 +1461,7 @@ async fn pilot_command(root: &Path, args: DecisionArgs) -> Result<()> {
     if args.live {
         let cfg = config::load(root)?.config;
         if !args.approve_context_sharing {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "live Decision Arena requires --approve-context-sharing. No prompt was sent."
                     .into(),
             ));

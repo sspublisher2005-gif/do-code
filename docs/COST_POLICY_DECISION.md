@@ -1,6 +1,6 @@
-# Forge CLI product decision: no predicted-cost stopping
+# Do Code product decision: no predicted-cost stopping
 
-**Decision:** The Forge CLI Rust implementation will not estimate cost in advance or stop a coding mission when a predicted/assumed dollar threshold is reached. The product will behave like a conventional CLI coding agent: use the configured provider/model, honor provider/API errors and model output-token settings, and keep going until task/workflow completion or a non-financial safety/runtime gate is reached.
+**Decision:** The Do Code Rust implementation will not estimate cost in advance or stop a coding mission when a predicted/assumed dollar threshold is reached. The product will behave like a conventional CLI coding agent: use the configured provider/model, honor provider/API errors and model output-token settings, and keep going until task/workflow completion or a non-financial safety/runtime gate is reached.
 
 ## Forbidden behaviors
 

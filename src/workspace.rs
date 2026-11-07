@@ -1,14 +1,14 @@
 //! Code-over-API agent workspace.
 //!
 //! Agents work like developers: they produce real file contents for real
-//! paths inside the workspace, not a scatter of bespoke tool calls. Forge
+//! paths inside the workspace, not a scatter of bespoke tool calls. Do Code
 //! records every proposed mutation in a journal — mutation id, mission,
 //! kind, path, before/after hashes, checkpoint reference, reversibility —
 //! so the whole session is auditable and every applied change is undoable.
 //! The journal is append-only JSONL bound to the mission; the patch applier
 //! remains the only writer, so the workspace never mutates files directly.
 
-use crate::error::{ForgeError, Result};
+use crate::error::{DocodeError, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -60,7 +60,7 @@ impl MutationJournal {
         reversible: bool,
     ) -> Result<WorkspaceMutation> {
         if before_hash == after_hash {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "workspace mutation rejected: before and after hashes are identical; nothing changed."
                     .into(),
             ));
@@ -78,7 +78,7 @@ impl MutationJournal {
             recorded_at: crate::storage::timestamp(),
         };
         let mut line =
-            serde_json::to_vec(&mutation).map_err(|e| ForgeError::Message(e.to_string()))?;
+            serde_json::to_vec(&mutation).map_err(|e| DocodeError::Message(e.to_string()))?;
         line.push(b'\n');
         self.append(line)?;
         self.count += 1;
@@ -110,7 +110,7 @@ impl MutationJournal {
             }
             out.push(
                 serde_json::from_slice(line)
-                    .map_err(|e| ForgeError::Message(format!("corrupt mutation journal: {e}")))?,
+                    .map_err(|e| DocodeError::Message(format!("corrupt mutation journal: {e}")))?,
             );
         }
         Ok(out)
@@ -118,14 +118,14 @@ impl MutationJournal {
 }
 
 /// Describe the workspace contract shown to the agent: what it may write,
-/// how it works, and what Forge records. This is the "workspace-style
+/// how it works, and what Do Code records. This is the "workspace-style
 /// interface" — files in, real code out, everything journaled.
 pub fn workspace_brief(allowed_paths: &[String]) -> String {
     format!(
         "Workspace contract: you work by writing complete, real file contents (code-over-API). \
 Paths allowed in this mission: {}. \
-Forge records every mutation (before/after hashes, checkpoint, rollback) and refuses any \
-write outside this list. Do not claim tests ran; Forge executes verification separately.",
+Do Code records every mutation (before/after hashes, checkpoint, rollback) and refuses any \
+write outside this list. Do not claim tests ran; Do Code executes verification separately.",
         if allowed_paths.is_empty() {
             "(none — nothing may be written)".to_string()
         } else {

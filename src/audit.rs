@@ -1,6 +1,6 @@
 use crate::{
     config::set_private_permissions,
-    error::{ForgeError, Result, io_error},
+    error::{DocodeError, Result, io_error},
     redaction,
 };
 use fs2::FileExt;
@@ -36,11 +36,11 @@ pub fn append(
     details: BTreeMap<String, Value>,
 ) -> Result<AuditEvent> {
     let root = fs::canonicalize(root).map_err(|e| io_error(root, e))?;
-    let home = root.join(".forge");
+    let home = root.join(".docode");
     match fs::symlink_metadata(&home) {
         Ok(meta) if meta.file_type().is_symlink() || !meta.is_dir() => {
-            return Err(ForgeError::Safety(
-                ".forge must be a real directory.".into(),
+            return Err(DocodeError::Safety(
+                ".docode must be a real directory.".into(),
             ));
         }
         Ok(_) => {
@@ -54,8 +54,8 @@ pub fn append(
             }
             let after = fs::symlink_metadata(&home).map_err(|e| io_error(&home, e))?;
             if after.file_type().is_symlink() || !after.is_dir() {
-                return Err(ForgeError::Safety(
-                    ".forge must be a real directory.".into(),
+                return Err(DocodeError::Safety(
+                    ".docode must be a real directory.".into(),
                 ));
             }
             set_private_permissions(&home)?;
@@ -66,12 +66,12 @@ pub fn append(
     let _pre_open_meta = match fs::symlink_metadata(&log_path) {
         Ok(meta) => {
             if meta.file_type().is_symlink() || !meta.is_file() {
-                return Err(ForgeError::Safety(
+                return Err(DocodeError::Safety(
                     "audit log is not a regular file.".into(),
                 ));
             }
             if meta.len() > MAX_LOG_BYTES {
-                return Err(ForgeError::Safety(
+                return Err(DocodeError::Safety(
                     "audit log exceeds 10 MiB; back it up and rotate it manually.".into(),
                 ));
             }
@@ -96,7 +96,7 @@ pub fn append(
     let result = (|| {
         let opened_meta = file.metadata().map_err(|e| io_error(&log_path, e))?;
         if !opened_meta.is_file() {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "opened audit target is not a regular file.".into(),
             ));
         }
@@ -104,7 +104,7 @@ pub fn append(
         crate::storage::reject_hardlink_handle(&file, &log_path)?;
         let length = opened_meta.len();
         if length > MAX_LOG_BYTES {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "audit log exceeded 10 MiB before append.".into(),
             ));
         }
@@ -123,7 +123,7 @@ pub fn append(
             .read_to_string(&mut contents)
             .map_err(|e| io_error(&log_path, e))?;
         if contents.len() as u64 > MAX_LOG_BYTES {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "audit log exceeded 10 MiB while being read; refusing to append.".into(),
             ));
         }
@@ -132,7 +132,7 @@ pub fn append(
             .map(|line| serde_json::from_str::<AuditEvent>(line).map(|event| event.sequence))
             .collect::<std::result::Result<Vec<_>, _>>()
             .map_err(|_| {
-                ForgeError::Safety(
+                DocodeError::Safety(
                     "audit log contains a malformed event; back it up and repair it manually."
                         .into(),
                 )
@@ -141,7 +141,7 @@ pub fn append(
             .max()
             .unwrap_or(0);
         let next_sequence = previous_sequence.checked_add(1).ok_or_else(|| {
-            ForgeError::Safety("audit sequence counter overflowed; refusing to append.".into())
+            DocodeError::Safety("audit sequence counter overflowed; refusing to append.".into())
         })?;
         // Keep audit identity consistent with mission, memory and evidence stores.
         let project_id = crate::storage::project_id(&root)?;
@@ -162,13 +162,13 @@ pub fn append(
             details,
         };
         let mut serialized = serde_json::to_vec(&event)
-            .map_err(|e| ForgeError::Message(format!("cannot encode audit event: {e}")))?;
+            .map_err(|e| DocodeError::Message(format!("cannot encode audit event: {e}")))?;
         serialized.push(b'\n');
         if serialized.len() > MAX_EVENT_BYTES {
-            return Err(ForgeError::Safety("audit event exceeds 16 KiB.".into()));
+            return Err(DocodeError::Safety("audit event exceeds 16 KiB.".into()));
         }
         if length + serialized.len() as u64 > MAX_LOG_BYTES {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "audit log would exceed 10 MiB; rotate it manually.".into(),
             ));
         }
@@ -187,16 +187,16 @@ pub fn append(
 
 pub fn tail(root: &Path, count: usize) -> Result<Vec<AuditEvent>> {
     if !(1..=1000).contains(&count) {
-        return Err(ForgeError::Message(
+        return Err(DocodeError::Message(
             "audit --tail must be between 1 and 1000.".into(),
         ));
     }
     let root = fs::canonicalize(root).map_err(|e| io_error(root, e))?;
-    let home = root.join(".forge");
+    let home = root.join(".docode");
     match fs::symlink_metadata(&home) {
         Ok(meta) if meta.file_type().is_symlink() || !meta.is_dir() => {
-            return Err(ForgeError::Safety(
-                ".forge must be a real directory.".into(),
+            return Err(DocodeError::Safety(
+                ".docode must be a real directory.".into(),
             ));
         }
         Ok(_) => {}
@@ -207,7 +207,7 @@ pub fn tail(root: &Path, count: usize) -> Result<Vec<AuditEvent>> {
     let meta = match fs::symlink_metadata(&path) {
         Ok(meta) => {
             if meta.file_type().is_symlink() || !meta.is_file() {
-                return Err(ForgeError::Safety(
+                return Err(DocodeError::Safety(
                     "audit log is not a regular file.".into(),
                 ));
             }
@@ -217,7 +217,7 @@ pub fn tail(root: &Path, count: usize) -> Result<Vec<AuditEvent>> {
         Err(e) => return Err(io_error(&path, e)),
     };
     if meta.len() > MAX_LOG_BYTES {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "audit log exceeds 10 MiB; rotate it manually before reading.".into(),
         ));
     }
@@ -231,7 +231,7 @@ pub fn tail(root: &Path, count: usize) -> Result<Vec<AuditEvent>> {
     let mut file = opts.open(&path).map_err(|e| io_error(&path, e))?;
     let opened_meta = file.metadata().map_err(|e| io_error(&path, e))?;
     if !opened_meta.is_file() {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "opened audit target is not a regular file.".into(),
         ));
     }
@@ -241,7 +241,7 @@ pub fn tail(root: &Path, count: usize) -> Result<Vec<AuditEvent>> {
     let locked_len = file.metadata().map_err(|e| io_error(&path, e))?.len();
     if locked_len > MAX_LOG_BYTES {
         let _ = FileExt::unlock(&file);
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "audit log exceeded 10 MiB before read.".into(),
         ));
     }
@@ -252,7 +252,7 @@ pub fn tail(root: &Path, count: usize) -> Result<Vec<AuditEvent>> {
         .map_err(|e| io_error(&path, e))?;
     if text.len() as u64 > MAX_LOG_BYTES {
         let _ = FileExt::unlock(&file);
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "audit log exceeded 10 MiB while being read.".into(),
         ));
     }
@@ -261,7 +261,7 @@ pub fn tail(root: &Path, count: usize) -> Result<Vec<AuditEvent>> {
         .map(serde_json::from_str::<AuditEvent>)
         .collect::<std::result::Result<Vec<_>, _>>()
         .map_err(|_| {
-            ForgeError::Safety(
+            DocodeError::Safety(
                 "audit log contains a malformed event; back it up and repair it manually.".into(),
             )
         });
@@ -276,7 +276,7 @@ fn reject_audit_hardlink(meta: &fs::Metadata, path: &Path) -> Result<()> {
     {
         use std::os::unix::fs::MetadataExt;
         if meta.is_file() && meta.nlink() > 1 {
-            return Err(ForgeError::Safety(format!(
+            return Err(DocodeError::Safety(format!(
                 "hard-linked audit files are denied: {}",
                 path.display()
             )));
@@ -333,12 +333,12 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
         let temp = tempdir().unwrap();
         append(temp.path(), "test.private", "succeeded", BTreeMap::new()).unwrap();
-        let home_mode = fs::metadata(temp.path().join(".forge"))
+        let home_mode = fs::metadata(temp.path().join(".docode"))
             .unwrap()
             .permissions()
             .mode()
             & 0o777;
-        let file_mode = fs::metadata(temp.path().join(".forge/audit.jsonl"))
+        let file_mode = fs::metadata(temp.path().join(".docode/audit.jsonl"))
             .unwrap()
             .permissions()
             .mode()
@@ -382,15 +382,15 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
         let root = tempdir().unwrap();
         let outside = tempdir().unwrap();
-        fs::create_dir(root.path().join(".forge")).unwrap();
+        fs::create_dir(root.path().join(".docode")).unwrap();
         fs::set_permissions(
-            root.path().join(".forge"),
+            root.path().join(".docode"),
             fs::Permissions::from_mode(0o700),
         )
         .unwrap();
         let external = outside.path().join("external.log");
         fs::write(&external, "external-owned-content\n").unwrap();
-        fs::hard_link(&external, root.path().join(".forge/audit.jsonl")).unwrap();
+        fs::hard_link(&external, root.path().join(".docode/audit.jsonl")).unwrap();
         let before = fs::read(&external).unwrap();
         assert!(append(root.path(), "test.hardlink", "info", BTreeMap::new()).is_err());
         assert!(tail(root.path(), 10).is_err());
@@ -403,7 +403,7 @@ mod tests {
         let root = temp.path();
         append(root, "test.before-corruption", "info", BTreeMap::new()).unwrap();
         use std::io::Write;
-        let path = root.join(".forge/audit.jsonl");
+        let path = root.join(".docode/audit.jsonl");
         let mut file = OpenOptions::new().append(true).open(&path).unwrap();
         writeln!(file, "{{malformed-json-line").unwrap();
         drop(file);
@@ -421,9 +421,9 @@ mod tests {
     fn oversized_audit_log_is_rejected_before_reading_or_appending() {
         let temp = tempdir().unwrap();
         let root = temp.path();
-        std::fs::create_dir(root.join(".forge")).unwrap();
+        std::fs::create_dir(root.join(".docode")).unwrap();
         std::fs::write(
-            root.join(".forge/audit.jsonl"),
+            root.join(".docode/audit.jsonl"),
             "x".repeat(10 * 1024 * 1024 + 1),
         )
         .unwrap();

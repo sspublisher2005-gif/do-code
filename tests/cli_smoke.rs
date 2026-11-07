@@ -35,8 +35,8 @@ fn init_is_local_and_preserves_existing_files() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(String::from_utf8_lossy(&output.stdout).contains("Network: not used"));
-    let config_before = fs::read(root.path().join("forge.config.toml")).unwrap();
-    let memory_before = fs::read(root.path().join("FORGE.md")).unwrap();
+    let config_before = fs::read(root.path().join("docode.config.toml")).unwrap();
+    let memory_before = fs::read(root.path().join("DOCODE.md")).unwrap();
     let second = docode()
         .args(["init", "--root", root.path().to_str().unwrap()])
         .output()
@@ -47,11 +47,11 @@ fn init_is_local_and_preserves_existing_files() {
         String::from_utf8_lossy(&second.stderr)
     );
     assert_eq!(
-        fs::read(root.path().join("forge.config.toml")).unwrap(),
+        fs::read(root.path().join("docode.config.toml")).unwrap(),
         config_before
     );
     assert_eq!(
-        fs::read(root.path().join("FORGE.md")).unwrap(),
+        fs::read(root.path().join("DOCODE.md")).unwrap(),
         memory_before
     );
 }
@@ -176,8 +176,8 @@ fn memory_propose_previews_without_writing_until_explicit_confirmation() {
     assert!(text.contains("MEMORY PROPOSAL"));
     assert!(text.contains("Not saved"));
     assert!(
-        !root.path().join(".forge").exists(),
-        "preview must not create Forge state"
+        !root.path().join(".docode").exists(),
+        "preview must not create Do Code state"
     );
 
     let saved = docode().args(args).arg("--confirm").output().unwrap();
@@ -187,7 +187,7 @@ fn memory_propose_previews_without_writing_until_explicit_confirmation() {
         String::from_utf8_lossy(&saved.stderr)
     );
     assert!(String::from_utf8_lossy(&saved.stdout).contains("Saved reviewed memory proposal"));
-    let notes = root.path().join(".forge/memory/project/notes");
+    let notes = root.path().join(".docode/memory/project/notes");
     assert_eq!(fs::read_dir(notes).unwrap().count(), 1);
 }
 
@@ -207,7 +207,7 @@ fn memory_open_displays_vault_paths_without_creating_state() {
     assert!(text.contains("Project memory vault:"));
     assert!(text.contains("Global memory vault:"));
     assert!(text.contains("no external application was launched"));
-    assert!(!root.path().join(".forge").exists());
+    assert!(!root.path().join(".docode").exists());
 }
 
 /// Serves the same fixture OpenAI-compatible chat-completion response to every request it
@@ -330,7 +330,7 @@ fn mission_lifecycle_run_apply_verify_undo_round_trips_file_content() {
         .unwrap();
     assert!(init.status.success());
 
-    let config_path = root.path().join("forge.config.toml");
+    let config_path = root.path().join("docode.config.toml");
     let config = fs::read_to_string(&config_path).unwrap();
     let config = config.replace(
         "base_url = \"https://api.openai.com/v1\"",
@@ -471,7 +471,7 @@ fn sustained_rate_limit_pauses_mission_instead_of_failing_it() {
         .unwrap();
     assert!(init.status.success());
 
-    let config_path = root.path().join("forge.config.toml");
+    let config_path = root.path().join("docode.config.toml");
     let config = fs::read_to_string(&config_path).unwrap();
     let config = config.replace(
         "base_url = \"https://api.openai.com/v1\"",

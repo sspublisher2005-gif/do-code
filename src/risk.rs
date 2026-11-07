@@ -1,13 +1,13 @@
 //! Risk engine + approval memory.
 //!
-//! Every action Forge is about to take gets a risk score 0-5. Risk 0-1 runs
+//! Every action Do Code is about to take gets a risk score 0-5. Risk 0-1 runs
 //! silently, risk 2 asks once and remembers, risk 3+ always asks fresh, and
 //! risk 5 is never auto-approved. Approval memory stores decisions at the
-//! scope the user chose (once / this mission / this project) so Forge never
+//! scope the user chose (once / this mission / this project) so Do Code never
 //! asks the same question twice — and never silently repeats a dangerous
 //! one.
 
-use crate::error::{ForgeError, Result};
+use crate::error::{DocodeError, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -127,14 +127,14 @@ pub struct ApprovalRecord {
     pub recorded_at: String,
 }
 
-/// Approval memory persisted at `.forge/approvals.json`.
+/// Approval memory persisted at `.docode/approvals.json`.
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct ApprovalMemory {
     pub records: Vec<ApprovalRecord>,
 }
 
 impl ApprovalMemory {
-    /// Should Forge ask before performing `action` inside `mission_id`?
+    /// Should Do Code ask before performing `action` inside `mission_id`?
     /// Risk 2 (reviewable) honors remembered approvals; risk 3+ always
     /// asks fresh; risk 5 is always denied outright.
     pub fn evaluate(
@@ -203,16 +203,16 @@ impl ApprovalMemory {
         Ok(())
     }
 
-    pub fn forget(action: &str, records: &mut Vec<ApprovalRecord>) {
+    pub fn docodet(action: &str, records: &mut Vec<ApprovalRecord>) {
         records.retain(|r| r.action != action);
     }
 
     pub fn to_json(&self) -> Result<Vec<u8>> {
-        serde_json::to_vec_pretty(self).map_err(|e| ForgeError::Message(e.to_string()))
+        serde_json::to_vec_pretty(self).map_err(|e| DocodeError::Message(e.to_string()))
     }
 
     pub fn from_json(bytes: &[u8]) -> Result<Self> {
-        serde_json::from_slice(bytes).map_err(|e| ForgeError::Message(e.to_string()))
+        serde_json::from_slice(bytes).map_err(|e| DocodeError::Message(e.to_string()))
     }
 }
 
@@ -236,7 +236,7 @@ pub fn batch(actions: &[RiskAssessment]) -> Option<RiskAssessment> {
     }
 }
 
-/// Convenience map used by `forge approvals show`.
+/// Convenience map used by `docode approvals show`.
 pub fn summarize(records: &[ApprovalRecord]) -> BTreeMap<String, usize> {
     let mut out = BTreeMap::new();
     for r in records {

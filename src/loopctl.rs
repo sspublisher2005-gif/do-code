@@ -6,11 +6,11 @@
 //! boundaries (between steps, never mid-tool-call) so a pause never
 //! destroys in-flight work or evidence.
 
-use crate::error::{ForgeError, Result};
+use crate::error::{DocodeError, Result};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
-/// Loop policy values; overridable from `[loop]` in forge.config.toml.
+/// Loop policy values; overridable from `[loop]` in docode.config.toml.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct LoopPolicy {
@@ -105,13 +105,13 @@ impl LoopState {
     }
 
     /// Stable fingerprint for a workflow error, used by stall detection.
-    pub fn fingerprint(error: &ForgeError) -> String {
+    pub fn fingerprint(error: &DocodeError) -> String {
         match error {
-            ForgeError::Message(m) => format!("message:{m}"),
-            ForgeError::Io { path, .. } => format!("io:{}", path.display()),
-            ForgeError::Config(m) => format!("config:{m}"),
-            ForgeError::Safety(m) => format!("safety:{m}"),
-            ForgeError::Provider(m) => format!("provider:{m}"),
+            DocodeError::Message(m) => format!("message:{m}"),
+            DocodeError::Io { path, .. } => format!("io:{}", path.display()),
+            DocodeError::Config(m) => format!("config:{m}"),
+            DocodeError::Safety(m) => format!("safety:{m}"),
+            DocodeError::Provider(m) => format!("provider:{m}"),
         }
     }
 }
@@ -128,7 +128,7 @@ pub struct LoopSummary {
     pub last_failure: Option<String>,
 }
 
-/// Per-mission loop state persistence (`.forge/missions/<id>/loopstate.json`).
+/// Per-mission loop state persistence (`.docode/missions/<id>/loopstate.json`).
 pub fn load_summary(mission_dir: &std::path::Path) -> Result<Option<LoopSummary>> {
     let path = mission_dir.join("loopstate.json");
     if !path.exists() {
@@ -137,13 +137,13 @@ pub fn load_summary(mission_dir: &std::path::Path) -> Result<Option<LoopSummary>
     let bytes = crate::storage::read_bounded_regular(&path, 64 * 1024)?;
     serde_json::from_slice(&bytes)
         .map(Some)
-        .map_err(|e| ForgeError::Message(format!("corrupt loop state: {e}")))
+        .map_err(|e| DocodeError::Message(format!("corrupt loop state: {e}")))
 }
 
 pub fn save_summary(mission_dir: &std::path::Path, summary: &LoopSummary) -> Result<()> {
     crate::storage::ensure_private_dir(mission_dir)?;
     let bytes =
-        serde_json::to_vec_pretty(summary).map_err(|e| ForgeError::Message(e.to_string()))?;
+        serde_json::to_vec_pretty(summary).map_err(|e| DocodeError::Message(e.to_string()))?;
     crate::storage::write_atomic(&mission_dir.join("loopstate.json"), &bytes, true)
 }
 
@@ -247,10 +247,10 @@ mod tests {
 
     #[test]
     fn fingerprints_are_stable_per_error_kind() {
-        let a = LoopState::fingerprint(&ForgeError::Safety("x".into()));
-        let b = LoopState::fingerprint(&ForgeError::Safety("x".into()));
+        let a = LoopState::fingerprint(&DocodeError::Safety("x".into()));
+        let b = LoopState::fingerprint(&DocodeError::Safety("x".into()));
         assert_eq!(a, b);
-        let c = LoopState::fingerprint(&ForgeError::Provider("x".into()));
+        let c = LoopState::fingerprint(&DocodeError::Provider("x".into()));
         assert_ne!(a, c);
     }
 }

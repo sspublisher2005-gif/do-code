@@ -10,7 +10,7 @@ session evidence.
 | Mechanism | Claude Code | Codex | OpenCode | Do Code today |
 |---|---|---|---|---|
 | Hooks (deterministic lifecycle) | ✅ core | ✅ | ✅ | ❌ (risk engine only) |
-| Skills (on-demand instruction folders) | ✅ core | ✅ | ✅ | partial (FORGE.md/AGENTS.md + playbooks) |
+| Skills (on-demand instruction folders) | ✅ core | ✅ | ✅ | partial (DOCODE.md/AGENTS.md + playbooks) |
 | Subagents (separate context windows) | ✅ | ✅ | ✅ | partial (sequential perspectives + adaptive dispatch) |
 | Plugins (bundled distribution) | ✅ | ✅ 0.147 | ✅ + desktop | ❌ |
 | MCP client | ✅ | ✅ | ✅ | ❌ (sandbox-gated) |
@@ -25,12 +25,12 @@ Everything else in this plan depends on this gate.
 
 **Phase B — hooks.** Deterministic user commands at lifecycle points
 (pre-apply, post-apply, on-verify-fail, on-complete), stored in
-`forge.config.toml` + `.docode/hooks/`, executed through the SAME risk
+`docode.config.toml` + `.docode/hooks/`, executed through the SAME risk
 engine + sandbox (a hook is never above policy). This is the single
 highest-value adoption: it makes Do Code automatable without model-driven
 nondeterminism.
 
-**Phase C — skills.** `AGENTS.md`/`FORGE.md` stay as project policy; add
+**Phase C — skills.** `AGENTS.md`/`DOCODE.md` stay as project policy; add
 `.docode/skills/<name>/SKILL.md` folders loaded on demand (invocation by
 name or keyword match into the context pack — the context engine already
 ranks bounded context, so skills are just a new priority class). Cross-tool

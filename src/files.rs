@@ -1,4 +1,4 @@
-use crate::error::{ForgeError, Result, io_error};
+use crate::error::{DocodeError, Result, io_error};
 use std::{
     collections::{BTreeSet, VecDeque},
     ffi::OsString,
@@ -27,7 +27,7 @@ const BINARY_EXTENSIONS: &[&str] = &[
 ];
 const SKIP_DIRECTORIES: &[&str] = &[
     ".git",
-    ".forge",
+    ".docode",
     "node_modules",
     "dist",
     "coverage",
@@ -54,7 +54,7 @@ pub fn list(
     max_files: usize,
 ) -> Result<Vec<FileEntry>> {
     if !(1..=100_000).contains(&max_files) {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "file listing limit must be between 1 and 100000 entries.".into(),
         ));
     }
@@ -91,7 +91,7 @@ pub fn list(
         for item in read_dir.filter_map(std::result::Result::ok) {
             scanned_entries += 1;
             if scanned_entries > MAX_DIRECTORY_ENTRIES_SCANNED {
-                return Err(ForgeError::Safety(
+                return Err(DocodeError::Safety(
                     "directory scan exceeded the 100000-entry limit; narrow the directory.".into(),
                 ));
             }
@@ -196,13 +196,13 @@ pub fn resolve_workspace_file(root: &Path, requested: &str) -> Result<PathBuf> {
 /// state.
 pub fn resolve_new_workspace_file(root: &Path, requested: &str) -> Result<PathBuf> {
     if requested.contains('\0') {
-        return Err(ForgeError::Safety("path contains a NUL byte.".into()));
+        return Err(DocodeError::Safety("path contains a NUL byte.".into()));
     }
     if Path::new(requested).is_absolute()
         || requested.starts_with('\\')
         || requested.as_bytes().get(1) == Some(&b':')
     {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "absolute paths are not allowed; use a workspace-relative path.".into(),
         ));
     }
@@ -211,15 +211,15 @@ pub fn resolve_new_workspace_file(root: &Path, requested: &str) -> Result<PathBu
         .filter(|part| !part.is_empty() && *part != ".")
         .collect::<Vec<_>>();
     if components.contains(&"..") {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "parent-directory traversal is not allowed.".into(),
         ));
     }
     let (name, parents) = components
         .split_last()
-        .ok_or_else(|| ForgeError::Safety("a file path is required.".into()))?;
+        .ok_or_else(|| DocodeError::Safety("a file path is required.".into()))?;
     if is_sensitive_path(requested) || is_sensitive_path(name) {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "credential or private-state paths are denied.".into(),
         ));
     }
@@ -227,26 +227,26 @@ pub fn resolve_new_workspace_file(root: &Path, requested: &str) -> Result<PathBu
     let mut current = canonical_root.clone();
     for segment in parents {
         if is_sensitive_path(segment) {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "credential or private-state paths are denied.".into(),
             ));
         }
         current.push(segment);
         let meta = fs::symlink_metadata(&current).map_err(|e| io_error(&current, e))?;
         if meta.file_type().is_symlink() {
-            return Err(ForgeError::Safety(
-                "symlink paths are not followed by Forge.".into(),
+            return Err(DocodeError::Safety(
+                "symlink paths are not followed by Do Code.".into(),
             ));
         }
         if !meta.is_dir() {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "a parent path component is not a directory.".into(),
             ));
         }
     }
     let target = current.join(name);
     if fs::symlink_metadata(&target).is_ok() {
-        return Err(ForgeError::Safety(format!(
+        return Err(DocodeError::Safety(format!(
             "create refused: '{requested}' already exists."
         )));
     }
@@ -258,12 +258,12 @@ pub fn read(root: &Path, requested: &str, max_bytes: u64) -> Result<String> {
     let path = resolve_existing(&root, requested, Expected::File)?;
     let metadata = fs::symlink_metadata(&path).map_err(|e| io_error(&path, e))?;
     if metadata.len() > max_bytes {
-        return Err(ForgeError::Safety(format!(
+        return Err(DocodeError::Safety(format!(
             "file exceeds configured {max_bytes}-byte read limit."
         )));
     }
     if is_binary_extension(&path) {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "binary files are not rendered by text file tools.".into(),
         ));
     }
@@ -278,7 +278,7 @@ pub fn read(root: &Path, requested: &str, max_bytes: u64) -> Result<String> {
     let file = options.open(&path).map_err(|e| io_error(&path, e))?;
     let after = file.metadata().map_err(|e| io_error(&path, e))?;
     if !after.is_file() || after.len() > max_bytes {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "file changed during validation; refusing to read.".into(),
         ));
     }
@@ -291,16 +291,17 @@ pub fn read(root: &Path, requested: &str, max_bytes: u64) -> Result<String> {
         .read_to_end(&mut bytes)
         .map_err(|e| io_error(&path, e))?;
     if bytes.len() as u64 > max_bytes {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "file exceeded the bounded read size.".into(),
         ));
     }
     if bytes.contains(&0) {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "binary files are not rendered by text file tools.".into(),
         ));
     }
-    String::from_utf8(bytes).map_err(|_| ForgeError::Safety("file is not valid UTF-8 text.".into()))
+    String::from_utf8(bytes)
+        .map_err(|_| DocodeError::Safety("file is not valid UTF-8 text.".into()))
 }
 
 pub fn search(
@@ -312,17 +313,17 @@ pub fn search(
     max_matches: usize,
 ) -> Result<Vec<SearchMatch>> {
     if query.is_empty() {
-        return Err(ForgeError::Message(
+        return Err(DocodeError::Message(
             "search query must not be empty.".into(),
         ));
     }
     if query.len() > MAX_SEARCH_QUERY {
-        return Err(ForgeError::Message(
+        return Err(DocodeError::Message(
             "search query exceeds 500 bytes.".into(),
         ));
     }
     if !(1..=10_000).contains(&max_matches) {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "search match limit must be between 1 and 10000.".into(),
         ));
     }
@@ -339,7 +340,7 @@ pub fn search(
         };
         total_bytes_scanned = total_bytes_scanned.saturating_add(content.len() as u64);
         if total_bytes_scanned > MAX_SEARCH_TOTAL_BYTES {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "search exceeded the 16 MiB aggregate scan limit; narrow the directory or query."
                     .into(),
             ));
@@ -372,7 +373,7 @@ pub fn is_sensitive_path(requested: &str) -> bool {
                 || matches!(
                     lower.as_str(),
                     ".envrc"
-                        | ".forge"
+                        | ".docode"
                         | ".git"
                         | "node_modules"
                         | "target"
@@ -424,13 +425,13 @@ pub fn is_sensitive_path(requested: &str) -> bool {
 
 fn resolve_existing(root: &Path, requested: &str, expected: Expected) -> Result<PathBuf> {
     if requested.contains('\0') {
-        return Err(ForgeError::Safety("path contains a NUL byte.".into()));
+        return Err(DocodeError::Safety("path contains a NUL byte.".into()));
     }
     if Path::new(requested).is_absolute()
         || requested.starts_with('\\')
         || requested.as_bytes().get(1) == Some(&b':')
     {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "absolute paths are not allowed; use a workspace-relative path.".into(),
         ));
     }
@@ -439,13 +440,13 @@ fn resolve_existing(root: &Path, requested: &str, expected: Expected) -> Result<
         .filter(|part| !part.is_empty() && *part != ".")
         .collect::<Vec<_>>();
     if components.contains(&"..") {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "parent-directory traversal is not allowed.".into(),
         ));
     }
     if components.is_empty() {
         if matches!(expected, Expected::File) {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "a regular workspace file path is required.".into(),
             ));
         }
@@ -453,32 +454,32 @@ fn resolve_existing(root: &Path, requested: &str, expected: Expected) -> Result<
     }
     let normalized = components.join("/");
     if is_sensitive_path(&normalized) {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "credential or private-state paths are denied.".into(),
         ));
     }
     let mut current = root.to_path_buf();
     for (index, segment) in components.iter().enumerate() {
         if is_sensitive_path(segment) {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "credential or private-state paths are denied.".into(),
             ));
         }
         current.push(segment);
         let meta = fs::symlink_metadata(&current).map_err(|e| io_error(&current, e))?;
         if meta.file_type().is_symlink() {
-            return Err(ForgeError::Safety(
-                "symlink paths are not followed by Forge.".into(),
+            return Err(DocodeError::Safety(
+                "symlink paths are not followed by Do Code.".into(),
             ));
         }
         if index + 1 < components.len() {
             if !meta.is_dir() {
-                return Err(ForgeError::Safety(
+                return Err(DocodeError::Safety(
                     "a parent path component is not a directory.".into(),
                 ));
             }
             if should_skip_directory(segment) {
-                return Err(ForgeError::Safety(
+                return Err(DocodeError::Safety(
                     "private or generated directories are not readable by file tools.".into(),
                 ));
             }
@@ -486,16 +487,16 @@ fn resolve_existing(root: &Path, requested: &str, expected: Expected) -> Result<
     }
     let final_meta = fs::symlink_metadata(&current).map_err(|e| io_error(&current, e))?;
     if !(final_meta.is_file() || final_meta.is_dir()) {
-        return Err(ForgeError::Safety("special files are denied.".into()));
+        return Err(DocodeError::Safety("special files are denied.".into()));
     }
     match expected {
         Expected::File if !final_meta.is_file() => {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "requested path is not a regular file.".into(),
             ));
         }
         Expected::Directory if !final_meta.is_dir() => {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "requested path is not a directory.".into(),
             ));
         }
@@ -504,7 +505,7 @@ fn resolve_existing(root: &Path, requested: &str, expected: Expected) -> Result<
     reject_hardlink(&final_meta, &current)?;
     let canonical = fs::canonicalize(&current).map_err(|e| io_error(&current, e))?;
     if !canonical.starts_with(root) {
-        return Err(ForgeError::Safety(
+        return Err(DocodeError::Safety(
             "resolved path escapes the workspace root.".into(),
         ));
     }
@@ -558,7 +559,7 @@ fn reject_hardlink(meta: &fs::Metadata, path: &Path) -> Result<()> {
     {
         use std::os::unix::fs::MetadataExt;
         if meta.is_file() && meta.nlink() > 1 {
-            return Err(ForgeError::Safety(format!(
+            return Err(DocodeError::Safety(format!(
                 "hard-linked files are denied: {}",
                 path.display()
             )));
@@ -617,7 +618,9 @@ mod tests {
     fn denies_traversal_and_sensitive_paths() {
         assert!(resolve_existing(Path::new("/tmp"), "../etc/passwd", Expected::File).is_err());
         assert!(resolve_existing(Path::new("/tmp"), ".env", Expected::File).is_err());
-        assert!(resolve_existing(Path::new("/tmp"), ".forge/audit.jsonl", Expected::File).is_err());
+        assert!(
+            resolve_existing(Path::new("/tmp"), ".docode/audit.jsonl", Expected::File).is_err()
+        );
         assert!(is_sensitive_path("private.pem"));
         assert!(is_sensitive_path("certs/client.p12"));
         assert!(is_sensitive_path("certs/client.pfx"));

@@ -14,24 +14,24 @@
     ],
     "component": {
       "type": "application",
-      "bom-ref": "path+file:///D:/projects/forge%20cli/Forge_OpenCode_Windows_Compatible/01_CURRENT_RUST_CODEBASE#forge-cli@0.7.0-rs.1",
-      "name": "forge-cli",
+      "bom-ref": "path+file:///D:/projects/docode%20cli/Do Code_OpenCode_Windows_Compatible/01_CURRENT_RUST_CODEBASE#docode-cli@0.7.0-rs.1",
+      "name": "docode-cli",
       "version": "0.7.0-rs.1",
-      "description": "Forge CLI coding harness implemented in Rust",
+      "description": "Do Code coding harness implemented in Rust",
       "scope": "required",
       "licenses": [
         {
           "expression": "MIT"
         }
       ],
-      "purl": "pkg:cargo/forge-cli@0.7.0-rs.1?download_url=file://.",
+      "purl": "pkg:cargo/docode-cli@0.7.0-rs.1?download_url=file://.",
       "components": [
         {
           "type": "application",
-          "bom-ref": "path+file:///D:/projects/forge%20cli/Forge_OpenCode_Windows_Compatible/01_CURRENT_RUST_CODEBASE#forge-cli@0.7.0-rs.1 bin-target-0",
-          "name": "forge",
+          "bom-ref": "path+file:///D:/projects/docode%20cli/Do Code_OpenCode_Windows_Compatible/01_CURRENT_RUST_CODEBASE#docode-cli@0.7.0-rs.1 bin-target-0",
+          "name": "docode",
           "version": "0.7.0-rs.1",
-          "purl": "pkg:cargo/forge-cli@0.7.0-rs.1?download_url=file://.#src/main.rs"
+          "purl": "pkg:cargo/docode-cli@0.7.0-rs.1?download_url=file://.#src/main.rs"
         }
       ]
     },
@@ -6118,7 +6118,7 @@
   ],
   "dependencies": [
     {
-      "ref": "path+file:///D:/projects/forge%20cli/Forge_OpenCode_Windows_Compatible/01_CURRENT_RUST_CODEBASE#forge-cli@0.7.0-rs.1",
+      "ref": "path+file:///D:/projects/docode%20cli/Do Code_OpenCode_Windows_Compatible/01_CURRENT_RUST_CODEBASE#docode-cli@0.7.0-rs.1",
       "dependsOn": [
         "registry+https://github.com/rust-lang/crates.io-index#clap@4.6.7",
         "registry+https://github.com/rust-lang/crates.io-index#fs2@0.4.3",

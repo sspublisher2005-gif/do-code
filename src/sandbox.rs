@@ -13,7 +13,7 @@
 //!   - Linux / macOS: not yet implemented; execution stays disabled.
 
 #[cfg(windows)]
-use crate::error::{ForgeError, Result};
+use crate::error::{DocodeError, Result};
 
 #[cfg(windows)]
 mod windows_impl {
@@ -61,7 +61,7 @@ mod windows_impl {
         pub fn create(limits: ResourceLimits) -> Result<Self> {
             let handle = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
             if handle.is_null() {
-                return Err(ForgeError::Safety(
+                return Err(DocodeError::Safety(
                     "CreateJobObjectW failed; cannot establish process containment.".into(),
                 ));
             }
@@ -81,7 +81,7 @@ mod windows_impl {
             };
             if ok == 0 {
                 unsafe { CloseHandle(handle) };
-                return Err(ForgeError::Safety(
+                return Err(DocodeError::Safety(
                     "SetInformationJobObject failed; cannot enforce resource limits.".into(),
                 ));
             }
@@ -91,7 +91,7 @@ mod windows_impl {
         pub fn assign(&self, process_handle: HANDLE) -> Result<()> {
             let ok = unsafe { AssignProcessToJobObject(self.handle, process_handle) };
             if ok == 0 {
-                return Err(ForgeError::Safety(
+                return Err(DocodeError::Safety(
                     "AssignProcessToJobObject failed; refusing to start unsandboxed process."
                         .into(),
                 ));
@@ -112,11 +112,11 @@ mod windows_impl {
         }
     }
 
-    /// Create (or reuse) the Forge AppContainer profile and return its SID as a raw pointer.
+    /// Create (or reuse) the Do Code AppContainer profile and return its SID as a raw pointer.
     fn appcontainer_sid_ptr() -> Result<*mut std::ffi::c_void> {
-        let name: Vec<u16> = "ForgeSandbox\0".encode_utf16().collect();
-        let display: Vec<u16> = "Forge Sandbox\0".encode_utf16().collect();
-        let desc: Vec<u16> = "Forge CLI sandbox container\0".encode_utf16().collect();
+        let name: Vec<u16> = "DocodeSandbox\0".encode_utf16().collect();
+        let display: Vec<u16> = "Docode Sandbox\0".encode_utf16().collect();
+        let desc: Vec<u16> = "Do Code sandbox container\0".encode_utf16().collect();
         let mut sid: *mut std::ffi::c_void = std::ptr::null_mut();
         let hr = unsafe {
             CreateAppContainerProfile(
@@ -130,7 +130,7 @@ mod windows_impl {
         };
         // S_OK (0) or APPCONTAINER_PROFILE_ALREADY_EXISTS (HRESULT 0x800700B7 = -2147024713).
         if hr != 0 && hr != -2147024713_i32 {
-            return Err(ForgeError::Safety(format!(
+            return Err(DocodeError::Safety(format!(
                 "CreateAppContainerProfile failed (hr=0x{hr:08x})."
             )));
         }
@@ -144,7 +144,7 @@ mod windows_impl {
                 )
             };
             if hr != 0 {
-                return Err(ForgeError::Safety(format!(
+                return Err(DocodeError::Safety(format!(
                     "DeriveAppContainerSidFromAppContainerName failed (hr=0x{hr:08x})."
                 )));
             }
@@ -243,14 +243,14 @@ mod windows_impl {
             )
         };
         if get_err != 0 {
-            return Err(ForgeError::Safety(format!(
+            return Err(DocodeError::Safety(format!(
                 "GetNamedSecurityInfoW (workspace read) failed (err={get_err})."
             )));
         }
         let mut new_dacl: *mut windows_sys::Win32::Security::ACL = std::ptr::null_mut();
         let hr = unsafe { SetEntriesInAclW(1, &entry, current_dacl, &mut new_dacl) };
         if hr != 0 || new_dacl.is_null() {
-            return Err(ForgeError::Safety(format!(
+            return Err(DocodeError::Safety(format!(
                 "SetEntriesInAclW (workspace grant) failed (hr={hr})."
             )));
         }
@@ -270,7 +270,7 @@ mod windows_impl {
             LocalFree(current_sd);
         }
         if err != 0 {
-            return Err(ForgeError::Safety(format!(
+            return Err(DocodeError::Safety(format!(
                 "SetNamedSecurityInfoW (workspace grant) failed (err={err})."
             )));
         }
@@ -323,13 +323,13 @@ mod windows_impl {
             );
         }
         if attr_size == 0 {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "InitializeProcThreadAttributeList size query failed; no process started.".into(),
             ));
         }
         let attr_list: *mut std::ffi::c_void = unsafe { LocalAlloc(LMEM_FIXED, attr_size) };
         if attr_list.is_null() {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "allocating proc-thread attribute list failed; no process started.".into(),
             ));
         }
@@ -338,7 +338,7 @@ mod windows_impl {
         };
         if ok == 0 {
             unsafe { LocalFree(attr_list as _) };
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "InitializeProcThreadAttributeList failed; no process started.".into(),
             ));
         }
@@ -359,7 +359,7 @@ mod windows_impl {
                 DeleteProcThreadAttributeList(attr_list);
                 LocalFree(attr_list as _);
             }
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "UpdateProcThreadAttribute (security capabilities) failed; sandbox cannot start."
                     .into(),
             ));
@@ -421,7 +421,7 @@ mod windows_impl {
 
         if ok == 0 {
             let last = unsafe { windows_sys::Win32::Foundation::GetLastError() };
-            return Err(ForgeError::Safety(format!(
+            return Err(DocodeError::Safety(format!(
                 "CreateProcessW (suspended, AppContainer) failed; no process was started. (GetLastError={last})"
             )));
         }
@@ -444,7 +444,7 @@ mod windows_impl {
                 CloseHandle(proc_info.hThread);
                 CloseHandle(proc_info.hProcess);
             }
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "ResumeThread failed; process terminated before execution.".into(),
             ));
         }
@@ -475,7 +475,7 @@ mod windows_impl {
                 CloseHandle(thread_handle);
                 CloseHandle(process_handle);
             }
-            return Err(ForgeError::Safety(format!(
+            return Err(DocodeError::Safety(format!(
                 "WaitForSingleObject failed (result=0x{result:08x})."
             )));
         }
@@ -494,7 +494,7 @@ mod windows_impl {
 pub use windows_impl::*;
 
 /// A qualified sandbox has passed the adversarial acceptance matrix on a
-/// disposable native runner. Forge has not run those tests, so this stays
+/// disposable native runner. Do Code has not run those tests, so this stays
 /// false and arbitrary command execution stays disabled. Do not flip this
 /// to true without retained evidence from the 26-case matrix.
 pub fn is_qualified() -> bool {

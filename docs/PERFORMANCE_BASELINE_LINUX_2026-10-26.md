@@ -1,24 +1,24 @@
-# Forge CLI Linux performance baseline — 26 October 2026
+# Do Code Linux performance baseline — 26 October 2026
 
 **Scope:** one Linux x86-64/glibc container, one supplied release ELF. These are measurements of this exact environment, not a promise or comparison against other coding agents. No network or model calls were made.
 
 ## Artifact identity
 
-- Version: `forge 0.7.0-rs.1`
+- Version: `docode 0.7.0-rs.1`
 - Binary bytes: `8,052,120`
 - SHA-256: `a861235a713b8375b6eeccdfc699ccda046e603e5e6eed4ef658cc6a8d704962`
 - Environment: Linux 6.18.55, x86-64, glibc 2.41, Python 3.13.5 harness
 
 ## Warm-cache repeated-process latency
 
-Collected by `scripts/verify_cli.py`; the measurement starts a new Forge subprocess each sample after warm-up. There is no clean-cache/cold-boot claim.
+Collected by `scripts/verify_cli.py`; the measurement starts a new Do Code subprocess each sample after warm-up. There is no clean-cache/cold-boot claim.
 
 | Operation | Samples | Median | p95 | Maximum |
 |---|---:|---:|---:|---:|
-| `forge --version` new-process startup | 30 | 1.288 ms | 1.9 ms | 1.942 ms |
-| `forge doctor` | 10 | 3.614 ms | 4.267 ms | 4.267 ms |
-| `forge files list` | 10 | 3.786 ms | 5.765 ms | 5.765 ms |
-| `forge config show` | 10 | 4.015 ms | 5.494 ms | 5.494 ms |
+| `docode --version` new-process startup | 30 | 1.288 ms | 1.9 ms | 1.942 ms |
+| `docode doctor` | 10 | 3.614 ms | 4.267 ms | 4.267 ms |
+| `docode files list` | 10 | 3.786 ms | 5.765 ms | 5.765 ms |
+| `docode config show` | 10 | 4.015 ms | 5.494 ms | 5.494 ms |
 
 The preserved earlier 30-run report measured `--version` median 1.288 ms / p95 1.900 ms / max 1.942 ms, and command medians of 3.614 ms (`doctor`), 3.786 ms (`files list`), and 4.015 ms (`config show`). See `04_INDEPENDENT_VERIFICATION/independent_verify_cli_rerun_2026-10-26.json`; the latest 10-run report is `BLACK_BOX_BENCHMARK_2026-10-26.json`. Different run count/sample noise means those reports should not be combined into one statistical claim.
 

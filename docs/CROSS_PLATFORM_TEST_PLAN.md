@@ -1,4 +1,4 @@
-# Forge CLI (Rust implementation): cross-platform verification and performance plan
+# Do Code (Rust implementation): cross-platform verification and performance plan
 
 ## Test matrix
 
@@ -21,7 +21,7 @@ For each matrix job, `scripts/ci_pipeline.py` records toolchain setup elapsed ti
 
 1. **Toolchain setup:** `ci_pipeline.py` times `rustup toolchain install`. It first checks `rustup toolchain list` and annotates when the toolchain was already installed. If preinstalled or cached, this is not a clean first-time download duration. Network throughput and runner cache influence the result.
 2. **Release build:** `cargo build --release` wall-clock duration includes compilation and linking under that runner's dependency-cache state. It must not be called a first-ever build unless caches are confirmed clean.
-3. **Startup:** the harness runs a new `forge --version` subprocess for every sample (30 default), after three warm-up runs. It reports median, P95, and maximum. It is a repeated process-start benchmark with warm OS filesystem cache, not true cold-boot latency.
+3. **Startup:** the harness runs a new `docode --version` subprocess for every sample (30 default), after three warm-up runs. It reports median, P95, and maximum. It is a repeated process-start benchmark with warm OS filesystem cache, not true cold-boot latency.
 4. **Representative work:** measure `doctor`, `files list`, and `config show`; the CLI acceptance suite also covers init, read/search, offline model config checks, and audit behavior. These are basic CLI operations, not the time a future multi-agent coding mission will take.
 5. **Binary size:** the runtime report records release executable bytes when available. Memory/RSS is not yet measured consistently across all three OSes; add platform-specific process telemetry before making memory claims.
 
@@ -30,8 +30,8 @@ For each matrix job, `scripts/ci_pipeline.py` records toolchain setup elapsed ti
 - The local authoring environment has no Rust compiler/Cargo and cannot resolve `static.rust-lang.org`; no Rust compilation or runtime test has run locally. The new `scripts/static_preflight.py` is intended to rerun available static/package checks and will mark toolchain-dependent work as `BLOCKED`.
 - The source still has no committed `Cargo.lock`; dependency selection must be resolved on a connected host, reviewed, committed, and verified with clean locked builds before release.
 - Run and verify `cargo fmt --all -- --check` when a compiler host is available. The authoring environment did not have rustfmt.
-- Windows opened-handle hard-link count checking now uses the Win32 handle API in source and has a Windows-gated regression test; it is uncompiled and not runtime-verified until the Windows CI job passes. Owner-only `.forge` ACL creation and validation remain incomplete. Fix and review this before claiming cross-platform filesystem security parity.
+- Windows opened-handle hard-link count checking now uses the Win32 handle API in source and has a Windows-gated regression test; it is uncompiled and not runtime-verified until the Windows CI job passes. Owner-only `.docode` ACL creation and validation remain incomplete. Fix and review this before claiming cross-platform filesystem security parity.
 - TOCTOU-resistant handle-based path traversal has not been proven for hostile same-user races. Symlink checks alone are not a sandbox.
 - A sequential role-based proposal workflow, persistent missions, patch preview/apply/checkpoint/undo, and an evidence store are present in source, but the runtime is uncompiled and unverified. No command execution sandbox exists, so build/test/browser execution remains blocked; resume is inspection-only.
-- No end-user app installer/distribution exists yet. Installing Rust for a developer build is different from installing a future Forge binary. Do not give a precise app-install duration until binaries/installers are built and tested.
+- No end-user app installer/distribution exists yet. Installing Rust for a developer build is different from installing a future Do Code binary. Do not give a precise app-install duration until binaries/installers are built and tested.
 - Provider fixtures now include an Authorization-header check. They still do not replace test coverage for cancellation, concurrent requests, 429/5xx/quota handling, truncated/chunked response bodies, or DNS rebinding; those remain future tests. The added provider tests are authored but unexecuted until the Rust matrix runs. Audit fixtures now also include concurrent appends, malformed history fail-closed, size caps and Unix hard-link refusal.

@@ -1,4 +1,4 @@
-Forge CLI independent verification environment — updated 2026-10-26
+Do Code independent verification environment — updated 2026-10-26
 
 Host
 - OS: Debian GNU/Linux 13 (trixie), x86_64, Linux kernel 6.18.55, glibc 2.41.
@@ -24,4 +24,4 @@ Interpretation rules
 - A Linux runtime pass is not macOS/Windows evidence.
 - A local fixture-provider E2E proves workflow transport/plumbing, not real model answer quality.
 - Hash integrity proves bytes match a manifest, not that source code is safe/correct.
-- Forge's `sandbox self-test` deliberately fails closed while no native isolation driver exists.
+- Do Code's `sandbox self-test` deliberately fails closed while no native isolation driver exists.

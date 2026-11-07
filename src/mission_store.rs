@@ -1,6 +1,6 @@
 //! Hash-bound, project-bound local mission persistence.
 use crate::{
-    error::{ForgeError, Result, io_error},
+    error::{DocodeError, Result, io_error},
     mission::{
         self, AcceptanceCriterion, AgentRole, Capability, Mission, MissionStatus, Step, StepStatus,
         VerificationKind,
@@ -48,12 +48,12 @@ impl MissionStore {
     pub fn create(&self, objective: &str) -> Result<Mission> {
         let objective = objective.trim();
         if objective.len() < 8 || objective.len() > MAX_OBJECTIVE_BYTES {
-            return Err(ForgeError::Message(
+            return Err(DocodeError::Message(
                 "task description must be 8..20000 bytes.".into(),
             ));
         }
         if crate::redaction::redact(objective) != objective {
-            return Err(ForgeError::Safety("task description appears to contain a credential. Remove it before creating a mission.".into()));
+            return Err(DocodeError::Safety("task description appears to contain a credential. Remove it before creating a mission.".into()));
         }
         let now = storage::timestamp();
         let id = Uuid::new_v4().to_string();
@@ -108,26 +108,26 @@ impl MissionStore {
         let path = self.mission_path(id)?;
         let bytes = storage::read_bounded_regular(&path, MAX_MISSION_BYTES)?;
         let envelope: MissionEnvelope = serde_json::from_slice(&bytes).map_err(|_| {
-            ForgeError::Safety("mission state is not valid JSON; it was not modified.".into())
+            DocodeError::Safety("mission state is not valid JSON; it was not modified.".into())
         })?;
         if envelope.store_version != STORE_VERSION || !is_sha256(&envelope.sha256) {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "mission state envelope version or checksum field is invalid.".into(),
             ));
         }
         let canonical = serde_json::to_vec(&envelope.mission)
-            .map_err(|e| ForgeError::Message(e.to_string()))?;
+            .map_err(|e| DocodeError::Message(e.to_string()))?;
         let digest = Sha256::digest(&canonical)
             .iter()
             .map(|b| format!("{b:02x}"))
             .collect::<String>();
         if digest != envelope.sha256 {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "mission state checksum mismatch; no state was modified.".into(),
             ));
         }
         if envelope.mission.id != id {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "mission filename and payload identity do not match.".into(),
             ));
         }
@@ -196,19 +196,19 @@ impl MissionStore {
         let mut result = Vec::with_capacity(missions.len());
         for mission in missions {
             let action = match mission.status {
-                MissionStatus::Draft => "Plan has not started. Run 'forge run' to begin.",
+                MissionStatus::Draft => "Plan has not started. Run 'docode run' to begin.",
                 MissionStatus::AwaitingApproval => {
-                    "Awaiting approval. Review the proposed patch, then 'forge apply --approve'."
+                    "Awaiting approval. Review the proposed patch, then 'docode apply --approve'."
                 }
-                MissionStatus::Ready => "Ready to execute. Run 'forge run' to proceed.",
+                MissionStatus::Ready => "Ready to execute. Run 'docode run' to proceed.",
                 MissionStatus::Running => {
                     "Interrupted while running. Review steps before resuming."
                 }
-                MissionStatus::Verifying => "Verifying. Run 'forge verify' to check evidence.",
+                MissionStatus::Verifying => "Verifying. Run 'docode verify' to check evidence.",
                 MissionStatus::NeedsReview => {
-                    "Awaiting review. Run 'forge verify' to check evidence."
+                    "Awaiting review. Run 'docode verify' to check evidence."
                 }
-                MissionStatus::Completed => "Mission completed. Run 'forge verify' to confirm.",
+                MissionStatus::Completed => "Mission completed. Run 'docode verify' to confirm.",
                 MissionStatus::Failed => {
                     "Mission failed. Review failure codes, then retry or undo."
                 }
@@ -235,7 +235,7 @@ impl MissionStore {
     pub fn transition(&self, id: &str, next: MissionStatus) -> Result<Mission> {
         self.update(id, |mission| {
             if !mission::mission_transitions(&mission.status, &next) {
-                return Err(ForgeError::Message(format!(
+                return Err(DocodeError::Message(format!(
                     "mission transition {:?} -> {:?} is not allowed.",
                     mission.status, next
                 )));
@@ -256,7 +256,7 @@ impl MissionStore {
             || current.project_id != self.project_id
             || current.repo_root != self.root.to_string_lossy()
         {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "mission identity/project binding cannot be changed.".into(),
             ));
         }
@@ -274,10 +274,10 @@ impl MissionStore {
 
     fn mission_path(&self, id: &str) -> Result<PathBuf> {
         let parsed = Uuid::parse_str(id).map_err(|_| {
-            ForgeError::Message("mission ID must be a Forge-generated UUID.".into())
+            DocodeError::Message("mission ID must be a Do Code-generated UUID.".into())
         })?;
         if parsed.to_string() != id {
-            return Err(ForgeError::Message(
+            return Err(DocodeError::Message(
                 "mission ID must be a canonical UUID.".into(),
             ));
         }
@@ -298,7 +298,7 @@ impl MissionStore {
         let file = options.open(&path).map_err(|e| io_error(&path, e))?;
         let meta = file.metadata().map_err(|e| io_error(&path, e))?;
         if !meta.is_file() {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "mission lock path is not a regular file.".into(),
             ));
         }
@@ -307,7 +307,7 @@ impl MissionStore {
         {
             use std::os::unix::fs::MetadataExt;
             if meta.nlink() > 1 {
-                return Err(ForgeError::Safety(
+                return Err(DocodeError::Safety(
                     "hard-linked mission lock files are denied.".into(),
                 ));
             }
@@ -319,7 +319,7 @@ impl MissionStore {
     fn write(&self, mission: &Mission, replace: bool) -> Result<()> {
         let path = self.mission_path(&mission.id)?;
         let payload =
-            serde_json::to_vec(mission).map_err(|e| ForgeError::Message(e.to_string()))?;
+            serde_json::to_vec(mission).map_err(|e| DocodeError::Message(e.to_string()))?;
         let digest = Sha256::digest(&payload)
             .iter()
             .map(|b| format!("{b:02x}"))
@@ -330,7 +330,7 @@ impl MissionStore {
             mission: mission.clone(),
         };
         let mut bytes =
-            serde_json::to_vec(&envelope).map_err(|e| ForgeError::Message(e.to_string()))?;
+            serde_json::to_vec(&envelope).map_err(|e| DocodeError::Message(e.to_string()))?;
         bytes.push(b'\n');
         storage::write_atomic(&path, &bytes, replace)
     }
@@ -340,7 +340,7 @@ impl MissionStore {
             || mission.repo_root != self.root.to_string_lossy()
             || mission.project_id != self.project_id
         {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "mission belongs to a different project or has an unsupported schema.".into(),
             ));
         }
@@ -350,14 +350,14 @@ impl MissionStore {
             || mission.acceptance_criteria.len() > 500
             || mission.evidence_ids.len() > 10_000
         {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "mission state violates persisted resource limits.".into(),
             ));
         }
         let mut ids = std::collections::BTreeSet::new();
         for step in &mission.steps {
             if step.mission_id != mission.id || !ids.insert(step.id.as_str()) {
-                return Err(ForgeError::Safety(
+                return Err(DocodeError::Safety(
                     "mission contains a duplicate step or a step bound to another mission.".into(),
                 ));
             }
@@ -367,7 +367,7 @@ impl MissionStore {
             .iter()
             .any(|s| s.depends_on.iter().any(|d| !ids.contains(d.as_str())))
         {
-            return Err(ForgeError::Safety(
+            return Err(DocodeError::Safety(
                 "mission contains a dependency that does not exist.".into(),
             ));
         }

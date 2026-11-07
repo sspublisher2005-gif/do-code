@@ -71,7 +71,7 @@ class SbomGeneratorTests(unittest.TestCase):
             bom = self.generate(Path(temp) / "bom.json")
         self.assertFalse(any("licenses" in component for component in bom["components"]))
         properties = {p["name"]: p["value"] for p in bom["metadata"]["properties"]}
-        scope = properties["forge:sbom-scope"].lower()
+        scope = properties["docode:sbom-scope"].lower()
         self.assertIn("licenses intentionally not asserted", scope)
         self.assertIn("checksums", scope)
 

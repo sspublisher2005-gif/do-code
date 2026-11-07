@@ -1,7 +1,7 @@
-# Forge CLI — current Rust status
+# Do Code — current Rust status
 
 **As-of date:** 2026-10-29  
-**Product:** Forge CLI (`forge`)  
+**Product:** Do Code (`docode`)  
 **Rust source version:** `0.7.0-rs.1`  
 **Release status:** Feature-rich Windows-verified prototype with a mission engine; **not production-ready** (sandbox adversarial proof outstanding).
 
@@ -9,26 +9,26 @@
 
 Everything below this section is the 2026-10-26 status and is retained for the audit trail. What changed since:
 
-**Build environment moved to the user's native Windows x86-64 machine.** All five gates pass on the exact current source: `cargo fmt --all -- --check` clean; `cargo check --all-targets --locked` clean; `cargo clippy --all-targets --locked -- -D warnings` clean; `cargo test --all-targets --locked` = **115 unit + 9 integration tests passed, 0 failed**; `cargo build --release --locked` produced a working `forge.exe` (about 6.4 MB). `forge --version`, `agents`, `risk`, `approvals`, `lessons`, and the full lessons lifecycle were smoke-tested against the release binary.
+**Build environment moved to the user's native Windows x86-64 machine.** All five gates pass on the exact current source: `cargo fmt --all -- --check` clean; `cargo check --all-targets --locked` clean; `cargo clippy --all-targets --locked -- -D warnings` clean; `cargo test --all-targets --locked` = **115 unit + 9 integration tests passed, 0 failed**; `cargo build --release --locked` produced a working `docode.exe` (about 6.4 MB). `docode --version`, `agents`, `risk`, `approvals`, `lessons`, and the full lessons lifecycle were smoke-tested against the release binary.
 
-**New mission engine (implemented + unit-tested, wired into `forge run`/`apply`):**
+**New mission engine (implemented + unit-tested, wired into `docode run`/`apply`):**
 
 - Loop controller: bounded mission loop (max steps, wall clock, stall detection) that pauses only at safe boundaries; per-mission loop state persists for resume.
 - Spec-first contract gate: every run stores a mission contract (goal, success criteria, allowed/forbidden paths, required tests, rollback) before the coder starts, and rejects out-of-contract paths.
-- Shared task board with per-file locks, dependency DAG, and conflict detection (`forge tasks`); applied patches mark covered tasks done.
+- Shared task board with per-file locks, dependency DAG, and conflict detection (`docode tasks`); applied patches mark covered tasks done.
 - Multi-model routing with per-role routes and ordered fallback (`[routing]`); transport failures route around, safety/consent errors never do.
-- Risk engine (0-5) + approval memory: silent/ask-once-remember/always-ask/never-auto policies; `forge apply --approve --remember`, `forge approvals show|forget`, `forge risk "<command>"`.
+- Risk engine (0-5) + approval memory: silent/ask-once-remember/always-ask/never-auto policies; `docode apply --approve --remember`, `docode approvals show|docodet`, `docode risk "<command>"`.
 - Complexity-gated teams with opt-in `--best-of-n` (keeps the first proposal that passes all safety guards).
-- Compounding engine + memory tiers: explicit lesson propose/approve/reject/archive to git-friendly playbooks that brief future matching missions; hot/warm/cold layout under `.forge/memory/<scope>/`.
-- Code-over-API workspace journal: append-only per-mission mutation ledger with before/after hashes and checkpoint binding, visible via `forge mission show`.
-- Windows DACL enforcement with owner-SID readback, sandbox driver primitives (AppContainer + restricted token + Job Object + suspended spawn + sanitized env), `forge complete` evidence gate, crash recovery, context engine (nested .gitignore, stale-index detection) — all from the 2026-10-27 Windows session, now gate-verified.
+- Compounding engine + memory tiers: explicit lesson propose/approve/reject/archive to git-friendly playbooks that brief future matching missions; hot/warm/cold layout under `.docode/memory/<scope>/`.
+- Code-over-API workspace journal: append-only per-mission mutation ledger with before/after hashes and checkpoint binding, visible via `docode mission show`.
+- Windows DACL enforcement with owner-SID readback, sandbox driver primitives (AppContainer + restricted token + Job Object + suspended spawn + sanitized env), `docode complete` evidence gate, crash recovery, context engine (nested .gitignore, stale-index detection) — all from the 2026-10-27 Windows session, now gate-verified.
 
-**Still true from the blockers list below (unchanged):** command execution remains disabled — the sandbox primitives have NOT been run against the adversarial acceptance matrix (needs a disposable Windows runner); `forge complete` still refuses without sandbox-verified evidence (currently unobtainable); no macOS/Linux runtime evidence in this environment; hosted CI six-matrix, RustSec scan, license clearance, installer, and benchmarks remain outstanding. The cost policy is unchanged: no predicted USD, provider-reported only, `unknown` otherwise.
+**Still true from the blockers list below (unchanged):** command execution remains disabled — the sandbox primitives have NOT been run against the adversarial acceptance matrix (needs a disposable Windows runner); `docode complete` still refuses without sandbox-verified evidence (currently unobtainable); no macOS/Linux runtime evidence in this environment; hosted CI six-matrix, RustSec scan, license clearance, installer, and benchmarks remain outstanding. The cost policy is unchanged: no predicted USD, provider-reported only, `unknown` otherwise.
 
 ---
 
 **As-of date (historical):** 2026-10-26  
-**Product:** Forge CLI (`forge`)  
+**Product:** Do Code (`docode`)  
 **Rust source version:** `0.7.0-rs.1`  
 **Release status:** Useful Linux prototype with independent runtime evidence; **not production-ready**.
 
@@ -40,7 +40,7 @@ The package includes a real Rust 1.99.1 build and a stripped Linux x86-64 ELF bi
 
 ### Independent checks run against the supplied binary in this handoff environment
 
-- Binary `--version`, `--help`: PASS; version is `forge 0.7.0-rs.1`.
+- Binary `--version`, `--help`: PASS; version is `docode 0.7.0-rs.1`.
 - `scripts/verify_cli.py --benchmark-runs 30`: **24 PASS, 0 FAIL, 0 SKIP**, on Linux x86-64 / glibc.
 - Loopback-only synthetic-provider lifecycle: PASS for `init → six-role run/proposal → apply preview → explicit approved apply → verify refuses completion without executed tests → unapproved undo rejected → approved undo restores exact original content/SHA-256`.
 - Direct CLI probes: init, doctor, sandbox status, sandbox self-test, mission list, audit tail and config show behaved as recorded in the logs. `sandbox self-test` correctly returned nonzero and executed no command because no native sandbox exists.
@@ -66,11 +66,11 @@ Presence does not imply complete TypeScript parity. Exact command and module gap
 ## Critical release blockers
 
 1. No native OS sandbox/command runner in the Rust branch. Build/test/shell/browser execution must remain disabled. Do not add an unsafe host-shell fallback.
-2. Evidence/completion-gate structures exist, but are not fully wired to live missions. Forge must not claim task completion without verified test evidence.
+2. Evidence/completion-gate structures exist, but are not fully wired to live missions. Do Code must not claim task completion without verified test evidence.
 3. Resume is inspection-only. Automatic safe mission reconstruction is not implemented.
 4. Rust memory CLI lacks the TypeScript review-first `memory propose` workflow and `memory open` command; save semantics/flags differ.
 5. Patch support is limited to modifying existing contextualized text files; add/delete/rename/binary/full unified-diff operations and strong crash recovery remain incomplete.
-6. Windows private `.forge` ACL creation/verification remains incomplete. Windows handle-based hard-link code exists in source but is not runtime verified here.
+6. Windows private `.docode` ACL creation/verification remains incomplete. Windows handle-based hard-link code exists in source but is not runtime verified here.
 7. No macOS/Windows Rust build or test results; no actual six-matrix CI run.
 8. A preliminary offline CycloneDX SBOM and pinned RustSec audit workflow now exist. The actual advisory workflow has not run in this authoring environment; license classification, a final Cargo-aware release SBOM, independent security review, installer/upgrader qualification and signed provenance remain outstanding.
 9. Real provider/model quality has not been tested; workflow validation uses a loopback fixture. Warm-cache Linux timing and peak-RSS measurements are recorded in `docs/PERFORMANCE_BASELINE_LINUX_2026-10-26.md`, but they are not end-user guarantees.
@@ -95,7 +95,7 @@ No guessed prices, predicted USD fields, max-cost/dollar threshold flags, Decisi
 ## Additional continuation evidence (26 October 2026, later pass)
 
 - Black-box binary acceptance rerun: 24/24 PASS, 0 FAIL, 0 SKIP; log and JSON in `04_INDEPENDENT_VERIFICATION/BLACK_BOX_BENCHMARK_2026-10-26.*`.
-- Extended offline workflows: 37/37 PASS, 0 FAIL, covering repository index/context, memory save/search/export/import/reset/forget approvals, Decision Arena honesty/persistence, freeze/unfreeze, and sandbox fail-closed behavior.
+- Extended offline workflows: 37/37 PASS, 0 FAIL, covering repository index/context, memory save/search/export/import/reset/docodet approvals, Decision Arena honesty/persistence, freeze/unfreeze, and sandbox fail-closed behavior.
 - Additional safety probes: 6/6 PASS, 0 FAIL; this only proves CLI refusal/disclosure behavior, not isolation.
 - Preliminary SBOM generator tests: 5/5 PASS, 205 third-party lockfile components and 206 dependency records; licenses intentionally not claimed and no advisory scan occurred.
 - Python syntax validation: all project Python helper scripts passed `py_compile`.
