@@ -369,19 +369,23 @@ fn create_file_exclusive(path: &Path, bytes: &[u8], mode: u32) -> Result<bool> {
     }
 }
 
+/// The machine-local Administrators group SID, hand-rolled as raw bytes:
+/// S-1-5-32-544 = revision 1, TWO sub-authorities [32, 544] (BUILTIN domain,
+/// Administrators alias), NT authority 5 (48-bit big-endian). Ground-truth
+/// pinned by a test that compares it against ConvertStringSidToSidW.
+#[cfg(windows)]
+const ADMIN_SID_BYTES: [u8; 16] = [
+    1, // revision
+    2, // sub-authority count = 2
+    0, 0, 0, 0, 0, 5, // identifier authority = 5 (NT authority, 48-bit BIG-ENDIAN)
+    32, 0, 0, 0, // sub[0] = 32 (SECURITY_BUILTIN_DOMAIN_RID), little-endian
+    32, 2, 0, 0, // sub[1] = 544 = 0x220 (DOMAIN_ALIAS_RID_ADMINS), little-endian
+];
+
 /// True when `sid` is the machine-local Administrators group SID
-/// (S-1-5-32-544). Built as raw bytes to avoid depending on well-known-RID
-/// constants: revision=1, sub-authority count=1, identifier authority=5
-/// (NT authority, 48-bit big-endian), sub-authorities [32, 544] little-endian
-/// (SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_ADMINS).
+/// (S-1-5-32-544, see ADMIN_SID_BYTES).
 #[cfg(windows)]
 fn create_sid_matches_well_known_admins(sid: windows_sys::Win32::Security::PSID) -> bool {
-    const ADMIN_SID_BYTES: [u8; 12] = [
-        1, // revision
-        1, // sub-authority count
-        0, 0, 0, 0, 0, 5, // identifier authority = 5 (NT authority, 48-bit BIG-ENDIAN)
-        32, 2, 0, 0, // DOMAIN_ALIAS_RID_ADMINS = 544 = 0x220, little-endian (S-1-5-32-544)
-    ];
     if sid.is_null() {
         return false;
     }
@@ -644,6 +648,30 @@ const DEFAULT_MEMORY: &str = "# Project memory\n\nThis file is untrusted project
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn admin_sid_bytes_match_the_real_administrators_sid() {
+        // Ground truth: let Windows itself build S-1-5-32-544 from the
+        // canonical string, then require our hand-rolled bytes to be
+        // EqualSid. Pins the raw-array construction so a wrong count,
+        // endianness, or authority can never ship again.
+        use windows_sys::Win32::Security::Authorization::ConvertStringSidToSidW;
+        use windows_sys::Win32::Security::PSID;
+        let mut wide: Vec<u16> = "S-1-5-32-544 ".encode_utf16().collect();
+        let mut real_sid: PSID = std::ptr::null_mut();
+        let ok = unsafe { ConvertStringSidToSidW(wide.as_mut_ptr(), &mut real_sid) };
+        assert!(
+            ok != 0 && !real_sid.is_null(),
+            "ConvertStringSidToSidW failed"
+        );
+        let our_sid: PSID = ADMIN_SID_BYTES.as_ptr() as PSID;
+        assert!(
+            unsafe { windows_sys::Win32::Security::EqualSid(our_sid, real_sid) } != 0,
+            "ADMIN_SID_BYTES do not decode to S-1-5-32-544"
+        );
+        unsafe { windows_sys::Win32::Foundation::LocalFree(real_sid as *mut _) };
+    }
 
     #[cfg(windows)]
     #[test]
