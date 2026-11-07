@@ -28,6 +28,10 @@ def collect(root: Path) -> list[dict[str, object]]:
         # (autocrlf) and Linux CI checkouts of the same blobs.
         normalized = raw.replace(b"\r\n", b"\n")
         rows.append({"path": rel.as_posix(), "bytes": len(normalized), "sha256": hashlib.sha256(normalized).hexdigest()})
+    # Deterministic order: os.walk differs across filesystems (NTFS vs ext4),
+    # so sort by path — otherwise the same tree validates on one OS and
+    # reports 'stale' on the other.
+    rows.sort(key=lambda r: r["path"])
     return rows
 
 

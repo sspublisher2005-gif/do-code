@@ -1,6 +1,6 @@
 {
   "artifact": "Do Code Rust implementation source inventory",
-  "generated_at_utc": "2026-11-07T19:01:38.810596+00:00",
+  "generated_at_utc": "2026-11-07T19:13:11.495192+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
   "inventory_count": 77,
@@ -26,14 +26,9 @@
       "sha256": "a51517cef37bbc93505ec8f52790e6bf890a1a2840980173659f2a64bf1e2013"
     },
     {
-      "path": "artifacts-sandbox/sandbox-adversarial.json",
-      "bytes": 1367,
-      "sha256": "a441777176f0665f343899b3b3f8a9cc6b5046fa37d5264b825cccea0ac2d557"
-    },
-    {
-      "path": "build.rs",
-      "bytes": 545,
-      "sha256": "981b347134e3dbd0f5b186f4086a6236eec9d7f36d71c3a9200720516dd0517d"
+      "path": "CHANGELOG.md",
+      "bytes": 10266,
+      "sha256": "c747812fb827ba8079f9b74ccbbd25d4f9d6f00470ee216b538daf9f78d3b3f0"
     },
     {
       "path": "Cargo.lock",
@@ -46,9 +41,29 @@
       "sha256": "3b4799d2214ecba644ac5566443672cbcc8b21aebc0ce0975f568420eef1530e"
     },
     {
-      "path": "CHANGELOG.md",
-      "bytes": 10266,
-      "sha256": "c747812fb827ba8079f9b74ccbbd25d4f9d6f00470ee216b538daf9f78d3b3f0"
+      "path": "DOCODE.md",
+      "bytes": 830,
+      "sha256": "63efe1c7327f559d09af638b75b63f30d5ba6283083f6beb422896967cda6682"
+    },
+    {
+      "path": "LICENSE",
+      "bytes": 1077,
+      "sha256": "ad09c8dbe6480a322efcdf43821ca633fcacbf6285ecb3c31aa9b88d1b635588"
+    },
+    {
+      "path": "README.md",
+      "bytes": 12656,
+      "sha256": "738994804f46e7f9b03a3f2d3c11bb84517f2d3f4e1bea7ada47e07084bc3709"
+    },
+    {
+      "path": "artifacts-sandbox/sandbox-adversarial.json",
+      "bytes": 1367,
+      "sha256": "a441777176f0665f343899b3b3f8a9cc6b5046fa37d5264b825cccea0ac2d557"
+    },
+    {
+      "path": "build.rs",
+      "bytes": 545,
+      "sha256": "981b347134e3dbd0f5b186f4086a6236eec9d7f36d71c3a9200720516dd0517d"
     },
     {
       "path": "docode-cdx.json",
@@ -59,11 +74,6 @@
       "path": "docode.config.toml.example",
       "bytes": 1096,
       "sha256": "72d8aa7dbe50237bfbaab982a49a33aa3ec46e34a1926915c0b92f0e4126221f"
-    },
-    {
-      "path": "DOCODE.md",
-      "bytes": 830,
-      "sha256": "63efe1c7327f559d09af638b75b63f30d5ba6283083f6beb422896967cda6682"
     },
     {
       "path": "docs/ADOPTION_PLAN_2026-11.md",
@@ -146,16 +156,6 @@
       "sha256": "56c16f3b7917fa023f0f4ab4fdaebcb87ef88dfe81e5fb703b39c01bb13b60c3"
     },
     {
-      "path": "LICENSE",
-      "bytes": 1077,
-      "sha256": "ad09c8dbe6480a322efcdf43821ca633fcacbf6285ecb3c31aa9b88d1b635588"
-    },
-    {
-      "path": "README.md",
-      "bytes": 12656,
-      "sha256": "738994804f46e7f9b03a3f2d3c11bb84517f2d3f4e1bea7ada47e07084bc3709"
-    },
-    {
       "path": "reference/Forge_CLI_TS_0.6.0-ts.2_MemoryDecision_Merge_WIP.zip",
       "bytes": 3687200,
       "sha256": "394a5907f865fb07fe01f7b6bec0cf37ad32840d6524698d97907ca437159af9"
@@ -166,14 +166,14 @@
       "sha256": "d13306be0ecda81ce779baa290ffb417380d525928477f16200884b5169cca33"
     },
     {
-      "path": "sbom/docode-cli.cdx.json",
-      "bytes": 168046,
-      "sha256": "7e496f38667d6a5af3d4923732d636cdfb20b5191a3fca4843791960b6235f8a"
-    },
-    {
       "path": "sbom/README.md",
       "bytes": 1974,
       "sha256": "47fff54767e3dbed4bf31275ba7c9b082c8805214d42da0922d2bb654ffe2621"
+    },
+    {
+      "path": "sbom/docode-cli.cdx.json",
+      "bytes": 168046,
+      "sha256": "7e496f38667d6a5af3d4923732d636cdfb20b5191a3fca4843791960b6235f8a"
     },
     {
       "path": "scripts/cargo_aware_sbom.py",
@@ -232,8 +232,8 @@
     },
     {
       "path": "scripts/update_source_inventory.py",
-      "bytes": 3425,
-      "sha256": "27aa24d59caca0b46f51245bde34add92d26b80023eb2863b71462c1e379c14c"
+      "bytes": 3652,
+      "sha256": "a76fca006804a5cf7892eefa9557194f3a75eba0e14ad415bd011e4739389289"
     },
     {
       "path": "scripts/verify_cli.py",
