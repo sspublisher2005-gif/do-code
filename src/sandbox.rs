@@ -159,10 +159,24 @@ mod windows_impl {
     /// needs to spawn without ERROR 203.
     pub fn sanitized_environment(workspace: &std::path::Path) -> Vec<u16> {
         const ALLOWLIST: &[&str] = &[
-            "SystemRoot", "SystemDrive", "TEMP", "TMP", "PATHEXT", "COMPUTERNAME",
-            "PROCESSOR_ARCHITECTURE", "PROCESSOR_IDENTIFIER", "PROCESSOR_REVISION",
-            "OS", "NUMBER_OF_PROCESSORS", "USERPROFILE", "HOMEDRIVE", "HOMEPATH",
-            "LOCALAPPDATA", "APPDATA", "PSModulePath", "PATH",
+            "SystemRoot",
+            "SystemDrive",
+            "TEMP",
+            "TMP",
+            "PATHEXT",
+            "COMPUTERNAME",
+            "PROCESSOR_ARCHITECTURE",
+            "PROCESSOR_IDENTIFIER",
+            "PROCESSOR_REVISION",
+            "OS",
+            "NUMBER_OF_PROCESSORS",
+            "USERPROFILE",
+            "HOMEDRIVE",
+            "HOMEPATH",
+            "LOCALAPPDATA",
+            "APPDATA",
+            "PSModulePath",
+            "PATH",
         ];
         let mut block: Vec<u16> = Vec::new();
         for key in ALLOWLIST {
