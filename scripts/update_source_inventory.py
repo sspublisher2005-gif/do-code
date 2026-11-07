@@ -57,11 +57,12 @@ def main() -> int:
             for row in rows:
                 if prior_map.get(row["path"]) != row["sha256"]:
                     print(f"MISMATCH: {row['path']} recorded={prior_map.get(row['path'])} actual={row['sha256']}")
-            known = set(prior_map)
-            for row in rows:
-                known.discard(row["path"])
-            for extra in sorted(known):
+            prior_paths = set(prior_map)
+            current_paths = {row["path"] for row in rows}
+            for extra in sorted(prior_paths - current_paths):
                 print(f"EXTRA-IN-INVENTORY: {extra}")
+            for missing in sorted(current_paths - prior_paths):
+                print(f"MISSING-FROM-INVENTORY: {missing}")
             print(f"FAIL: source inventory is stale; run {Path(__file__).name} without --check")
             return 1
         print(f"PASS: source inventory matches all {len(rows)} files (timestamps ignored)")

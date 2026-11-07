@@ -153,7 +153,11 @@ def main() -> int:
             "sandbox status honestly discloses driver state",
             sandbox_status.returncode == 0
             and "available (qualified)" not in sandbox_status.stdout
-            and ("NOT qualified" in sandbox_status.stdout or "NOT IMPLEMENTED" in sandbox_status.stdout),
+            and (
+                "NOT qualified" in sandbox_status.stdout
+                or "NOT IMPLEMENTED" in sandbox_status.stdout
+                or "not implemented" in sandbox_status.stdout
+            ),
         )
         before = sha256(root / "add.py")
         sandbox_selftest = invoke(root, "sandbox", "self-test")
