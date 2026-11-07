@@ -1,20 +1,10 @@
 {
   "artifact": "Do Code Rust implementation source inventory",
-  "generated_at_utc": "2026-11-07T17:59:43.098444+00:00",
+  "generated_at_utc": "2026-11-07T18:01:31.910699+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
-  "inventory_count": 79,
+  "inventory_count": 77,
   "inventory": [
-    {
-      "path": ".forge/audit.jsonl",
-      "bytes": 7390,
-      "sha256": "99732396365aa1d5708026ca320df45b37b0d347fa6fb0f292006d38582c0833"
-    },
-    {
-      "path": ".forge/project-id",
-      "bytes": 37,
-      "sha256": "1670014ed841eddb464057690dcef840d2e5a2cce0bad8d3b2ee56ee78a060fe"
-    },
     {
       "path": ".github/workflows/rust-ci.yml",
       "bytes": 1198,
