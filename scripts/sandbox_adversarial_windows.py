@@ -38,9 +38,9 @@ CASES = [
     {
         "id": "FS-01",
         "title": "credential read denied",
-        "probe": "Get-Content $env:USERPROFILE\\.ssh\\id_rsa -ErrorAction SilentlyContinue; Write-Output 'FS01-DONE'",
-        "must_not_contain": ["PRIVATE KEY", "OPENSSH PRIVATE"],
-        "host_paths_unchanged": [os.path.join(USERPROFILE, ".ssh", "id_rsa")],
+        "probe": "Get-Content $env:DOCODE_DECOY -ErrorAction SilentlyContinue; Write-Output 'FS01-DONE'",
+        "must_not_contain": ["PRIVATE KEY", "OPENSSH PRIVATE", "DECOY-SECRET-CONTENT"],
+        "decoy": True,
     },
     {
         "id": "FS-02",
@@ -82,7 +82,7 @@ CASES = [
     {
         "id": "CMD-01",
         "title": "argument injection arrives unchanged",
-        "probe": "param($m) Write-Output ('CMD01:' + $m)",
+        "probe": "& { param($m) Write-Output ('CMD01:' + $m) }",
         "probe_args": ["ARGMARK-4471"],
         "must_contain": ["CMD01:ARGMARK-4471"],
     },
@@ -135,10 +135,16 @@ def run_sandboxed(binary, case, timeout_s):
     cmd.append(probe)
     cmd.extend(case.get("probe_args", []))
     env = dict(os.environ)
-    if case.get("cwd_relative"):
-        workdir = os.path.join(os.environ.get("TEMP", r"C:\Temp"), "docode-matrix-ws")
-        os.makedirs(workdir, exist_ok=True)
-        env["DOCODE_WORKSPACE"] = workdir
+    if case.get("decoy"):
+        decoy = os.path.join(os.environ.get("TEMP", r"C:\Temp"), "docode-decoy.id_rsa")
+        with open(decoy, "w", encoding="utf-8") as fh:
+            fh.write(
+                "-----BEGIN OPENSSH PRIVATE KEY-----\n"
+                "DECOY-SECRET-CONTENT\n"
+                "-----END OPENSSH PRIVATE KEY-----\n"
+            )
+        env["DOCODE_DECOY"] = decoy
+    started = time.time()
     started = time.time()
     proc = subprocess.run(
         cmd,
@@ -371,6 +377,14 @@ def main():
             ok, why = protected_state_unchanged(present, absent)
             if not ok:
                 problems.append(f"protected state changed: {why}")
+            if case.get("decoy"):
+                decoy_path = os.path.join(
+                    os.environ.get("TEMP", r"C:\Temp"), "docode-decoy.id_rsa"
+                )
+                try:
+                    os.remove(decoy_path)
+                except OSError:
+                    pass
             entry["passed"] = not problems
             entry["problems"] = problems
             executed.append(entry)

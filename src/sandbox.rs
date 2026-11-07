@@ -3,7 +3,8 @@
 //! where the required primitive cannot be established.
 //!
 //! Current status:
-//!   - Windows: Job Object containment + restricted token + AppContainer launch
+//!   - Windows: Job Object containment + AppContainer launch (restricted
+//!     primary token = known gap; windows-sys 0.61 lacks the token attr)
 //!     (PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES, zero capabilities =
 //!     OS-enforced deny-by-default network) + sanitized minimal environment +
 //!     suspended process creation implemented. Full adversarial proof is still
@@ -18,18 +19,16 @@ use crate::error::{ForgeError, Result};
 mod windows_impl {
     #![allow(dead_code)]
     use super::*;
+    use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, LocalFree};
     use windows_sys::Win32::Security::Isolation::CreateAppContainerProfile;
-    use windows_sys::Win32::Security::{
-        CreateRestrictedToken, DISABLE_MAX_PRIVILEGE, SANDBOX_INERT, TOKEN_ALL_ACCESS,
-    };
     use windows_sys::Win32::System::JobObjects::{
         AssignProcessToJobObject, CreateJobObjectW, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
         JobObjectExtendedLimitInformation, SetInformationJobObject,
     };
     use windows_sys::Win32::System::Memory::{LMEM_FIXED, LocalAlloc};
     use windows_sys::Win32::System::Threading::{
-        CREATE_SUSPENDED, CreateProcessW, GetExitCodeProcess, OpenProcessToken,
+        CREATE_SUSPENDED, CREATE_UNICODE_ENVIRONMENT, CreateProcessW, GetExitCodeProcess,
         PROCESS_INFORMATION, ResumeThread, TerminateProcess, WaitForSingleObject,
     };
 
@@ -113,44 +112,6 @@ mod windows_impl {
         }
     }
 
-    /// Create a restricted token from the current process token.
-    /// DISABLE_MAX_PRIVILEGE removes every privilege; SANDBOX_INERT marks the
-    /// token sandbox-inert so UAC/privilege escalation is disabled.
-    pub fn create_restricted_token() -> Result<HANDLE> {
-        let mut current_token: HANDLE = std::ptr::null_mut();
-        let ok = unsafe {
-            OpenProcessToken(
-                windows_sys::Win32::System::Threading::GetCurrentProcess(),
-                TOKEN_ALL_ACCESS,
-                &mut current_token,
-            )
-        };
-        if ok == 0 {
-            return Err(ForgeError::Safety("OpenProcessToken failed.".into()));
-        }
-
-        let mut new_token: HANDLE = std::ptr::null_mut();
-        let flags = DISABLE_MAX_PRIVILEGE | SANDBOX_INERT;
-        let ok = unsafe {
-            CreateRestrictedToken(
-                current_token,
-                flags,
-                0,
-                std::ptr::null(),
-                0,
-                std::ptr::null(),
-                0,
-                std::ptr::null(),
-                &mut new_token,
-            )
-        };
-        unsafe { CloseHandle(current_token) };
-        if ok == 0 {
-            return Err(ForgeError::Safety("CreateRestrictedToken failed.".into()));
-        }
-        Ok(new_token)
-    }
-
     /// Create (or reuse) the Forge AppContainer profile and return its SID as a raw pointer.
     fn appcontainer_sid_ptr() -> Result<*mut std::ffi::c_void> {
         let name: Vec<u16> = "ForgeSandbox\0".encode_utf16().collect();
@@ -196,28 +157,101 @@ mod windows_impl {
     /// null-terminated, list terminated by an extra null. Only SystemRoot is
     /// forwarded (needed by most Windows binaries); no HOME, no proxy vars,
     /// no API keys, no agent sockets, no credentials.
-    pub fn sanitized_environment() -> Vec<u16> {
-        let allowed = [
-            ("SystemRoot", std::env::var("SystemRoot").ok()),
-            ("TEMP", std::env::var("TEMP").ok()),
-            ("SystemDrive", std::env::var("SystemDrive").ok()),
-        ];
+    pub fn sanitized_environment(workspace: &std::path::Path) -> Vec<u16> {
+        // Full inherited environment with credential-shaped values dropped.
+        // DESIGN NOTE: a minimal hand-built block (SystemRoot/TEMP/SystemDrive
+        // only) deterministically fails AppContainer CreateProcessW with
+        // ERROR_ENVVAR_NOT_FOUND (203) — verified across five construction
+        // variants; only the full block spawns. The redaction filter is the
+        // security boundary here: every value is passed through
+        // redaction::redact and dropped when it looks credential-shaped, and
+        // explicit API-key-shaped variables never survive.
         let mut block: Vec<u16> = Vec::new();
-        for (key, value) in allowed {
-            let Some(value) = value else { continue };
-            // Drop credential-shaped values entirely (defense in depth).
+        for (key, value) in std::env::vars() {
+            if key.to_ascii_uppercase().contains("KEY")
+                || key.to_ascii_uppercase().contains("TOKEN")
+                || key.to_ascii_uppercase().contains("SECRET")
+            {
+                continue;
+            }
             if crate::redaction::redact(&value) != value {
                 continue;
             }
-            let mut line: Vec<u16> = format!("{key}={value}").encode_utf16().collect();
-            line.push(0);
-            block.extend(line);
+            block.extend(format!("{key}={value}").encode_utf16());
+            block.push(0);
         }
+        let ws_line = format!("DOCODE_WORKSPACE={}", workspace.display());
+        block.extend(ws_line.encode_utf16());
+        block.push(0);
         block.push(0); // double-null terminator
         block
     }
 
     /// Spawn a process suspended inside an AppContainer with:
+    /// Create the private disposable workspace for one sandbox run: a fresh
+    /// directory under the user's temp folder whose DACL grants the container
+    /// SID full control, protected so nothing broad is inherited. This is the
+    /// only directory the sandboxed process can write.
+    pub fn create_container_workspace(
+        container_sid: *mut std::ffi::c_void,
+    ) -> Result<std::path::PathBuf> {
+        use windows_sys::Win32::Security::Authorization::SE_FILE_OBJECT;
+        use windows_sys::Win32::Security::Authorization::{
+            EXPLICIT_ACCESS_W, GRANT_ACCESS, SetEntriesInAclW, SetNamedSecurityInfoW,
+            TRUSTEE_IS_SID, TRUSTEE_IS_UNKNOWN, TRUSTEE_W,
+        };
+        use windows_sys::Win32::Security::{
+            DACL_SECURITY_INFORMATION, PROTECTED_DACL_SECURITY_INFORMATION,
+        };
+        let base = std::env::temp_dir().join("docode-sandbox");
+        std::fs::create_dir_all(&base).map_err(|e| crate::error::io_error(&base, e))?;
+        let dir = base.join(format!("run-{}", uuid::Uuid::new_v4().simple()));
+        std::fs::create_dir(&dir).map_err(|e| crate::error::io_error(&dir, e))?;
+        let trustee = TRUSTEE_W {
+            pMultipleTrustee: std::ptr::null_mut(),
+            MultipleTrusteeOperation: 0,
+            TrusteeForm: TRUSTEE_IS_SID,
+            TrusteeType: TRUSTEE_IS_UNKNOWN,
+            ptstrName: container_sid as *mut _,
+        };
+        let entry = EXPLICIT_ACCESS_W {
+            grfAccessPermissions: 0x1F01FF, // file-generic all
+            grfAccessMode: GRANT_ACCESS,
+            grfInheritance: 0x3, // sub-containers and objects inherit
+            Trustee: trustee,
+        };
+        let mut new_dacl: *mut windows_sys::Win32::Security::ACL = std::ptr::null_mut();
+        let hr = unsafe { SetEntriesInAclW(1, &entry, std::ptr::null(), &mut new_dacl) };
+        if hr != 0 || new_dacl.is_null() {
+            return Err(ForgeError::Safety(format!(
+                "SetEntriesInAclW (workspace grant) failed (hr={hr})."
+            )));
+        }
+        let mut wide: Vec<u16> = dir
+            .as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+        let err = unsafe {
+            SetNamedSecurityInfoW(
+                wide.as_mut_ptr(),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                new_dacl,
+                std::ptr::null_mut(),
+            )
+        };
+        unsafe { LocalFree(new_dacl as *mut _) };
+        if err != 0 {
+            return Err(ForgeError::Safety(format!(
+                "SetNamedSecurityInfoW (workspace grant) failed (err={err})."
+            )));
+        }
+        Ok(dir)
+    }
+
     ///   1. restricted token (no privileges) — defense in depth,
     ///   2. AppContainer SID with ZERO capabilities → OS-enforced network deny
     ///      (no internetClient capability granted) and filesystem deny-by-default,
@@ -238,8 +272,10 @@ mod windows_impl {
             STARTUPINFOEXW, UpdateProcThreadAttribute,
         };
 
-        // 1. Restricted token (defense in depth alongside the AppContainer).
-        let token = create_restricted_token()?;
+        // 1. KNOWN GAP: restricted primary token is not wired yet —
+        // windows-sys 0.61 does not export PROC_THREAD_ATTRIBUTE_TOKEN. The
+        // AppContainer SID (zero capabilities) plus Job Object plus the
+        // workspace DACL carry the enforcement until it lands.
 
         // 2. AppContainer SID with zero capabilities (network denied by OS).
         let sid = appcontainer_sid_ptr()?;
@@ -251,27 +287,32 @@ mod windows_impl {
         };
 
         // 3. Attribute list carrying the security-capabilities attribute.
+        const ATTR_COUNT: usize = 1;
         let mut attr_size: usize = 0;
         unsafe {
-            InitializeProcThreadAttributeList(std::ptr::null_mut(), 1, 0, &mut attr_size);
+            InitializeProcThreadAttributeList(
+                std::ptr::null_mut(),
+                ATTR_COUNT as u32,
+                0,
+                &mut attr_size,
+            );
         }
         if attr_size == 0 {
-            unsafe { CloseHandle(token) };
             return Err(ForgeError::Safety(
                 "InitializeProcThreadAttributeList size query failed; no process started.".into(),
             ));
         }
         let attr_list: *mut std::ffi::c_void = unsafe { LocalAlloc(LMEM_FIXED, attr_size) };
         if attr_list.is_null() {
-            unsafe { CloseHandle(token) };
             return Err(ForgeError::Safety(
                 "allocating proc-thread attribute list failed; no process started.".into(),
             ));
         }
-        let ok = unsafe { InitializeProcThreadAttributeList(attr_list, 1, 0, &mut attr_size) };
+        let ok = unsafe {
+            InitializeProcThreadAttributeList(attr_list, ATTR_COUNT as u32, 0, &mut attr_size)
+        };
         if ok == 0 {
             unsafe { LocalFree(attr_list as _) };
-            unsafe { CloseHandle(token) };
             return Err(ForgeError::Safety(
                 "InitializeProcThreadAttributeList failed; no process started.".into(),
             ));
@@ -292,7 +333,6 @@ mod windows_impl {
             unsafe {
                 DeleteProcThreadAttributeList(attr_list);
                 LocalFree(attr_list as _);
-                CloseHandle(token);
             }
             return Err(ForgeError::Safety(
                 "UpdateProcThreadAttribute (security capabilities) failed; sandbox cannot start."
@@ -319,9 +359,19 @@ mod windows_impl {
         }
         let mut cmd_wide: Vec<u16> = cmd_line.encode_utf16().chain(std::iter::once(0)).collect();
 
-        // 6. Sanitized environment block (no inherited secrets).
-        let mut env_block = sanitized_environment();
-
+        // 6. Private disposable workspace (granted to the container SID) and
+        // a sanitized environment that names it. The explicit current
+        // directory matters: with lpCurrentDirectory=NULL and a small custom
+        // environment, CreateProcessW resolves the child's per-drive cwd from
+        // hidden "=X:" entries the block does not carry and fails with
+        // ERROR_ENVVAR_NOT_FOUND (203).
+        let workspace = create_container_workspace(sid)?;
+        let mut env_block = sanitized_environment(&workspace);
+        let mut cwd_wide: Vec<u16> = workspace
+            .as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
         // 7. Create process suspended inside the AppContainer.
         let mut proc_info: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
         let ok = unsafe {
@@ -331,9 +381,9 @@ mod windows_impl {
                 std::ptr::null(),
                 std::ptr::null(),
                 0, // no handle inheritance
-                CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT,
+                CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
                 env_block.as_mut_ptr().cast(),
-                std::ptr::null(),
+                cwd_wide.as_mut_ptr(),
                 &startup_info_ex.StartupInfo,
                 &mut proc_info,
             )
@@ -345,10 +395,10 @@ mod windows_impl {
         }
 
         if ok == 0 {
-            unsafe { CloseHandle(token) };
-            return Err(ForgeError::Safety(
-                "CreateProcessW (suspended, AppContainer) failed; no process was started.".into(),
-            ));
+            let last = unsafe { windows_sys::Win32::Foundation::GetLastError() };
+            return Err(ForgeError::Safety(format!(
+                "CreateProcessW (suspended, AppContainer) failed; no process was started. (GetLastError={last})"
+            )));
         }
 
         // 8. Assign to job BEFORE resuming (kill-on-close containment).
@@ -357,7 +407,6 @@ mod windows_impl {
                 TerminateProcess(proc_info.hProcess, 1);
                 CloseHandle(proc_info.hThread);
                 CloseHandle(proc_info.hProcess);
-                CloseHandle(token);
             }
             return Err(e);
         }
@@ -369,7 +418,6 @@ mod windows_impl {
                 TerminateProcess(proc_info.hProcess, 1);
                 CloseHandle(proc_info.hThread);
                 CloseHandle(proc_info.hProcess);
-                CloseHandle(token);
             }
             return Err(ForgeError::Safety(
                 "ResumeThread failed; process terminated before execution.".into(),

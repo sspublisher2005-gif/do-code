@@ -1,6 +1,6 @@
 {
   "artifact": "Forge CLI Rust implementation source inventory",
-  "generated_at_utc": "2026-11-06T19:14:47.276120+00:00",
+  "generated_at_utc": "2026-11-07T15:44:52.304153+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
   "inventory_count": 90,
@@ -207,8 +207,8 @@
     },
     {
       "path": "scripts/sandbox_adversarial_windows.py",
-      "bytes": 16795,
-      "sha256": "bf8c62c620a1dbf93e8e0ad90317e19dafda949f6166427a06352c2dc54510b9"
+      "bytes": 17261,
+      "sha256": "d11546fa8f60f166c46943b92407e48c1d4ac0470b5ef5dcf4cfb6167b870829"
     },
     {
       "path": "scripts/static_preflight.py",
@@ -252,8 +252,8 @@
     },
     {
       "path": "src/config.rs",
-      "bytes": 23750,
-      "sha256": "a5c158d2a1b666fdbbfe3d13a7ac5865f55e4fa3ad121b0253f4adc71087e290"
+      "bytes": 25343,
+      "sha256": "a06d53b7ddaed77fd0fec52db6030200b9818814689cfa33b69be39c28c07454"
     },
     {
       "path": "src/context.rs",
@@ -357,8 +357,8 @@
     },
     {
       "path": "src/sandbox.rs",
-      "bytes": 17271,
-      "sha256": "70454be25338de5fd72dbc642128e129e1b73490e8914fade4675702d5ca0714"
+      "bytes": 20147,
+      "sha256": "74902d0d40f97aa2558967c3e32e3acb1e47b8e4a7cb9dec84a1c5c6f257983e"
     },
     {
       "path": "src/storage.rs",

@@ -369,6 +369,26 @@ fn create_file_exclusive(path: &Path, bytes: &[u8], mode: u32) -> Result<bool> {
     }
 }
 
+/// True when `sid` is the machine-local Administrators group SID
+/// (S-1-5-32-544). Built as raw bytes to avoid depending on well-known-RID
+/// constants: revision=1, sub-authority count=1, identifier authority=5
+/// (NT authority, 48-bit big-endian), sub-authorities [32, 544] little-endian
+/// (SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_ADMINS).
+fn create_sid_matches_well_known_admins(sid: windows_sys::Win32::Security::PSID) -> bool {
+    const ADMIN_SID_BYTES: [u8; 16] = [
+        1, 1, // revision, sub-authority count
+        5, 0, 0, 0, 0, 5, // identifier authority = 5 (NT authority)
+        32, 0, 0, 0, // SECURITY_BUILTIN_DOMAIN_RID = 32
+        32, 2, 0, 0, // DOMAIN_ALIAS_RID_ADMINS = 544 = 0x220
+    ];
+    if sid.is_null() {
+        return false;
+    }
+    let admins_sid = ADMIN_SID_BYTES.as_ptr() as windows_sys::Win32::Security::PSID;
+    let equal = unsafe { windows_sys::Win32::Security::EqualSid(sid, admins_sid) };
+    equal != 0
+}
+
 #[cfg(windows)]
 fn enforce_windows_private_acl(path: &Path) -> Result<()> {
     use std::os::windows::ffi::OsStrExt;
@@ -540,20 +560,29 @@ fn enforce_windows_private_acl(path: &Path) -> Result<()> {
         )));
     }
 
-    // Verify owner SID matches current user.
+    // Verify owner SID matches current user OR the local Administrators
+    // group. Windows dirs created inside Administrators-owned parents
+    // (e.g. CI runner temp dirs) are owned by the Administrators group even
+    // when created by an admin user — that is standard inheritance, not an
+    // attack. The security guarantee lives in the protected owner-only DACL
+    // verified above, so both owners are accepted; anything else refuses.
     if !read_owner.is_null() && !sid.is_null() {
         let owner_matches = unsafe { windows_sys::Win32::Security::EqualSid(read_owner, sid) };
         if owner_matches == 0 {
-            unsafe {
-                LocalFree(sd as *mut _);
-                LocalFree(new_dacl as *mut _);
-                LocalFree(buf);
-                CloseHandle(token)
-            };
-            return Err(ForgeError::Safety(format!(
-                "DACL owner SID does not match current user for '{}'; refusing to proceed.",
-                path.display()
-            )));
+            // Accept the local Administrators group as owner.
+            let admins_ok = create_sid_matches_well_known_admins(read_owner);
+            if !admins_ok {
+                unsafe {
+                    LocalFree(sd as *mut _);
+                    LocalFree(new_dacl as *mut _);
+                    LocalFree(buf);
+                    CloseHandle(token)
+                };
+                return Err(ForgeError::Safety(format!(
+                    "DACL owner SID does not match current user for '{}'; refusing to proceed.",
+                    path.display()
+                )));
+            }
         }
     }
 
