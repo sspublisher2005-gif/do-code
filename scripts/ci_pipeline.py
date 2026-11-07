@@ -64,7 +64,7 @@ def run_step(name: str, command: list[str], *, timeout: int = 1800) -> dict[str,
     print(f"\n=== {name} ===", flush=True)
     started = time.perf_counter()
     try:
-        proc = subprocess.run(command, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        proc = subprocess.run(command, text=True, encoding="utf-8", errors="replace", stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               check=False, timeout=timeout)
         output = proc.stdout or ""
         if output:

@@ -1,6 +1,6 @@
 {
   "artifact": "Do Code Rust implementation source inventory",
-  "generated_at_utc": "2026-11-07T20:29:27.526298+00:00",
+  "generated_at_utc": "2026-11-07T20:42:48.000368+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
   "inventory_count": 77,
@@ -177,23 +177,23 @@
     },
     {
       "path": "scripts/cargo_aware_sbom.py",
-      "bytes": 9690,
-      "sha256": "d2e01a4b77ce28d8b1a80dbd5536e6b8eecd187b4d2d5c629baaa229756015cf"
+      "bytes": 9726,
+      "sha256": "6a9f66b019e301da3ec2ac0469c60b63bd9176a284abdfe826d157b87b304233"
     },
     {
       "path": "scripts/ci_pipeline.py",
-      "bytes": 16537,
-      "sha256": "77a0dc998a1046d51545f332ccdad50ec2170d74829264cd28368fe8436b2e48"
+      "bytes": 16573,
+      "sha256": "1ddfb01b27ba9ad706cd2c6701519279a9b1972c3ecaded6dc19a663520a5040"
     },
     {
       "path": "scripts/extended_offline_acceptance.py",
-      "bytes": 13002,
-      "sha256": "f8227fab67616b8dd343eaeffc4cabd8128e0ae5ebe625a6ca9cf1b1568ad5b0"
+      "bytes": 13038,
+      "sha256": "49586991c2e109cd1ca6ae2ef3a6a709f461a74f1581b48ce54edf940b858035"
     },
     {
       "path": "scripts/extra_safety_probes.py",
-      "bytes": 4201,
-      "sha256": "b79c22b9aed75f9d9fb2b47301af424950135bf7d946342b25653c470da0b015"
+      "bytes": 4237,
+      "sha256": "81e634aedb82ffd0a7aa4427b85a9fde3b77da505faef39797263c2066a2c676"
     },
     {
       "path": "scripts/generate_sbom.py",
@@ -202,13 +202,13 @@
     },
     {
       "path": "scripts/measure_linux_rss.py",
-      "bytes": 5738,
-      "sha256": "49dc2dce254c6c3f809c183b9cd69e04571680821c9e2644fb7066868082d6b7"
+      "bytes": 5846,
+      "sha256": "eb17040cb5e265cdbeedc81dce85b3ffab05cdf7ca2ca3c5cda4e81b02d6cf94"
     },
     {
       "path": "scripts/sandbox_adversarial_windows.py",
-      "bytes": 18114,
-      "sha256": "b8af1e2e4722275cf8abec6d2836e918483933240fbc80a1bb7c79d03fc32585"
+      "bytes": 18330,
+      "sha256": "f868f46a30e30f3a943881d09b7e0c2e6ab20e0bedb3e045e0a4a4a05ab150b0"
     },
     {
       "path": "scripts/static_preflight.py",
@@ -237,8 +237,8 @@
     },
     {
       "path": "scripts/verify_cli.py",
-      "bytes": 24280,
-      "sha256": "93859940cc9f306465539e8602f07785e14f1438c23861a3bf84ce158aef445d"
+      "bytes": 24328,
+      "sha256": "e81e845a05d165948ebb9b65bab98cb2db4791602edc98b01d6e224338043bb6"
     },
     {
       "path": "src/audit.rs",
@@ -307,8 +307,8 @@
     },
     {
       "path": "src/main.rs",
-      "bytes": 61013,
-      "sha256": "f04ee77b688fe1ab1eca41b0bf3081856b01138ffd77519ff182cb8c08f5e642"
+      "bytes": 61887,
+      "sha256": "105edf0fcb2560589189cff778d7e44f2e404987626b4ad19e84dd399033b7fd"
     },
     {
       "path": "src/memory.rs",
@@ -357,8 +357,8 @@
     },
     {
       "path": "src/sandbox.rs",
-      "bytes": 21507,
-      "sha256": "4e5d532e43703f5117aff2ff7f4b18fe76834bebfb8430d823d211c20747cc58"
+      "bytes": 21100,
+      "sha256": "9b54d7216f3463bd89444ee41b9a2d1112cdd98a45837bbbfe6b9839a8eb29eb"
     },
     {
       "path": "src/storage.rs",
@@ -377,8 +377,8 @@
     },
     {
       "path": "src/workflow.rs",
-      "bytes": 52358,
-      "sha256": "935136a84c1437784f849f6638ec178339015ee462b11d9374af7f0da37eceda"
+      "bytes": 54099,
+      "sha256": "539c13deb3460fffd7644ead2f8c2b80373c9d38f0ef16ca1c948367efe575c2"
     },
     {
       "path": "src/workspace.rs",

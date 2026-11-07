@@ -51,7 +51,7 @@ def main() -> int:
         (root / "README.md").write_text("# Offline acceptance fixture\n", encoding="utf-8")
         (root / ".env").write_text("DOCODE_ACCEPTANCE_SECRET=never-show-this-secret\n", encoding="utf-8")
 
-        version = subprocess.run([str(binary), "--version"], capture_output=True, text=True, timeout=10)
+        version = subprocess.run([str(binary), "--version"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10)
         check("version command", version.returncode == 0 and "docode " in version.stdout, version.stdout.strip())
 
         init = invoke(root, "init")

@@ -78,7 +78,7 @@ def run(command: list[str], *, cwd: Path, timeout: int) -> dict[str, Any]:
     print("$ " + " ".join(command), flush=True)
     started = time.perf_counter()
     try:
-        proc = subprocess.run(command, cwd=cwd, text=True, stdout=subprocess.PIPE,
+        proc = subprocess.run(command, cwd=cwd, text=True, encoding="utf-8", errors="replace", stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, check=False, timeout=timeout)
     except subprocess.TimeoutExpired as exc:
         output = exc.stdout or ""

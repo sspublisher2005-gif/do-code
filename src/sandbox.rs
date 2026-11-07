@@ -154,31 +154,25 @@ mod windows_impl {
     }
 
     /// Sanitized environment block for the child: "KEY=VALUE" pairs, each
-    /// null-terminated, list terminated by an extra null. Only SystemRoot is
-    /// forwarded (needed by most Windows binaries); no HOME, no proxy vars,
-    /// no API keys, no agent sockets, no credentials.
+    /// null-terminated, list terminated by an extra null. Allowlist only:
+    /// SystemRoot/TEMP/TMP/SystemDrive + runtime essentials that AppContainer
+    /// needs to spawn without ERROR 203.
     pub fn sanitized_environment(workspace: &std::path::Path) -> Vec<u16> {
-        // Full inherited environment with credential-shaped values dropped.
-        // DESIGN NOTE: a minimal hand-built block (SystemRoot/TEMP/SystemDrive
-        // only) deterministically fails AppContainer CreateProcessW with
-        // ERROR_ENVVAR_NOT_FOUND (203) — verified across five construction
-        // variants; only the full block spawns. The redaction filter is the
-        // security boundary here: every value is passed through
-        // redaction::redact and dropped when it looks credential-shaped, and
-        // explicit API-key-shaped variables never survive.
+        const ALLOWLIST: &[&str] = &[
+            "SystemRoot", "SystemDrive", "TEMP", "TMP", "PATHEXT", "COMPUTERNAME",
+            "PROCESSOR_ARCHITECTURE", "PROCESSOR_IDENTIFIER", "PROCESSOR_REVISION",
+            "OS", "NUMBER_OF_PROCESSORS", "USERPROFILE", "HOMEDRIVE", "HOMEPATH",
+            "LOCALAPPDATA", "APPDATA", "PSModulePath", "PATH",
+        ];
         let mut block: Vec<u16> = Vec::new();
-        for (key, value) in std::env::vars() {
-            if key.to_ascii_uppercase().contains("KEY")
-                || key.to_ascii_uppercase().contains("TOKEN")
-                || key.to_ascii_uppercase().contains("SECRET")
-            {
-                continue;
+        for key in ALLOWLIST {
+            if let Ok(value) = std::env::var(key) {
+                if crate::redaction::redact(&value) != value {
+                    continue;
+                }
+                block.extend(format!("{key}={value}").encode_utf16());
+                block.push(0);
             }
-            if crate::redaction::redact(&value) != value {
-                continue;
-            }
-            block.extend(format!("{key}={value}").encode_utf16());
-            block.push(0);
         }
         let ws_line = format!("DOCODE_WORKSPACE={}", workspace.display());
         block.extend(ws_line.encode_utf16());

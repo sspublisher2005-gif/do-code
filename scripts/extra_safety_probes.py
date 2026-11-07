@@ -19,7 +19,7 @@ def main() -> int:
         except Exception as e:
             tests.append({'name': name, 'status': 'FAIL', 'duration_ms': round((time.perf_counter()-start)*1000, 3), 'detail': str(e)})
     def run(args, cwd=None):
-        return subprocess.run([str(binary), *args], cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=10)
+        return subprocess.run([str(binary), *args], cwd=cwd, text=True, encoding="utf-8", errors="replace", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=10)
     def version():
         r=run(['--version']); assert r.returncode==0 and 'docode 0.7.0-rs.1' in r.stdout, (r.returncode,r.stdout); return r.stdout.strip()
     def help_policy():

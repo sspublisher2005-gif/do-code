@@ -292,6 +292,9 @@ enum SandboxCommand {
     Exec {
         #[arg(long, default_value_t = 30000)]
         timeout_ms: u32,
+        /// Human approval required; sandbox is unqualified until the 26-case matrix passes.
+        #[arg(long)]
+        approve: bool,
         command: Vec<String>,
     },
 }
@@ -689,10 +692,25 @@ async fn run(cli: Cli) -> Result<()> {
                 println!("Windows launch path: AppContainer (zero capabilities = OS network deny) + restricted token + Job Object assigned before resume + sanitized environment.");
             }
             SandboxCommand::SelfTest => return Err(DocodeError::Safety("sandbox self-test cannot pass: no native sandbox driver is implemented. No command was executed.".into())),
-            SandboxCommand::Exec { timeout_ms, command } => {
+            SandboxCommand::Exec { timeout_ms, approve, command } => {
                 let timeout_ms = timeout_ms.clamp(1_000, 600_000);
+                if !approve {
+                    return Err(DocodeError::Safety(
+                        "sandbox exec requires --approve (unqualified probe; will be audited). No command was executed."
+                            .into(),
+                    ));
+                }
+                crate::audit::append(
+                    &root,
+                    "sandbox.exec_approved_unqualified",
+                    "succeeded",
+                    std::collections::BTreeMap::from([
+                        ("timeoutMs".into(), serde_json::json!(timeout_ms)),
+                        ("exe".into(), serde_json::json!(command.first().cloned().unwrap_or_default())),
+                    ]),
+                )?;
                 if command.is_empty() {
-                    return Err(DocodeError::Message("no command given; usage: docode sandbox exec -- <exe> [args...]".into()));
+                    return Err(DocodeError::Message("no command given; usage: docode sandbox exec --approve -- <exe> [args...]".into()));
                 }
                 #[cfg(windows)]
                 {

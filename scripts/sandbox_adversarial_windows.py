@@ -151,7 +151,7 @@ def run_sandboxed(binary, case, timeout_s):
     proc = subprocess.run(
         cmd,
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8", errors="replace",
         timeout=timeout_s,
         env=env,
         errors="replace",
@@ -204,7 +204,7 @@ def check_child_pid_gone(binary, observed_stdout):
             check = subprocess.run(
                 ["tasklist", "/FI", f"PID eq {pid}"],
                 capture_output=True,
-                text=True,
+                text=True, encoding="utf-8", errors="replace",
             )
             out = (check.stdout or "").lower()
             if "info: no tasks" in out or pid not in out:
@@ -231,15 +231,15 @@ def run_host_cases(binary, report, all_passed):
     work = tempfile.mkdtemp(prefix="docode-matrix-")
     # WIN-01: init a real workspace, then read the .docode DACL.
     init = subprocess.run(
-        [binary, "--root", work, "init"], capture_output=True, text=True, errors="replace"
+        [binary, "--root", work, "init"], capture_output=True, text=True, encoding="utf-8", errors="replace", errors="replace"
     )
     owner = subprocess.run(
         ["powershell", "-NoProfile", "-Command",
          "(Get-Acl '" + os.path.join(work, ".docode") + "').Owner"],
-        capture_output=True, text=True, errors="replace"
+        capture_output=True, text=True, encoding="utf-8", errors="replace", errors="replace"
     )
     icacls = subprocess.run(
-        ["icacls", os.path.join(work, ".docode")], capture_output=True, text=True, errors="replace"
+        ["icacls", os.path.join(work, ".docode")], capture_output=True, text=True, encoding="utf-8", errors="replace", errors="replace"
     )
     dacl_text = (
         "OWNER=" + (owner.stdout or owner.stderr or "").strip()
@@ -272,7 +272,7 @@ def run_host_cases(binary, report, all_passed):
     complete = subprocess.run(
         [binary, "--root", work, "complete", "00000000-0000-0000-0000-000000000000"],
         capture_output=True,
-        text=True,
+        text=True, encoding="utf-8", errors="replace",
         errors="replace",
     )
     out = (complete.stdout or "") + (complete.stderr or "")

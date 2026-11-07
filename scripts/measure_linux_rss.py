@@ -54,7 +54,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="docode-rss-") as temp:
         root = Path(temp) / "workspace"
         root.mkdir()
-        init = subprocess.run([str(binary), "--root", str(root), "init"], capture_output=True, text=True, timeout=15)
+        init = subprocess.run([str(binary), "--root", str(root), "init"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15)
         if init.returncode:
             print(init.stdout, init.stderr)
             return init.returncode
@@ -69,14 +69,14 @@ def main() -> int:
         }
         for name, argv in operations.items():
             # Warm up once; report only the fixed-count measured runs below.
-            warm = subprocess.run([str(time_bin), "-f", "%M", "--", str(binary), *argv], capture_output=True, text=True, timeout=15)
+            warm = subprocess.run([str(time_bin), "-f", "%M", "--", str(binary), *argv], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15)
             if warm.returncode:
                 raise RuntimeError(f"warm-up failed for {name}: {warm.stdout}\n{warm.stderr}")
             rss_values: list[float] = []
             elapsed_values: list[float] = []
             for _ in range(args.runs):
                 started = time.perf_counter()
-                proc = subprocess.run([str(time_bin), "-f", "%M", "--", str(binary), *argv], capture_output=True, text=True, timeout=15)
+                proc = subprocess.run([str(time_bin), "-f", "%M", "--", str(binary), *argv], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15)
                 elapsed = (time.perf_counter() - started) * 1000.0
                 if proc.returncode:
                     raise RuntimeError(f"measurement failed for {name}: {proc.stdout}\n{proc.stderr}")
