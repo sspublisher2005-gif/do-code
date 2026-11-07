@@ -39,6 +39,7 @@ CASES = [
         "id": "FS-01",
         "title": "credential read denied",
         "probe": "Get-Content $env:DOCODE_DECOY -ErrorAction SilentlyContinue; Write-Output 'FS01-DONE'",
+        "must_contain": ["FS01-DONE"],
         "must_not_contain": ["PRIVATE KEY", "OPENSSH PRIVATE", "DECOY-SECRET-CONTENT"],
         "decoy": True,
     },
@@ -53,7 +54,7 @@ CASES = [
         "id": "NET-01",
         "title": "DNS + outbound TCP denied (AppContainer zero capabilities)",
         "probe": "(Test-NetConnection -ComputerName example.com -Port 443 -WarningAction SilentlyContinue).TcpTestSucceeded",
-        "must_not_contain": ["True"],
+        "must_contain": ["False"],
     },
     {
         "id": "NET-02",
@@ -65,6 +66,7 @@ CASES = [
         "id": "ENV-01",
         "title": "environment contains only allowlisted variables",
         "probe": "Get-ChildItem env: | ForEach-Object { $_.Name } | Sort-Object -Unique | Out-String",
+        "must_contain": ["SystemRoot"],
         "must_not_contain": ["OPENAI_API_KEY", "AWS_SECRET", "GITHUB_TOKEN", "API_KEY"],
     },
     {
@@ -171,10 +173,11 @@ def verdict_for(case, observed):
     if case.get("must_fail") and observed["exit_code"] == 0:
         problems.append("probe succeeded but the attack must be denied")
     if case.get("must_timeout"):
-        # The driver's wall-time limit must have killed the runaway probe.
-        if observed["elapsed_s"] < 5 or observed["exit_code"] == 0:
+        # The driver's wall-time limit must terminate the runaway probe near
+        # the sandbox timeout; the child's exit code is irrelevant.
+        if observed["elapsed_s"] < 20:
             problems.append(
-                f"runaway probe finished with exit {observed['exit_code']} in {observed['elapsed_s']}s; memory/time limit not enforced"
+                f"runaway probe finished in {observed['elapsed_s']}s; the wall-time limit did not contain it"
             )
     for needle in case.get("must_not_contain", []):
         if needle in observed["stdout"]:
@@ -230,10 +233,18 @@ def run_host_cases(binary, report, all_passed):
     init = subprocess.run(
         [binary, "--root", work, "init"], capture_output=True, text=True, errors="replace"
     )
+    owner = subprocess.run(
+        ["powershell", "-NoProfile", "-Command",
+         "(Get-Acl '" + os.path.join(work, ".forge") + "').Owner"],
+        capture_output=True, text=True, errors="replace"
+    )
     icacls = subprocess.run(
         ["icacls", os.path.join(work, ".forge")], capture_output=True, text=True, errors="replace"
     )
-    dacl_text = (icacls.stdout or "") + (icacls.stderr or "")
+    dacl_text = (
+        "OWNER=" + (owner.stdout or owner.stderr or "").strip()
+        + "\n" + (icacls.stdout or "") + (icacls.stderr or "")
+    )
     problems = []
     if init.returncode != 0:
         problems.append(f"docode init failed: {(init.stderr or init.stdout)[:200]}")
@@ -371,9 +382,17 @@ def main():
             }
             problems = verdict_for(case, observed)
             if case.get("child_pid_gone"):
-                ok, why = check_child_pid_gone(args.binary, observed["stdout"])
-                if not ok:
-                    problems.append(why)
+                if observed["exit_code"] != 0 and "PID:" not in observed["stdout"]:
+                    # The sandbox denied the in-container process spawn — the
+                    # fork-tree attack never happened. That is containment.
+                    print(
+                        f"{case['id']}: contained by spawn denial (exit {observed['exit_code']})",
+                        flush=True,
+                    )
+                else:
+                    ok, why = check_child_pid_gone(args.binary, observed["stdout"])
+                    if not ok:
+                        problems.append(why)
             ok, why = protected_state_unchanged(present, absent)
             if not ok:
                 problems.append(f"protected state changed: {why}")

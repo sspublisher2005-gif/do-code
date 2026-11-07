@@ -200,13 +200,16 @@ mod windows_impl {
             EXPLICIT_ACCESS_W, GRANT_ACCESS, SetEntriesInAclW, SetNamedSecurityInfoW,
             TRUSTEE_IS_SID, TRUSTEE_IS_UNKNOWN, TRUSTEE_W,
         };
-        use windows_sys::Win32::Security::{
-            DACL_SECURITY_INFORMATION, PROTECTED_DACL_SECURITY_INFORMATION,
-        };
+        use windows_sys::Win32::Security::DACL_SECURITY_INFORMATION;
         let base = std::env::temp_dir().join("docode-sandbox");
         std::fs::create_dir_all(&base).map_err(|e| crate::error::io_error(&base, e))?;
         let dir = base.join(format!("run-{}", uuid::Uuid::new_v4().simple()));
         std::fs::create_dir(&dir).map_err(|e| crate::error::io_error(&dir, e))?;
+        let mut wide: Vec<u16> = dir
+            .as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
         let trustee = TRUSTEE_W {
             pMultipleTrustee: std::ptr::null_mut(),
             MultipleTrusteeOperation: 0,
@@ -220,30 +223,52 @@ mod windows_impl {
             grfInheritance: 0x3, // sub-containers and objects inherit
             Trustee: trustee,
         };
+        // ADD the container ACE to the existing DACL instead of replacing it:
+        // the child token carries the user SID alongside the container SID,
+        // and keeping the existing ACEs (owner/SYSTEM/user) avoids the
+        // elevated-runner case where a container-only DACL denied the child's
+        // own cwd.
+        let mut current_sd: *mut std::ffi::c_void = std::ptr::null_mut();
+        let mut current_dacl: *mut windows_sys::Win32::Security::ACL = std::ptr::null_mut();
+        let get_err = unsafe {
+            windows_sys::Win32::Security::Authorization::GetNamedSecurityInfoW(
+                wide.as_mut_ptr(),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                &mut current_dacl,
+                std::ptr::null_mut(),
+                &mut current_sd,
+            )
+        };
+        if get_err != 0 {
+            return Err(ForgeError::Safety(format!(
+                "GetNamedSecurityInfoW (workspace read) failed (err={get_err})."
+            )));
+        }
         let mut new_dacl: *mut windows_sys::Win32::Security::ACL = std::ptr::null_mut();
-        let hr = unsafe { SetEntriesInAclW(1, &entry, std::ptr::null(), &mut new_dacl) };
+        let hr = unsafe { SetEntriesInAclW(1, &entry, current_dacl, &mut new_dacl) };
         if hr != 0 || new_dacl.is_null() {
             return Err(ForgeError::Safety(format!(
                 "SetEntriesInAclW (workspace grant) failed (hr={hr})."
             )));
         }
-        let mut wide: Vec<u16> = dir
-            .as_os_str()
-            .encode_wide()
-            .chain(std::iter::once(0))
-            .collect();
         let err = unsafe {
             SetNamedSecurityInfoW(
                 wide.as_mut_ptr(),
                 SE_FILE_OBJECT,
-                DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                DACL_SECURITY_INFORMATION,
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
                 new_dacl,
                 std::ptr::null_mut(),
             )
         };
-        unsafe { LocalFree(new_dacl as *mut _) };
+        unsafe {
+            LocalFree(new_dacl as *mut _);
+            LocalFree(current_sd);
+        }
         if err != 0 {
             return Err(ForgeError::Safety(format!(
                 "SetNamedSecurityInfoW (workspace grant) failed (err={err})."
