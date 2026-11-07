@@ -1,9 +1,28 @@
 # Do Code — current Rust status
 
-**As-of date:** 2026-10-29  
-**Product:** Do Code (`docode`)  
+**As-of date:** 2026-11-08  
+**Product:** Do Code (`docode`, repo `sspublisher2005-gif/do-code`)  
 **Rust source version:** `0.7.0-rs.1`  
-**Release status:** Feature-rich Windows-verified prototype with a mission engine; **not production-ready** (sandbox adversarial proof outstanding).
+**Release status:** Cross-platform CI GREEN on all 6 jobs; sandbox driver executes on Windows with real containment; adversarial matrix partially proven; **not production-ready** until the full matrix + review gates pass.
+
+## 2026-11-08 update — first fully green cross-platform CI + real sandbox execution
+
+**CI (run 42413387320, commit 784dbeb): all 6 jobs SUCCESS on GitHub-hosted runners** — Rust 1.88.0 and 1.99.1 × ubuntu-latest, macos-latest, windows-latest. This is the project's first complete hosted-CI pass (fmt, check, clippy -D warnings, 127 unit + 10 integration tests, release build, black-box acceptance, extended offline acceptance, SBOM, release-gate evaluation — on every OS/toolchain combination).
+
+**Windows sandbox: the driver now really executes.** The matrix found and I fixed a chain of real bugs (each proven by run artifacts):
+1. Missing `CREATE_UNICODE_ENVIRONMENT` — CreateProcessW never spawned.
+2. Minimal env blocks fail with ERROR_ENVVAR_NOT_FOUND (203) inside AppContainer — five-variant bisect; the design now uses the full inherited environment with credential-shaped keys/values dropped, plus an explicit private workspace as cwd.
+3. Private per-run workspace: fresh temp dir, DACL grants the container SID full control (additive ACE).
+4. `.forge`→`.docode`, product renamed **Do Code** everywhere (zero occurrences left in the repo; only the README provenance paragraph and the reference/ archive name mention the historical name).
+5. Administrators-owned dirs accepted: the raw SID bytes were wrong twice (endianness, then sub-authority count); now ground-truth-pinned by a unit test that compares our bytes against Windows' own `ConvertStringSidToSidW("S-1-5-32-544")` via EqualSid.
+6. Source inventory made deterministic (sorted rows — os.walk order differs NTFS vs ext4) and excludes generated `test-results/`.
+7. All harness subprocess calls decode UTF-8 explicitly (the runner's locale broke Unicode-path checks).
+
+**Locally verified additionally:** sandboxed spawns stable (6/6), workspace-only writes, outside reads return nothing; extended acceptance 37/37; black-box 23/23.
+
+**Still open (honest):** the Windows matrix subset is partially proven (FS-01/02, NET-01, ENV-01, RES-01, PROOF-01 PASS on the runner so far; PowerShell-in-container probes still denied on GitHub runner images — Windows-specific sandbox hardening continues); Linux/macOS drivers not implemented; restricted primary token not wired (windows-sys 0.61 lacks the attribute); `docode complete` stays fail-closed; hosted CI must stay green on every push; independent security review outstanding.
+
+---
 
 ## 2026-10-29 update — native Windows verification + mission engine
 
