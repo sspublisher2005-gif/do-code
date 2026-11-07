@@ -1,9 +1,9 @@
 {
   "artifact": "Forge CLI Rust implementation source inventory",
-  "generated_at_utc": "2026-11-07T17:33:25.700232+00:00",
+  "generated_at_utc": "2026-11-07T17:45:03.018023+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
-  "inventory_count": 90,
+  "inventory_count": 77,
   "inventory": [
     {
       "path": ".github/workflows/rust-ci.yml",
@@ -232,8 +232,8 @@
     },
     {
       "path": "scripts/update_source_inventory.py",
-      "bytes": 3254,
-      "sha256": "06a1907f33d0d8e5315ab9c029fa50f4eba6d9633d2db16fc8aa56ea54f21f6e"
+      "bytes": 3286,
+      "sha256": "790516f32415c5209e78623ced3355505f3631f62c52e5c672016908a57637a2"
     },
     {
       "path": "scripts/verify_cli.py",
@@ -384,71 +384,6 @@
       "path": "src/workspace.rs",
       "bytes": 7350,
       "sha256": "809cd0bfe1e2ac521b489758a62e332c82b19cf8a932c3d3653b62145c987857"
-    },
-    {
-      "path": "test-results/cargo-audit-2026-10-30.log",
-      "bytes": 265,
-      "sha256": "892a0b050f5843b805b60788f8131b4de611130c10b4b18cfb9d0b7eaa0e6c70"
-    },
-    {
-      "path": "test-results/Cargo.lock.artifact",
-      "bytes": 49711,
-      "sha256": "928a84633e34100ae3e53cc588a763202ef5d19635c005bb8719947be0c78251"
-    },
-    {
-      "path": "test-results/ci-pipeline.json",
-      "bytes": 51753,
-      "sha256": "6ad9b2c699c9b93ef121c9b8dcc57227305a568869f6a5e8e7f8cebc0a859ddc"
-    },
-    {
-      "path": "test-results/ci-summary.md",
-      "bytes": 1553,
-      "sha256": "4a3e6497807c7ed84f2e0b80c5b04625af9bf7264fe63b647838a126878eacae"
-    },
-    {
-      "path": "test-results/extended-offline-acceptance.json",
-      "bytes": 5345,
-      "sha256": "aca77ae0188440d6de68b5b652fbe4bb53a446390ac5705757a4314bda9ae883"
-    },
-    {
-      "path": "test-results/forge-cli-cargo-sbom-2026-10-30.cdx.json",
-      "bytes": 240565,
-      "sha256": "e75caba260f4609ee20e1321bd47fc5938fc8821aff9253754932d272cfc9bef"
-    },
-    {
-      "path": "test-results/forge-runtime.json",
-      "bytes": 6225,
-      "sha256": "084b4c2cac0ccd57dc7ef12e38a7d388b9a7d0d171d7e357dfa1e5eef1b06a36"
-    },
-    {
-      "path": "test-results/sandbox-adversarial-local.json",
-      "bytes": 1521,
-      "sha256": "9783268b3141638980cb09c61d119763ceffcc648680b0fd1bbee79f821f3530"
-    },
-    {
-      "path": "test-results/sandbox-adversarial-local2.json",
-      "bytes": 1538,
-      "sha256": "6c3acf27dfc75672e44618e50dbdd5ef0abbd6c252573cbc912c9622090cb5a9"
-    },
-    {
-      "path": "test-results/sandbox-adversarial.json",
-      "bytes": 1360,
-      "sha256": "e123776be24526fcb32b4e8cabba4e28faf26f5559335e9fbf31fc8b7bbbe11a"
-    },
-    {
-      "path": "test-results/sbom/docode-cli.cdx.json",
-      "bytes": 167839,
-      "sha256": "04c45d54af8a709d8046ee315bf5729287acd540f175387514574ee991a395f5"
-    },
-    {
-      "path": "test-results/sbom/report.json",
-      "bytes": 234,
-      "sha256": "025d2630e075dcfb4a90dac4dcf31fef3a10cc19610dba73e77decd5defca7ae"
-    },
-    {
-      "path": "test-results/windows-gates-2026-10-30.json",
-      "bytes": 2877,
-      "sha256": "21c1cdbfdb2fff2daa4272161b298d99fcf28ae728d54f1112aeb8d8c1f18838"
     },
     {
       "path": "tests/cli_smoke.rs",

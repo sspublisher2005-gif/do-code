@@ -7,7 +7,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-EXCLUDED_PARTS = {".git", "target", "__pycache__", ".forge"}
+EXCLUDED_PARTS = {".git", "target", "__pycache__", ".forge", "test-results", "node_modules"}
 EXCLUDED_SUFFIXES = {".pyc", ".pyo"}
 
 
