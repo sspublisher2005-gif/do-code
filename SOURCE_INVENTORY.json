@@ -1,6 +1,6 @@
 {
   "artifact": "Forge CLI Rust implementation source inventory",
-  "generated_at_utc": "2026-11-07T16:25:08.307926+00:00",
+  "generated_at_utc": "2026-11-07T17:15:06.754798+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
   "inventory_count": 90,
@@ -13,7 +13,7 @@
     {
       "path": ".github/workflows/sandbox-matrix-windows.yml",
       "bytes": 1724,
-      "sha256": "ee6bfbbcbd05414b14d53e1db29ea83e0751eda5cfb64b250f1eb2fcd75489c5"
+      "sha256": "6b5b79b9b1003ebce6320b330af3696bb1f35516993b1c0d01adfe6bfd1d2150"
     },
     {
       "path": ".github/workflows/security-audit.yml",
@@ -182,13 +182,13 @@
     },
     {
       "path": "scripts/ci_pipeline.py",
-      "bytes": 16528,
-      "sha256": "3fc48b6a6fde2da7f87bfde105bcbfbb1bdbb81aec0950e1a97d89a35fedafac"
+      "bytes": 16534,
+      "sha256": "ed3b6b2420d364a1b1877509e4215cc846823b655e31147dbb93f5e6373c9333"
     },
     {
       "path": "scripts/extended_offline_acceptance.py",
-      "bytes": 12590,
-      "sha256": "4bd84d3edf8b732b4ce6ebfc9dd983363cb7894eb842280e34fd3d639378b955"
+      "bytes": 12591,
+      "sha256": "9c84a84bfec0719c6f960e366d202f2da6408e567df556242ac0993cd00ef3a7"
     },
     {
       "path": "scripts/extra_safety_probes.py",
@@ -212,8 +212,8 @@
     },
     {
       "path": "scripts/static_preflight.py",
-      "bytes": 22264,
-      "sha256": "a05311b682dc26966ef5ca94b58e80e3316821286b459051c091930804d537c0"
+      "bytes": 22269,
+      "sha256": "2cd342c313689ea2ab77314315a357c326f450653843cf1317d5f107fd95427a"
     },
     {
       "path": "scripts/test_cargo_aware_sbom.py",
@@ -237,8 +237,8 @@
     },
     {
       "path": "scripts/verify_cli.py",
-      "bytes": 24106,
-      "sha256": "ae49691b93489bd10f8dfcd0b81ad402ea2148a5a07cb4ea5be6fbc6997be69c"
+      "bytes": 24096,
+      "sha256": "8008e9cc5bc7ed6a1d5a893f03f97647123dfe6d45d3f083c527404e620614f7"
     },
     {
       "path": "src/audit.rs",
@@ -252,8 +252,8 @@
     },
     {
       "path": "src/config.rs",
-      "bytes": 25343,
-      "sha256": "a06d53b7ddaed77fd0fec52db6030200b9818814689cfa33b69be39c28c07454"
+      "bytes": 25311,
+      "sha256": "d6ca06b63fd046eb92d38ece8888b17c19a38cff2718de3bbc06122af4bfa146"
     },
     {
       "path": "src/context.rs",

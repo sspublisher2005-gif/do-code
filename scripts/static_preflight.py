@@ -63,7 +63,7 @@ def main() -> int:
         sample = tomllib.loads((root / "forge.config.toml.example").read_text(encoding="utf-8"))
         assert cargo["package"]["edition"] == "2024"
         assert cargo["package"]["rust-version"] == "1.88"
-        assert cargo["bin"][0]["name"] == "forge"
+        assert cargo["bin"][0]["name"] == "docode"
         assert toolchain["toolchain"]["channel"]
         assert sample["privacy"]["telemetry"] is False
         assert "net" in cargo["dependencies"]["tokio"]["features"]
@@ -321,17 +321,17 @@ def main() -> int:
     # Probe it honestly when supplied; do not infer that no binary exists just because Cargo is absent.
     supplied_binary = args.binary.resolve() if args.binary else None
     if supplied_binary is None:
-        candidates = [root / "target/release/forge", root / "target/release/forge.exe"]
+        candidates = [root / "target/release/docode", root / "target/release/docode.exe"]
         supplied_binary = next((candidate for candidate in candidates if candidate.is_file()), None)
     if supplied_binary is None:
-        blockers.append({"name": "Rust release build output", "detail": "no release binary was supplied and target/release/forge[.exe] is absent; Cargo build cannot be reproduced without the Rust toolchain"})
+        blockers.append({"name": "Rust release build output", "detail": "no release binary was supplied and target/release/docode[.exe] is absent; Cargo build cannot be reproduced without the Rust toolchain"})
     else:
         def binary_probe() -> str:
             assert supplied_binary.is_file(), f"binary not found: {supplied_binary}"
             result = subprocess.run([str(supplied_binary), "--version"], capture_output=True, text=True, timeout=10)
             assert result.returncode == 0, f"--version exited {result.returncode}: {result.stderr.strip()}"
             version_text = (result.stdout or result.stderr).strip()
-            assert version_text.startswith("forge "), f"unexpected --version output: {version_text!r}"
+            assert version_text.startswith("docode "), f"unexpected --version output: {version_text!r}"
             return f"separate release binary exists and --version works: {version_text}; this probe is not the full black-box suite"
         check("Supplied release binary probe", binary_probe)
 

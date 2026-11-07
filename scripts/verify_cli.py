@@ -96,7 +96,7 @@ class Verifier:
             return proc.stdout.strip()
 
         self.check("version command", version_test)
-        self.check("help command", lambda: self.require((lambda p: p.returncode == 0 and "Forge CLI" in p.stdout)(self.run(["--help"])), "--help failed or omitted product name"))
+        self.check("help command", lambda: self.require((lambda p: p.returncode == 0 and "Do Code" in p.stdout)(self.run(["--help"])), "--help failed or omitted product name"))
 
         with tempfile.TemporaryDirectory(prefix="forge-verify-") as temp_name:
             root = Path(temp_name) / "workspace"
@@ -397,9 +397,9 @@ class Verifier:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--binary", required=True, help="path to the compiled forge/forge.exe executable")
+    parser.add_argument("--binary", required=True, help="path to the compiled docode executable")
     parser.add_argument("--benchmark-runs", type=int, default=30)
-    parser.add_argument("--report", type=Path, default=Path("test-results/forge-runtime.json"))
+    parser.add_argument("--report", type=Path, default=Path("test-results/docode-runtime.json"))
     args = parser.parse_args()
     if not 5 <= args.benchmark_runs <= 500:
         parser.error("--benchmark-runs must be between 5 and 500")

@@ -52,7 +52,7 @@ def main() -> int:
         (root / ".env").write_text("FORGE_ACCEPTANCE_SECRET=never-show-this-secret\n", encoding="utf-8")
 
         version = subprocess.run([str(binary), "--version"], capture_output=True, text=True, timeout=10)
-        check("version command", version.returncode == 0 and "forge " in version.stdout, version.stdout.strip())
+        check("version command", version.returncode == 0 and "docode " in version.stdout, version.stdout.strip())
 
         init = invoke(root, "init")
         check("init succeeds offline", init.returncode == 0 and "Network: not used" in init.stdout,

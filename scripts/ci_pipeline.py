@@ -2,7 +2,7 @@
 """Measure toolchain setup/build time, run Rust checks, and black-box test Forge.
 
 Used by the Linux/macOS/Windows CI matrix. Python is a CI test harness only, not a
-runtime requirement for the compiled Forge CLI.
+runtime requirement for the compiled Do Code CLI.
 """
 from __future__ import annotations
 
@@ -187,7 +187,7 @@ def main() -> int:
         steps.append({"name": "Generate Cargo-aware CycloneDX SBOM", "status": "NOT_APPLICABLE",
                       "detail": "Generated once in the Linux Rust 1.99.1 matrix job to avoid redundant generator builds on every platform/toolchain."})
 
-    binary = Path("target/release/forge.exe" if os.name == "nt" else "target/release/forge")
+    binary = Path("target/release/docode.exe" if os.name == "nt" else "target/release/docode")
     runtime_report_path = args.report_dir / "forge-runtime.json"
     runtime_step: dict[str, Any] | None = None
     if binary.is_file():
@@ -254,7 +254,7 @@ def write_reports(report_dir: Path, toolchain: str, steps: list[dict[str, Any]],
             "review_required": False if bool(lockfile_was_present) else True,
         }
     report = {
-        "product": "Forge CLI 0.7.0-rs.1 (Rust implementation WIP)",
+        "product": "Do Code 0.7.0-rs.1 (docode, Rust implementation)",
         "measured_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "environment": {"os": platform.platform(), "system": platform.system(), "release": platform.release(),
                         "machine": platform.machine(), "python_version_for_test_harness": platform.python_version(),
