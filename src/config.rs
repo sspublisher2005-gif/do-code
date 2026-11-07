@@ -374,6 +374,7 @@ fn create_file_exclusive(path: &Path, bytes: &[u8], mode: u32) -> Result<bool> {
 /// constants: revision=1, sub-authority count=1, identifier authority=5
 /// (NT authority, 48-bit big-endian), sub-authorities [32, 544] little-endian
 /// (SECURITY_BUILTIN_DOMAIN_RID, DOMAIN_ALIAS_RID_ADMINS).
+#[cfg(windows)]
 fn create_sid_matches_well_known_admins(sid: windows_sys::Win32::Security::PSID) -> bool {
     const ADMIN_SID_BYTES: [u8; 12] = [
         1, // revision

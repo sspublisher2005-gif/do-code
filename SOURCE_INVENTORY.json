@@ -1,6 +1,6 @@
 {
   "artifact": "Forge CLI Rust implementation source inventory",
-  "generated_at_utc": "2026-11-07T17:15:06.754798+00:00",
+  "generated_at_utc": "2026-11-07T17:33:25.700232+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
   "inventory_count": 90,
@@ -232,8 +232,8 @@
     },
     {
       "path": "scripts/update_source_inventory.py",
-      "bytes": 2729,
-      "sha256": "ed46e2f0e3bf92f8a4856ce92d03d402d88730a19864f523a0ea1287523b5617"
+      "bytes": 3254,
+      "sha256": "06a1907f33d0d8e5315ab9c029fa50f4eba6d9633d2db16fc8aa56ea54f21f6e"
     },
     {
       "path": "scripts/verify_cli.py",
@@ -252,8 +252,8 @@
     },
     {
       "path": "src/config.rs",
-      "bytes": 25311,
-      "sha256": "d6ca06b63fd046eb92d38ece8888b17c19a38cff2718de3bbc06122af4bfa146"
+      "bytes": 25327,
+      "sha256": "523c7b8ec631ad5e9cd2febfcf0d41c15c21644d0a0855b7a92c166cf549ba82"
     },
     {
       "path": "src/context.rs",

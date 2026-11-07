@@ -53,6 +53,15 @@ def main() -> int:
             return 1
         prior = json.loads(target.read_text(encoding="utf-8"))
         if prior.get("inventory") != rows or prior.get("inventory_count") != len(rows) or prior.get("compiled") is not False:
+            prior_map = {e.get("path"): e.get("sha256") for e in prior.get("inventory", []) if isinstance(e, dict)}
+            for row in rows:
+                if prior_map.get(row["path"]) != row["sha256"]:
+                    print(f"MISMATCH: {row['path']} recorded={prior_map.get(row['path'])} actual={row['sha256']}")
+            known = set(prior_map)
+            for row in rows:
+                known.discard(row["path"])
+            for extra in sorted(known):
+                print(f"EXTRA-IN-INVENTORY: {extra}")
             print(f"FAIL: source inventory is stale; run {Path(__file__).name} without --check")
             return 1
         print(f"PASS: source inventory matches all {len(rows)} files (timestamps ignored)")
