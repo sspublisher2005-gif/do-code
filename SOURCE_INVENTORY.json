@@ -1,6 +1,6 @@
 {
   "artifact": "Do Code Rust implementation source inventory",
-  "generated_at_utc": "2026-11-07T19:24:18.754783+00:00",
+  "generated_at_utc": "2026-11-07T19:41:58.456936+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
   "inventory_count": 77,
@@ -252,8 +252,8 @@
     },
     {
       "path": "src/config.rs",
-      "bytes": 25442,
-      "sha256": "5ddeade9ce92a8a6e5bead707e049b6d0f44cc9b0063c61061b95d029ace8791"
+      "bytes": 26567,
+      "sha256": "56cfeb7ba62dae2e6c688fde35810cd94edb78d48633d16ab2acd5b707646169"
     },
     {
       "path": "src/context.rs",

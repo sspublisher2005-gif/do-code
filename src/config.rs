@@ -573,6 +573,28 @@ fn enforce_windows_private_acl(path: &Path) -> Result<()> {
             // Accept the local Administrators group as owner.
             let admins_ok = create_sid_matches_well_known_admins(read_owner);
             if !admins_ok {
+                // Diagnostics: surface the actual owner SID string so a
+                // runner-specific owner can be identified, not guessed.
+                let mut owner_string: windows_sys::core::PWSTR = std::ptr::null_mut();
+                let owner_text = if unsafe {
+                    windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW(
+                        read_owner,
+                        &mut owner_string,
+                    )
+                } != 0
+                    && !owner_string.is_null()
+                {
+                    let mut len = 0usize;
+                    while unsafe { *owner_string.add(len) } != 0 {
+                        len += 1;
+                    }
+                    let slice = unsafe { std::slice::from_raw_parts(owner_string, len) };
+                    let text = String::from_utf16_lossy(slice);
+                    unsafe { windows_sys::Win32::Foundation::LocalFree(owner_string as *mut _) };
+                    text
+                } else {
+                    String::from("<ConvertSidToStringSidW failed>")
+                };
                 unsafe {
                     LocalFree(sd as *mut _);
                     LocalFree(new_dacl as *mut _);
@@ -580,7 +602,7 @@ fn enforce_windows_private_acl(path: &Path) -> Result<()> {
                     CloseHandle(token)
                 };
                 return Err(DocodeError::Safety(format!(
-                    "DACL owner SID does not match current user for '{}'; refusing to proceed.",
+                    "DACL owner SID ({owner_text}) does not match current user for '{}'; refusing to proceed.",
                     path.display()
                 )));
             }
