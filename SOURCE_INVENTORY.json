@@ -1,6 +1,6 @@
 {
   "artifact": "Do Code Rust implementation source inventory",
-  "generated_at_utc": "2026-11-07T19:23:04.333128+00:00",
+  "generated_at_utc": "2026-11-07T19:24:18.754783+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
   "inventory_count": 77,
@@ -188,7 +188,7 @@
     {
       "path": "scripts/extended_offline_acceptance.py",
       "bytes": 13002,
-      "sha256": "53a3728ae99c1c678cfb0ea7d63572fc776207d7037fca30ffb23dcdf2d0744d"
+      "sha256": "f8227fab67616b8dd343eaeffc4cabd8128e0ae5ebe625a6ca9cf1b1568ad5b0"
     },
     {
       "path": "scripts/extra_safety_probes.py",
