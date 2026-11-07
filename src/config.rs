@@ -379,8 +379,8 @@ fn create_sid_matches_well_known_admins(sid: windows_sys::Win32::Security::PSID)
     const ADMIN_SID_BYTES: [u8; 12] = [
         1, // revision
         1, // sub-authority count
-        5, 0, 0, 0, 0, 5, // identifier authority = 5 (NT authority)
-        32, 2, 0, 0, // DOMAIN_ALIAS_RID_ADMINS = 544 = 0x220 (S-1-5-32-544)
+        0, 0, 0, 0, 0, 5, // identifier authority = 5 (NT authority, 48-bit BIG-ENDIAN)
+        32, 2, 0, 0, // DOMAIN_ALIAS_RID_ADMINS = 544 = 0x220, little-endian (S-1-5-32-544)
     ];
     if sid.is_null() {
         return false;
