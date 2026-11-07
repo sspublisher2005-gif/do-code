@@ -1,6 +1,6 @@
 {
   "artifact": "Do Code Rust implementation source inventory",
-  "generated_at_utc": "2026-11-07T18:01:31.910699+00:00",
+  "generated_at_utc": "2026-11-07T18:05:13.738521+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
   "inventory_count": 77,
@@ -49,6 +49,11 @@
       "path": "CHANGELOG.md",
       "bytes": 10266,
       "sha256": "c747812fb827ba8079f9b74ccbbd25d4f9d6f00470ee216b538daf9f78d3b3f0"
+    },
+    {
+      "path": "docode-cdx.json",
+      "bytes": 240579,
+      "sha256": "43dc2459e33bf5a2b3d186362d1149c0e5d8d1dc6aa6c97febe2461575c61ff6"
     },
     {
       "path": "docode.config.toml.example",
@@ -139,11 +144,6 @@
       "path": "docs/VERIFICATION_REPORT_RUST_2026-10-24.md",
       "bytes": 4549,
       "sha256": "56c16f3b7917fa023f0f4ab4fdaebcb87ef88dfe81e5fb703b39c01bb13b60c3"
-    },
-    {
-      "path": "forge-cli.cdx.json",
-      "bytes": 240579,
-      "sha256": "43dc2459e33bf5a2b3d186362d1149c0e5d8d1dc6aa6c97febe2461575c61ff6"
     },
     {
       "path": "LICENSE",
