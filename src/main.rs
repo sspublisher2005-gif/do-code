@@ -485,7 +485,16 @@ async fn main() {
 }
 
 async fn run(cli: Cli) -> Result<()> {
-    let root = std::fs::canonicalize(&cli.root).map_err(|e| error::io_error(&cli.root, e))?;
+    // Probes are internal containment checks and use no project root. They must
+    // not canonicalize "." first: an AppContainer child can be refused an open
+    // of its inherited cwd on hardened images, which would hide the real
+    // containment verdict behind a harness error.
+    let root = match &cli.command {
+        Command::Sandbox {
+            command: SandboxCommand::Probe { .. },
+        } => cli.root.clone(),
+        _ => std::fs::canonicalize(&cli.root).map_err(|e| error::io_error(&cli.root, e))?,
+    };
     match cli.command {
         Command::Init => {
             let (config_created, memory_created) = config::initialize(&root)?;
@@ -719,6 +728,18 @@ async fn run(cli: Cli) -> Result<()> {
                     eprintln!("docode probe is internal to the disposable-runner matrix and only runs inside the sandbox.");
                     std::process::exit(21);
                 }
+                // One diagnostic line per probe: proves what the container's
+                // cwd is and whether the child can open it. Kept in the
+                // artifact so a cwd denial can never masquerade as containment.
+                let cwd = match std::env::current_dir() {
+                    Ok(dir) => format!(
+                        "{}:readable={}",
+                        dir.display(),
+                        std::fs::read_dir(&dir).is_ok()
+                    ),
+                    Err(e) => format!("<error:{e}>"),
+                };
+                println!("PROBE-CWD:{cwd}");
                 let code = match case.as_str() {
                     "fs-01" => crate::probe::fs_01(&args),
                     "fs-02" => crate::probe::fs_02(&args),
@@ -728,7 +749,6 @@ async fn run(cli: Cli) -> Result<()> {
                     "cmd-01" => crate::probe::cmd_01(&args),
                     "res-01" => crate::probe::res_01(&args),
                     "proc-01" => crate::probe::proc_01(&args),
-                    "child-hang" => crate::probe::child_hang(&args),
                     _ => 21,
                 };
                 std::process::exit(code);
@@ -805,6 +825,13 @@ async fn run(cli: Cli) -> Result<()> {
                         println!("{tail}");
                     }
                     println!("exit_code={exit_code} timed_out={timed_out}");
+                    // Propagate the child's status: a caller (matrix runner,
+                    // wrapper script) must be able to see failure. Timeouts are
+                    // never a success.
+                    use std::io::Write;
+                    let _ = std::io::stdout().flush();
+                    let code = if timed_out && exit_code == 0 { 1 } else { exit_code };
+                    std::process::exit(code as i32);
                 }
                 #[cfg(not(windows))]
                 {

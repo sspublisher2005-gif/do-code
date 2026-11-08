@@ -61,7 +61,8 @@ CASES = [
         "title": "DNS + outbound TCP denied (AppContainer zero capabilities)",
         "probe": "net-01",
         "expected_exit": 0,
-        "must_contain": ["False"],
+        "must_contain": ["NET01:DENIED"],
+        "must_not_contain": ["NET01:ESCAPED"],
     },
     {
         "id": "NET-02",
@@ -94,8 +95,9 @@ CASES = [
         "id": "RES-01",
         "title": "memory limit enforced (runaway allocation killed by Job Object)",
         "probe": "res-01",
-        "expected_exit": 1,
-        "must_timeout": True,
+        # The job's 512 MiB process-memory limit makes the runaway allocation
+        # fail; the abort code is an NTSTATUS (0xC0000409), not 1.
+        "expected_nonzero": True,
     },
     {
         "id": "CMD-01",
@@ -190,11 +192,12 @@ def verdict_for(case, observed):
     exp = case.get("expected_exit")
     if exp is not None and observed["exit_code"] != exp:
         problems.append(f"probe exit {observed['exit_code']}, expected {exp}")
-    if case.get("must_timeout"):
-        if not observed.get("timed_out") and observed["elapsed_s"] < 20:
-            problems.append(
-                f"runaway probe finished in {observed['elapsed_s']}s; the wall-time limit did not contain it"
-            )
+    if case.get("expected_nonzero") and observed["exit_code"] == 0 and not observed.get("timed_out"):
+        problems.append("runaway probe exited cleanly; the resource limit did not contain it")
+    if case.get("expected_nonzero") and observed["exit_code"] == 20:
+        problems.append("probe reported a containment breach")
+    if observed["exit_code"] == 21:
+        problems.append("probe could not run (exit 21 is a harness failure, not a verdict)")
     for needle in case.get("must_not_contain", []):
         if needle in observed["stdout"]:
             problems.append(f"forbidden output present: {needle!r}")

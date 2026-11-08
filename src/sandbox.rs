@@ -417,11 +417,11 @@ mod windows_impl {
         // ERROR_ENVVAR_NOT_FOUND (203).
         let workspace = create_container_workspace(sid, workspace_parent)?;
         let mut env_block = sanitized_environment(&workspace);
-        let mut cwd_wide: Vec<u16> = workspace
-            .as_os_str()
-            .encode_wide()
-            .chain(std::iter::once(0))
-            .collect();
+        // Strip the \\?\ verbatim prefix: legacy children (cmd.exe) treat it
+        // as a UNC path and silently relocate their cwd to %SystemRoot%.
+        let cwd_plain = workspace.to_string_lossy();
+        let cwd_plain = cwd_plain.strip_prefix(r"\\?\").unwrap_or(&cwd_plain);
+        let mut cwd_wide: Vec<u16> = cwd_plain.encode_utf16().chain(std::iter::once(0)).collect();
         // 6b. Merged stdout/stderr pipe for the child. Without an explicit
         // inherited handle an AppContainer child has no console and the
         // runner sees NOTHING — every output assertion would be blind.

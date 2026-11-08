@@ -60,7 +60,7 @@ pub fn net_01(_argv: &[String]) -> i32 {
     let addrs = match "example.com:443".to_socket_addrs() {
         Ok(iter) => iter.collect::<Vec<_>>(),
         Err(_) => {
-            println!("NET01:RESOLVER-DENIED");
+            println!("NET01:DENIED");
             return 0;
         }
     };
@@ -70,7 +70,7 @@ pub fn net_01(_argv: &[String]) -> i32 {
             return 20;
         }
     }
-    println!("False");
+    println!("NET01:DENIED");
     0
 }
 
@@ -125,24 +125,20 @@ pub fn res_01(_argv: &[String]) -> i32 {
     }
 }
 
-/// Child end for PROC-01: sleeps briefly then exits cleanly on its own.
-/// The parent probe waits for it; the runner then checks tasklist for the PID.
-pub fn child_hang(_argv: &[String]) -> i32 {
-    std::thread::sleep(Duration::from_secs(2));
-    println!("CHILDEXIT-OK");
-    0
-}
-
-/// Parent end for PROC-01: spawn a child, print its pid, wait for it, exit.
-/// Proves nested spawns work inside the sandbox and are reaped.
+/// Parent end for PROC-01: spawn a nested process, print its pid, wait for it,
+/// exit. The runaway/RES case covers kills; this proves nested creation works
+/// and lands in the Job Object. The child is a System32 image because the
+/// container is denied read on our own binary — a system image is readable by
+/// every AppContainer by design.
 pub fn proc_01(_argv: &[String]) -> i32 {
-    let exe = match std::env::current_exe() {
-        Ok(p) => p,
+    let system_root = match std::env::var("SystemRoot") {
+        Ok(v) => v,
         Err(_) => return 21,
     };
-    let child = std::process::Command::new(exe)
-        .args(["sandbox", "probe", "child-hang"])
-        .spawn();
+    let exe = std::path::Path::new(&system_root)
+        .join("System32")
+        .join("whoami.exe");
+    let child = std::process::Command::new(exe).spawn();
     match child {
         Ok(mut child) => {
             println!("PID:{}", child.id());
