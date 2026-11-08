@@ -1,9 +1,9 @@
 {
   "artifact": "Do Code Rust implementation source inventory",
-  "generated_at_utc": "2026-11-08T09:58:55.529761+00:00",
+  "generated_at_utc": "2026-11-08T11:04:35.727373+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
-  "inventory_count": 83,
+  "inventory_count": 84,
   "inventory": [
     {
       "path": ".github/workflows/rust-ci.yml",
@@ -12,8 +12,8 @@
     },
     {
       "path": ".github/workflows/sandbox-matrix-windows.yml",
-      "bytes": 2366,
-      "sha256": "c878cd8808d42cd060cdaa2fd73dc27c3eeca785bd2e9490af38e4d5dfb6360f"
+      "bytes": 2786,
+      "sha256": "dfb2fceede95c76d28abd82ff9d08c7080d72daef5feda7e2fdd14f70a7a469f"
     },
     {
       "path": ".github/workflows/security-audit.yml",
@@ -217,8 +217,8 @@
     },
     {
       "path": "scripts/sandbox_adversarial_windows.py",
-      "bytes": 18233,
-      "sha256": "605aec473825172789c527956f1f6650892d97c467cc43dd5317659f96e55f1a"
+      "bytes": 17006,
+      "sha256": "e2c621da953e0aea786dfad4bfca48b83d1f8eea019d477b6466a8a926528e24"
     },
     {
       "path": "scripts/static_preflight.py",
@@ -327,8 +327,8 @@
     },
     {
       "path": "src/main.rs",
-      "bytes": 64231,
-      "sha256": "b512c864db1b78d61641c053d605736ae16f2aa750b9dc930cda501ec6f828e8"
+      "bytes": 65615,
+      "sha256": "f2e63f1d0b1f6ecb128e4b934887dcbb92318aa10806be03591994226715b455"
     },
     {
       "path": "src/memory.rs",
@@ -356,6 +356,11 @@
       "sha256": "6adae1e327cce413971191a410035aefb831dfe84f0d88e77a0b51914b74e593"
     },
     {
+      "path": "src/probe.rs",
+      "bytes": 4712,
+      "sha256": "50f30a6433bcfc608d3040bff31b9a368a8aefa9e8aabf69371134d20d76ceb6"
+    },
+    {
       "path": "src/provider.rs",
       "bytes": 42531,
       "sha256": "42cd2ccc4ec144854a188102a41c3e6f09d91a7958fac098b6f45408dce5d061"
@@ -377,8 +382,8 @@
     },
     {
       "path": "src/sandbox.rs",
-      "bytes": 25555,
-      "sha256": "427977d80d0cd0f9b92fb92fbd5f89e369961071c2e2fed6314b8a28cb5dfd9d"
+      "bytes": 25842,
+      "sha256": "43b47e56926703fd5638e219efa58844cf76e3d29707f0072156bf3e8472fde3"
     },
     {
       "path": "src/storage.rs",

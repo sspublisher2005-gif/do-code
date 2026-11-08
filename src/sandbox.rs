@@ -195,6 +195,11 @@ mod windows_impl {
         let ws_line = format!("DOCODE_WORKSPACE={}", workspace.display());
         block.extend(ws_line.encode_utf16());
         block.push(0);
+        // In-sandbox marker so the hidden `docode sandbox probe` subcommand
+        // can distinguish "running inside the AppContainer" from
+        // "an end user invoked it on their machine".
+        block.extend("DOCODE_PROBE_VIA_SANDBOX=1".encode_utf16());
+        block.push(0);
         block.push(0); // double-null terminator
         block
     }
