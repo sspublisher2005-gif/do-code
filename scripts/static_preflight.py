@@ -25,6 +25,10 @@ except ImportError:
     yaml = None
 
 
+class _PyYAMLMissing(RuntimeError):
+    """Raised when a check needs PyYAML that this host does not have."""
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -54,6 +58,10 @@ def main() -> int:
         try:
             detail = fn()
             record(name, "PASS", str(detail or "check completed"))
+        except _PyYAMLMissing as exc:
+            # Declared-unavailable, not failed: a YAML file cannot be verified
+            # here, and that is not a defect in the file.
+            record(name, "BLOCKED", str(exc))
         except Exception as exc:
             record(name, "FAIL", f"{type(exc).__name__}: {exc}")
 
@@ -151,22 +159,22 @@ def main() -> int:
 
     def workflow() -> str:
         if yaml is None:
-            raise RuntimeError("PyYAML is not installed; install pyyaml to validate the workflow YAML")
+            raise _PyYAMLMissing("workflow YAML cannot be validated on this host; PyYAML is not installed (not a YAML defect)")
         doc = yaml.load((root / ".github/workflows/rust-ci.yml").read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
         matrix = doc["jobs"]["verify"]["strategy"]["matrix"]
         oses = set(matrix["os"])
         versions = set(matrix["toolchain"])
-        assert oses == {"ubuntu-latest", "macos-latest", "windows-latest"}, oses
+        assert oses == {"ubuntu-latest", "macos-latest", "windows-latest", "windows-2025"}, oses
         assert versions == {"1.88.0", "1.99.1"}, versions
-        assert len(oses) * len(versions) == 6
+        assert len(oses) * len(versions) == 8
         assert "scripts/ci_pipeline.py" in str(doc["jobs"]["verify"]["steps"])
-        return "workflow YAML parses; six matrix combinations configured (not evidence any job ran)"
+        return "workflow YAML parses; eight matrix combinations configured (not evidence any job ran)"
 
     check("Cross-platform workflow structure", workflow)
 
     def security_workflow() -> str:
         if yaml is None:
-            raise RuntimeError("PyYAML is not installed; cannot parse the security audit workflow")
+            raise _PyYAMLMissing("security-audit workflow YAML cannot be validated on this host; PyYAML is not installed (not a YAML defect)")
         path = root / ".github/workflows/security-audit.yml"
         doc = yaml.load(path.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
         assert "schedule" in doc["on"], "dependency audit must run on a schedule"
@@ -214,7 +222,10 @@ def main() -> int:
         for entry in entries:
             path = root / entry["path"]
             assert path.is_file(), f"missing inventory file: {entry['path']}"
-            payload = path.read_bytes()
+            # The inventory generator normalizes CRLF to LF so hashes match
+            # across Windows checkouts (autocrlf) and Linux CI; mirror that or
+            # Windows fails an otherwise-correct tree.
+            payload = path.read_bytes().replace(b"\r\n", b"\n")
             assert len(payload) == entry["bytes"], f"size changed: {entry['path']}"
             assert hashlib.sha256(payload).hexdigest() == entry["sha256"], f"hash changed: {entry['path']}"
             checked += 1
@@ -271,7 +282,7 @@ def main() -> int:
         assert "Test CI required-gate evaluator" in ci_pipeline
         harness = (root / "scripts/verify_cli.py").read_text(encoding="utf-8")
         assert "elapsed_ms = (time.perf_counter() - started) * 1000.0" in harness
-        assert '"Windows .docode ACL hardening"' in harness
+        assert "owner-only protected DACL" in harness
         assert "Validate source inventory hashes" in ci_pipeline
         assert "Generate preliminary offline CycloneDX SBOM" in ci_pipeline
         assert "Test offline SBOM generator" in ci_pipeline
@@ -284,7 +295,7 @@ def main() -> int:
     check("Security regression coverage markers", security_regressions)
 
     def reference_archive() -> str:
-        path = root / "reference/docode_cli_TS_0.6.0-ts.2_MemoryDecision_Merge_WIP.zip"
+        path = root / "reference/DoCode_TS_0.6.0-ts.2_MemoryDecision_Merge_WIP.zip"
         assert path.is_file(), "preserved TypeScript reference archive is missing"
         with zipfile.ZipFile(path) as zf:
             bad = zf.testzip()
@@ -302,7 +313,7 @@ def main() -> int:
             raw_names = set(zf.namelist())
             prefix = root.name + "/"
             names = {name[len(prefix):] for name in raw_names if name.startswith(prefix)}
-            required = {"Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "SOURCE_INVENTORY.json", "scripts/verify_cli.py", "scripts/ci_pipeline.py", "scripts/static_preflight.py", "scripts/generate_sbom.py", "scripts/test_sbom_generator.py", "scripts/cargo_aware_sbom.py", "scripts/test_cargo_aware_sbom.py", "scripts/test_ci_pipeline_gates.py", "scripts/update_source_inventory.py", "scripts/measure_linux_rss.py", ".github/workflows/security-audit.yml", "sbom/docode-cli.cdx.json", "reference/docode_cli_TS_0.6.0-ts.2_MemoryDecision_Merge_WIP.zip"}
+            required = {"Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "SOURCE_INVENTORY.json", "scripts/verify_cli.py", "scripts/ci_pipeline.py", "scripts/static_preflight.py", "scripts/generate_sbom.py", "scripts/test_sbom_generator.py", "scripts/cargo_aware_sbom.py", "scripts/test_cargo_aware_sbom.py", "scripts/test_ci_pipeline_gates.py", "scripts/update_source_inventory.py", "scripts/measure_linux_rss.py", ".github/workflows/security-audit.yml", "sbom/docode-cli.cdx.json", "reference/DoCode_TS_0.6.0-ts.2_MemoryDecision_Merge_WIP.zip"}
             missing = required - names
             assert not missing, f"package missing required files: {sorted(missing)}"
             forbidden_fragments = ("target/", "__pycache__/", ".docode/", ".git/")
@@ -311,9 +322,31 @@ def main() -> int:
 
     check("Packaged ZIP integrity/content", packaged_archive)
 
+    def locate_rust(command: str):
+        """Return (path_or_None, how). PATH first, then the standard cargo bin
+        so a host where cargo is installed but never on PATH reports the truth
+        instead of a false 'not installed'."""
+        found = shutil.which(command)
+        if found:
+            return found, "PATH"
+        cargo_home = Path(os.environ.get("CARGO_HOME", Path.home() / ".cargo"))
+        candidate = cargo_home / "bin" / (command + (".exe" if sys.platform == "win32" else ""))
+        if candidate.is_file():
+            return str(candidate), str(cargo_home)
+        return None, None
+
     for command in ("rustc", "cargo", "rustfmt", "rustup"):
-        if shutil.which(command) is None:
-            blockers.append({"name": f"{command} availability", "detail": f"{command} is not installed in this environment"})
+        found, how = locate_rust(command)
+        if found is None:
+            blockers.append({"name": f"{command} availability",
+                             "detail": f"{command} is not on PATH and not in the cargo bin directory; the Rust toolchain cannot be located from this interpreter"})
+        else:
+            try:
+                result = subprocess.run([found, "--version"], capture_output=True, text=True, timeout=30)
+                detail = result.stdout.strip() if result.returncode == 0 else f"exit {result.returncode}: {(result.stderr or '').strip()[:120]}"
+            except (OSError, subprocess.SubprocessError) as exc:
+                detail = f"--version failed: {exc}"
+            check(f"{command} availability", lambda n=detail: f"found at {found} ({how}); --version: {n}")
     if not (root / "Cargo.lock").is_file():
         blockers.append({"name": "Cargo.lock", "detail": "not generated; needs dependency resolution from a connected Rust host"})
 
@@ -335,7 +368,9 @@ def main() -> int:
             return f"separate release binary exists and --version works: {version_text}; this probe is not the full black-box suite"
         check("Supplied release binary probe", binary_probe)
 
-    blockers.append({"name": "macOS/Windows runtime", "detail": "this authoring runner is Linux; actual OS-matrix runs must be obtained from the configured CI workflow"})
+    # Runtime-vs-CI truth: this authoring runner is wherever it is; record it accurately.
+    runtime_name = "Windows" if sys.platform.startswith("win") else ("macOS" if sys.platform == "darwin" else ("Linux" if sys.platform.startswith("linux") else sys.platform))
+    blockers.append({"name": "Non-authoring runtime fidelity", "detail": f"this authoring runner reports {runtime_name} ({sys.platform}); actual OS-matrix runs must be obtained from the configured CI workflow, not inferred here"})
     for item in blockers:
         record(item["name"], "BLOCKED", item["detail"])
 

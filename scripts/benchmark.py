@@ -39,45 +39,47 @@ def sha256_file(path: Path) -> str | None:
         return None
 
 
-def chat_response(content: str) -> bytes:
-    body = json.dumps({
+def chat_response_body(content: str) -> bytes:
+    return json.dumps({
         "id": "fixture-req",
         "model": "fixture-model",
         "choices": [{"message": {"content": content}}],
         "usage": {"prompt_tokens": 10, "completion_tokens": 20},
     }).encode("utf-8")
-    return (
-        b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
-        b"Content-Length: " + str(len(body)).encode() + b"\r\n"
-        b"Connection: close\r\n\r\n" + body
-    )
 
 
 class SequencedFixtureHandler(BaseHTTPRequestHandler):
-    """Answers the i-th request with the i-th scripted model turn."""
+    """Answers the i-th request with the i-th scripted model turn.
+
+    Counter/lock/responses live on the class created by spawn_fixture. State
+    MUST be read/written through type(self): every HTTP request gets a fresh
+    handler instance, so `self.counter += 1` would shadow per request and
+    replay turn 0 forever.
+    """
 
     responses: list[str] = []
     counter = 0
     lock = threading.Lock()
 
     def do_POST(self) -> None:  # noqa: N802 (BaseHTTPRequestHandler API)
+        cls = type(self)
         length = int(self.headers.get("Content-Length", "0"))
         self.rfile.read(length)
-        with self.lock:
-            index = self.counter
-            self.counter += 1
-            response = self.responses[index] if index < len(self.responses) else None
+        with cls.lock:
+            index = cls.counter
+            cls.counter = index + 1
+            response = cls.responses[index] if index < len(cls.responses) else None
         if response is None:
             self.send_response(500)
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
-        payload = chat_response(response)
+        body = chat_response_body(response)
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(payload) - len(payload.split(b"\r\n\r\n", 1)[0]) - 4))
+        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(payload.split(b"\r\n\r\n", 1)[1])
+        self.wfile.write(body)
 
     def log_message(self, fmt: str, *args) -> None:  # noqa: A002
         pass

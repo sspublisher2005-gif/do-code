@@ -1,19 +1,19 @@
 {
   "artifact": "Do Code Rust implementation source inventory",
-  "generated_at_utc": "2026-11-08T13:11:06.637736+00:00",
+  "generated_at_utc": "2026-11-08T13:32:02.117871+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
   "inventory_count": 84,
   "inventory": [
     {
       "path": ".github/workflows/rust-ci.yml",
-      "bytes": 1198,
-      "sha256": "389440f2ef65b819725a4f8f847afc896efb2771c25ffdffce67c92a0d2c3676"
+      "bytes": 1255,
+      "sha256": "836ff4adad84ffeda186832fbf6530b79429e18f32805698f4e53a31e4ba05c9"
     },
     {
       "path": ".github/workflows/sandbox-matrix-windows.yml",
-      "bytes": 2786,
-      "sha256": "dfb2fceede95c76d28abd82ff9d08c7080d72daef5feda7e2fdd14f70a7a469f"
+      "bytes": 3000,
+      "sha256": "b79c37e5b4a4c446dfa147d59c3a46d4167a7338f9f44f45cf2c3b32d2903be8"
     },
     {
       "path": ".github/workflows/security-audit.yml",
@@ -182,8 +182,8 @@
     },
     {
       "path": "scripts/benchmark.py",
-      "bytes": 10366,
-      "sha256": "0e3a1fa1829c6cccc1aeecf84e212e1e7dac22e5c13c34a2deb0454576ca5265"
+      "bytes": 10394,
+      "sha256": "05f15406fb563fbe3ae44ebd1548dff73f8f69f367dbb5a96b99c2628a260af0"
     },
     {
       "path": "scripts/cargo_aware_sbom.py",
@@ -222,8 +222,8 @@
     },
     {
       "path": "scripts/static_preflight.py",
-      "bytes": 22272,
-      "sha256": "7384e9b0fefe23e8b9b6a4bfa711ed66d152b5e2540333a4de243bd83377077b"
+      "bytes": 24484,
+      "sha256": "bcc01cda9b266628ca86bb7cbd54f588acba2fd36f88705e4b90cda061b5ba44"
     },
     {
       "path": "scripts/test_cargo_aware_sbom.py",
