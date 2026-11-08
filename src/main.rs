@@ -17,6 +17,7 @@ mod message_store;
 mod mission;
 mod mission_store;
 mod patches;
+mod probe;
 mod provider;
 mod redaction;
 mod risk;
@@ -300,6 +301,12 @@ enum SandboxCommand {
         #[arg(long)]
         approve: bool,
         command: Vec<String>,
+    },
+    /// Internal in-sandbox probe battery for the disposable-runner matrix.
+    /// Not a user-facing surface; only the CI sandbox runner invokes it.
+    Probe {
+        case: String,
+        args: Vec<String>,
     },
 }
 #[derive(Debug, Subcommand)]
@@ -704,6 +711,27 @@ async fn run(cli: Cli) -> Result<()> {
                 println!("Arbitrary shell/test/build/browser execution is disabled; no isolation claim is made.");
                 println!("Windows DACL enforcement: implemented (owner-only protected DACL).");
                 println!("Windows launch path: AppContainer (zero capabilities = OS network deny) + restricted token + Job Object assigned before resume + sanitized environment.");
+            }
+            SandboxCommand::Probe { case, args } => {
+                // Only the disposable CI runner can reach this path — the
+                // exec marker is the sole entry ticket.
+                if std::env::var("DOCODE_PROBE_VIA_SANDBOX").is_err() {
+                    eprintln!("docode probe is internal to the disposable-runner matrix and only runs inside the sandbox.");
+                    std::process::exit(21);
+                }
+                let code = match case.as_str() {
+                    "fs-01" => crate::probe::fs_01(&args),
+                    "fs-02" => crate::probe::fs_02(&args),
+                    "net-01" => crate::probe::net_01(&args),
+                    "net-02" => crate::probe::net_02(&args),
+                    "env-01" => crate::probe::env_01(&args),
+                    "cmd-01" => crate::probe::cmd_01(&args),
+                    "res-01" => crate::probe::res_01(&args),
+                    "proc-01" => crate::probe::proc_01(&args),
+                    "child-hang" => crate::probe::child_hang(&args),
+                    _ => 21,
+                };
+                std::process::exit(code);
             }
             SandboxCommand::SelfTest => return Err(DocodeError::Safety("sandbox self-test cannot pass: no native sandbox driver is implemented. No command was executed.".into())),
             SandboxCommand::Exec { timeout_ms, approve, command } => {

@@ -2,30 +2,20 @@ name: Docode Windows Sandbox Matrix
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - ".github/workflows/sandbox-matrix-windows.yml"
-      - "scripts/sandbox_adversarial_windows.py"
-      - "scripts/validate_python_sources.py"
-      - "src/sandbox.rs"
-      - "src/main.rs"
-      - "src/storage.rs"
-      - "src/error.rs"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "docs/SANDBOX_ACCEPTANCE_MATRIX.json"
   push:
     paths:
       - ".github/workflows/sandbox-matrix-windows.yml"
       - "scripts/sandbox_adversarial_windows.py"
-      - "scripts/validate_python_sources.py"
-      - "src/sandbox.rs"
-      - "src/main.rs"
-      - "src/storage.rs"
-      - "src/error.rs"
       - "Cargo.toml"
       - "Cargo.lock"
-      - "docs/SANDBOX_ACCEPTANCE_MATRIX.json"
+      - "src/**"
+  pull_request:
+    paths:
+      - ".github/workflows/sandbox-matrix-windows.yml"
+      - "scripts/sandbox_adversarial_windows.py"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "src/**"
   schedule:
     - cron: "0 2 * * 1"
 
@@ -66,12 +56,39 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: sandbox-adversarial-${{ github.sha }}
-          path: |
-            sandbox-adversarial.json
+          path: sandbox-adversarial.json
           if-no-files-found: warn
           retention-days: 90
 
       - name: Release gate on matrix status
-        run: |
-          python -c "import json; d=json.load(open('sandbox-adversarial.json')); print('status='+d['status']); [print(e['id']+'='+('PASS' if e['passed'] else 'FAIL')) for e in d.get('executed',[])]; exit(1 if d['status'] in ('BLOCKED','FAIL') else 0)"
+        if: always()
         shell: pwsh
+        run: |
+          $reportPath = "sandbox-adversarial.json"
+          if (-not (Test-Path $reportPath)) {
+            Write-Error "Sandbox report was not created: $reportPath"
+            exit 1
+          }
+
+          $report = Get-Content -Raw $reportPath | ConvertFrom-Json
+          $status = [string]$report.status
+          Write-Host "status=$status"
+
+          foreach ($case in $report.executed) {
+            $id = [string]$case.id
+            $result = if ($case.passed) { "PASS" } else { "FAIL" }
+            Write-Host "$id=$result"
+          }
+
+          if ($status -ne "WINDOWS_SUBSET_PASS" -and $status -ne "PASS") {
+            Write-Error "Sandbox matrix did not pass: status=$status"
+            exit 1
+          }
+
+          $failed = @($report.executed | Where-Object { -not $_.passed })
+          if ($failed.Count -gt 0) {
+            Write-Error "One or more sandbox matrix cases failed."
+            exit 1
+          }
+
+          Write-Host "Windows sandbox matrix release gate passed."

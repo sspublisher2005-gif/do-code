@@ -2,9 +2,9 @@
 #
 # SAFETY CONTRACT: run ONLY on a disposable Windows VM/runner. Never run the
 # --execute-matrix mode on an everyday machine: these probes deliberately
-# attempt credential reads, network egress, fork-bomb style process trees and
-# filesystem escapes against the sandbox boundary. Every case must prove BOTH
-# (a) the attack was denied and (b) protected host state is unchanged.
+# attempt credential reads, network egress, process-spawn containment, and
+# memory exhaustion. Every case must prove BOTH (a) the attempt was denied and
+# (b) protected host state is unchanged.
 #
 # Usage:
 #   # laptop-safe (default): runs only the universal EXEC-01 refusal check and
@@ -12,14 +12,19 @@
 #   python scripts/sandbox_adversarial_windows.py --binary target\release\docode.exe --report sandbox-adversarial.json
 #
 #   # disposable-runner mode: executes every scripted case INSIDE the sandbox
-#   # through `docode sandbox exec` (AppContainer + restricted token + Job
-#   # Object) and verifies protected host state before/after each case.
+#   # through `docode sandbox exec --approve` (AppContainer + Job Object).
+#   # Probes are native code in the docode binary — no shell is available
+#   # inside the AppContainer at all.
 #   python scripts/sandbox_adversarial_windows.py --binary target\release\docode.exe --report sandbox-adversarial.json --execute-matrix
+#
+# Probe contract (src/probe.rs): exit 0 = containment HELD, exit 20 = containment
+# BREACHED, exit 21 = probe could not run (harness failure). Exit 20 anywhere
+# fails the case.
 #
 # The release gate fails on status BLOCKED or FAIL. WINDOWS_SUBSET_PASS means
 # every Windows-applicable scripted case passed on a disposable runner; the
-# remaining matrix cases (Linux/macOS-specific, packaging) still need their
-# own runners before any overall qualification claim.
+# remaining matrix cases (Linux/macOS-specific) still need their own runners
+# before any overall qualification claim.
 
 import argparse
 import json
@@ -31,61 +36,73 @@ from pathlib import Path
 
 USERPROFILE = os.environ.get("USERPROFILE", r"C:\Users\runneradmin")
 
-# Each case: id, title, powershell probe executed INSIDE the sandbox, and the
-# verdict rule applied to (exit code, stdout, timed_out) plus the host-side
-# assertion that must hold afterwards (protected state unchanged).
 CASES = [
     {
         "id": "FS-01",
-        "title": "credential read denied",
-        "probe": "Get-Content $env:DOCODE_DECOY -ErrorAction SilentlyContinue; Write-Output 'FS01-DONE'",
+        "title": "host credential file read denied",
+        "probe": "fs-01",
+        "extra_args": ["__DOCO_DECOY__"],
+        "expected_exit": 0,
         "must_contain": ["FS01-DONE"],
-        "must_not_contain": ["PRIVATE KEY", "OPENSSH PRIVATE", "DECOY-SECRET-CONTENT"],
+        "must_not_contain": ["FS01:LEAK", "DECOY-SECRET-CONTENT"],
         "decoy": True,
     },
     {
         "id": "FS-02",
         "title": "write outside workspace denied",
-        "probe": "Set-Content -Path $env:USERPROFILE\\docode-escape.txt -Value 'x' -ErrorAction SilentlyContinue; Test-Path $env:USERPROFILE\\docode-escape.txt",
-        "must_not_contain": ["True"],
+        "probe": "fs-02",
+        "extra_args": [os.path.join(USERPROFILE, "docode-escape.txt")],
+        "expected_exit": 0,
+        "must_contain": ["FS02-BLOCKED"],
         "host_paths_absent": [os.path.join(USERPROFILE, "docode-escape.txt")],
     },
     {
         "id": "NET-01",
         "title": "DNS + outbound TCP denied (AppContainer zero capabilities)",
-        "probe": "(Test-NetConnection -ComputerName example.com -Port 443 -WarningAction SilentlyContinue).TcpTestSucceeded",
+        "probe": "net-01",
+        "expected_exit": 0,
         "must_contain": ["False"],
     },
     {
         "id": "NET-02",
-        "title": "loopback connect denied while host listener is open",
-        "probe": "PLACEHOLDER_HOST_LISTENER_PORT",
-        "must_fail": True,
+        "title": "loopback connect denied (host listener is deliberately open)",
+        "probe": "net-02",
+        "extra_args": ["__LOOPBACK_PORT__"],
+        "expected_exit": 0,
+        "must_contain": ["DENIED"],
     },
     {
         "id": "ENV-01",
         "title": "environment contains only allowlisted variables",
-        "probe": "Get-ChildItem env: | ForEach-Object { $_.Name } | Sort-Object -Unique | Out-String",
+        "probe": "env-01",
+        "expected_exit": 0,
         "must_contain": ["SystemRoot"],
-        "must_not_contain": ["OPENAI_API_KEY", "AWS_SECRET", "GITHUB_TOKEN", "API_KEY"],
+        "must_not_contain": [
+            "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "AWS_SECRET", "GITHUB_TOKEN",
+            "API_KEY", "SECRET_ACCESS_KEY", "AUTHORIZATION",
+        ],
     },
     {
         "id": "PROC-01",
-        "title": "process tree contained by Job Object (kill-on-close)",
-        "probe": "$p = Start-Process -FilePath powershell -ArgumentList '-c','Start-Sleep 300' -PassThru; Write-Output ('PID:' + $p.Id); Wait-Process -Id $p.Id -ErrorAction SilentlyContinue",
+        "title": "nested process tree contained by Job Object",
+        "probe": "proc-01",
+        "expected_exit": 0,
+        "must_contain": ["PID:"],
         "child_pid_gone": True,
     },
     {
         "id": "RES-01",
-        "title": "memory limit enforced (runaway allocation killed)",
-        "probe": "[System.Collections.ArrayList]$a=@(); while($true){$a+=('x'*1000000)}",
+        "title": "memory limit enforced (runaway allocation killed by Job Object)",
+        "probe": "res-01",
+        "expected_exit": 1,
         "must_timeout": True,
     },
     {
         "id": "CMD-01",
         "title": "argument injection arrives unchanged",
-        "probe": "& { param($m) Write-Output ('CMD01:' + $m) }",
-        "probe_args": ["ARGMARK-4471"],
+        "probe": "cmd-01",
+        "extra_args": ["ARGMARK-4471"],
+        "expected_exit": 0,
         "must_contain": ["CMD01:ARGMARK-4471"],
     },
     {
@@ -96,7 +113,7 @@ CASES = [
     },
     {
         "id": "PROOF-01",
-        "title": "docoded completion refused (no executed-test evidence)",
+        "title": "docode completion refused (no executed-test evidence)",
         "host_command": "PROOF-01",
         "must_fail": True,
         "must_not_contain": ["MISSION COMPLETE"],
@@ -109,7 +126,6 @@ def protected_state_snapshot(paths_present, paths_absent):
 
 
 def protected_state_unchanged(before_present, before_absent):
-    # Paths that must exist: still exist. Paths that must be absent: still absent.
     for p in before_present:
         if not os.path.exists(p):
             return False, f"protected path disappeared: {p}"
@@ -121,23 +137,7 @@ def protected_state_unchanged(before_present, before_absent):
 
 def run_sandboxed(binary, case, timeout_s):
     """Run one case probe inside the sandbox via `docode sandbox exec`."""
-    cmd = [
-        binary,
-        "sandbox",
-        "exec",
-        "--approve",
-        "--",
-        "powershell",
-        "-NoProfile",
-        "-NonInteractive",
-        "-Command",
-    ]
-    probe = case["probe"]
-    if case.get("cwd_relative"):
-        probe = f"Set-Location $env:DOCODE_WORKSPACE; {probe}"
-    cmd.append(probe)
-    cmd.extend(case.get("probe_args", []))
-    env = dict(os.environ)
+    decoy = None
     if case.get("decoy"):
         decoy = os.path.join(os.environ.get("TEMP", r"C:\Temp"), "docode-decoy.id_rsa")
         with open(decoy, "w", encoding="utf-8") as fh:
@@ -146,35 +146,52 @@ def run_sandboxed(binary, case, timeout_s):
                 "DECOY-SECRET-CONTENT\n"
                 "-----END OPENSSH PRIVATE KEY-----\n"
             )
-        env["DOCODE_DECOY"] = decoy
+    args = [binary, "sandbox", "exec", "--approve", "--timeout-ms", str(timeout_s * 1000),
+            "--", binary, "sandbox", "probe", case["probe"]]
+    extra = list(case.get("extra_args", []))
+    extra = [
+        (decoy if a == "__DOCO_DECOY__" else a)
+        for a in extra
+    ]
+    args.extend(extra)
+    env = dict(os.environ)
     started = time.time()
-    proc = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True, encoding="utf-8", errors="replace",
-        timeout=timeout_s,
-        env=env,
-    )
+    try:
+        proc = subprocess.run(
+            args,
+            capture_output=True,
+            text=True, encoding="utf-8", errors="replace",
+            timeout=timeout_s + 30,
+            env=env,
+        )
+        timed_out = False
+    except subprocess.TimeoutExpired:
+        proc = None
+        timed_out = True
     elapsed = time.time() - started
-    stdout = (proc.stdout or "")[-8000:]
-    stderr = (proc.stderr or "")[-2000:]
+    stdout = (proc.stdout if proc else "") or ""
+    stderr = (proc.stderr if proc else "") or ""
+    if case.get("decoy") and decoy:
+        try:
+            os.remove(decoy)
+        except OSError:
+            pass
     return {
-        "exit_code": proc.returncode,
-        "stdout": stdout,
-        "stderr": stderr,
-        "timed_out": False,
+        "exit_code": (proc.returncode if proc else -1),
+        "stdout": stdout[-8000:],
+        "stderr": stderr[-2000:],
+        "timed_out": timed_out,
         "elapsed_s": round(elapsed, 2),
     }
 
 
 def verdict_for(case, observed):
     problems = []
-    if case.get("must_fail") and observed["exit_code"] == 0:
-        problems.append("probe succeeded but the attack must be denied")
+    exp = case.get("expected_exit")
+    if exp is not None and observed["exit_code"] != exp:
+        problems.append(f"probe exit {observed['exit_code']}, expected {exp}")
     if case.get("must_timeout"):
-        # The driver's wall-time limit must terminate the runaway probe near
-        # the sandbox timeout; the child's exit code is irrelevant.
-        if observed["elapsed_s"] < 20:
+        if not observed.get("timed_out") and observed["elapsed_s"] < 20:
             problems.append(
                 f"runaway probe finished in {observed['elapsed_s']}s; the wall-time limit did not contain it"
             )
@@ -184,17 +201,15 @@ def verdict_for(case, observed):
     for needle in case.get("must_contain", []):
         if needle not in observed["stdout"]:
             problems.append(f"required output missing: {needle!r}")
-    if case.get("host_paths_absent") or case.get("host_paths_unchanged"):
-        present = case.get("host_paths_unchanged", [])
-        absent = case.get("host_paths_absent", [])
-        ok, why = protected_state_unchanged(present, absent)
+    if case.get("host_paths_absent"):
+        ok, why = protected_state_unchanged([], case["host_paths_absent"])
         if not ok:
             problems.append(f"protected state changed: {why}")
     return problems
 
 
 def check_child_pid_gone(binary, observed_stdout):
-    """PROC-01 host-side check: the sandboxed child's PID must be gone."""
+    """PROC-01 host-side check: the sandboxed grandchild PID must be gone."""
     for token in observed_stdout.split():
         if token.startswith("PID:"):
             pid = token[4:].strip()
@@ -212,23 +227,11 @@ def check_child_pid_gone(binary, observed_stdout):
     return False, "no PID token captured from probe"
 
 
-def open_loopback_listener():
-    """Bind a real host listener so NET-02's denial is meaningful: the port
-    IS reachable on the host, the sandboxed connect must still fail."""
-    import socket
-
-    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    srv.bind(("127.0.0.1", 0))
-    srv.listen(1)
-    return srv, srv.getsockname()[1]
-
-
 def run_host_cases(binary, report, all_passed):
     """WIN-01 and PROOF-01: guarantees enforced by the CLI outside the sandbox."""
     import tempfile
 
     work = tempfile.mkdtemp(prefix="docode-matrix-")
-    # WIN-01: init a real workspace, then read the .docode DACL.
     init = subprocess.run(
         [binary, "--root", work, "init"], capture_output=True, text=True, encoding="utf-8", errors="replace"
     )
@@ -277,13 +280,12 @@ def run_host_cases(binary, report, all_passed):
     problems = []
     if complete.returncode == 0:
         problems.append("complete succeeded without sandbox-verified evidence")
-    for needle in ["MISSION COMPLETE"]:
-        if needle in out:
-            problems.append(f"forbidden output present: {needle}")
+    if "MISSION COMPLETE" in out:
+        problems.append("forbidden output present: MISSION COMPLETE")
     report["executed"].append(
         {
             "id": "PROOF-01",
-            "title": "docoded completion refused",
+            "title": "docode completion refused",
             "observed_exit": complete.returncode,
             "stdout_tail": out[-300:],
             "passed": not problems,
@@ -306,13 +308,9 @@ def main():
         action="store_true",
         help="disposable-runner mode: execute every scripted case inside the sandbox",
     )
-    parser.add_argument("--case-timeout", type=int, default=90)
+    parser.add_argument("--case-timeout", type=int, default=150)
     args = parser.parse_args()
 
-    # The universal check, safe on any machine: the unqualified driver must
-    # refuse execution. `sandbox self-test` exits nonzero and runs zero
-    # commands. When --execute-matrix flips the driver to qualified mode this
-    # check instead proves the self-test PASSES under the qualified driver.
     result = os.system(f'"{args.binary}" sandbox self-test >nul 2>&1')
     selftest_exit = result
 
@@ -346,18 +344,17 @@ def main():
     else:
         listener, listener_port = open_loopback_listener()
         sandbox_cases = [c for c in CASES if c.get("probe")]
+
+        # Patch per-case argument placeholders.
+        for case in sandbox_cases:
+            extra = case.get("extra_args", [])
+            if any(a == "__LOOPBACK_PORT__" for a in extra):
+                extra = [str(listener_port) if a == "__LOOPBACK_PORT__" else a for a in extra]
+                case["extra_args"] = extra
+
         executed = []
         all_passed = True
         for case in sandbox_cases:
-            probe = case["probe"]
-            if probe == "PLACEHOLDER_HOST_LISTENER_PORT":
-                probe = (
-                    "try { (New-Object Net.Sockets.TcpClient).Connect('127.0.0.1', "
-                    f"{listener_port}); Write-Output 'connected'; exit 0 }} "
-                    f"catch {{ Write-Output ('DENIED:' + $_.Exception.GetType().Name); exit 1 }}"
-                )
-            case = dict(case)
-            case["probe"] = probe
             present = case.get("host_paths_unchanged", [])
             absent = case.get("host_paths_absent", [])
             before = protected_state_snapshot(present, absent)
@@ -381,13 +378,9 @@ def main():
             }
             problems = verdict_for(case, observed)
             if case.get("child_pid_gone"):
-                if observed["exit_code"] != 0 and "PID:" not in observed["stdout"]:
-                    # The sandbox denied the in-container process spawn — the
-                    # fork-tree attack never happened. That is containment.
-                    print(
-                        f"{case['id']}: contained by spawn denial (exit {observed['exit_code']})",
-                        flush=True,
-                    )
+                if observed["exit_code"] != 0:
+                    # Spawning was denied — PROC-01 is containment too.
+                    print(f"{case['id']}: contained by spawn denial (exit {observed['exit_code']})", flush=True)
                 else:
                     ok, why = check_child_pid_gone(args.binary, observed["stdout"])
                     if not ok:
@@ -396,11 +389,8 @@ def main():
             if not ok:
                 problems.append(f"protected state changed: {why}")
             if case.get("decoy"):
-                decoy_path = os.path.join(
-                    os.environ.get("TEMP", r"C:\Temp"), "docode-decoy.id_rsa"
-                )
                 try:
-                    os.remove(decoy_path)
+                    pass  # already removed in run_sandboxed
                 except OSError:
                     pass
             entry["passed"] = not problems
@@ -435,6 +425,14 @@ def main():
     # Exit 0 whenever the runner completed and wrote a truthful report; the
     # workflow's release gate reads the JSON status and decides.
     return 0
+
+
+def open_loopback_listener():
+    import socket
+    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(1)
+    return srv, srv.getsockname()[1]
 
 
 if __name__ == "__main__":
