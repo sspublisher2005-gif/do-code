@@ -206,11 +206,16 @@ mod windows_impl {
 
     /// Spawn a process suspended inside an AppContainer with:
     /// Create the private disposable workspace for one sandbox run: a fresh
-    /// directory under the user's temp folder whose DACL grants the container
-    /// SID full control, protected so nothing broad is inherited. This is the
-    /// only directory the sandboxed process can write.
+    /// directory under the project's `.docode/sandbox/` directory whose DACL
+    /// grants the container SID full control, protected so nothing broad is
+    /// inherited. This is the only directory the sandboxed process can write.
+    ///
+    /// Located under the project instead of %TEMP%: some hardened Windows
+    /// images deny AppContainer traversal on temp roots, which makes any
+    /// %TEMP%-based workspace unusable there.
     pub fn create_container_workspace(
         container_sid: *mut std::ffi::c_void,
+        parent: &std::path::Path,
     ) -> Result<std::path::PathBuf> {
         use windows_sys::Win32::Security::Authorization::SE_FILE_OBJECT;
         use windows_sys::Win32::Security::Authorization::{
@@ -218,9 +223,9 @@ mod windows_impl {
             TRUSTEE_IS_SID, TRUSTEE_IS_UNKNOWN, TRUSTEE_W,
         };
         use windows_sys::Win32::Security::DACL_SECURITY_INFORMATION;
-        let base = std::env::temp_dir().join("docode-sandbox");
-        std::fs::create_dir_all(&base).map_err(|e| crate::error::io_error(&base, e))?;
-        let dir = base.join(format!("run-{}", uuid::Uuid::new_v4().simple()));
+        // Parent (e.g. .docode/sandbox/) must exist and be private before use.
+        crate::storage::ensure_private_dir(parent)?;
+        let dir = parent.join(format!("run-{}", uuid::Uuid::new_v4().simple()));
         std::fs::create_dir(&dir).map_err(|e| crate::error::io_error(&dir, e))?;
         let mut wide: Vec<u16> = dir
             .as_os_str()
@@ -308,6 +313,7 @@ mod windows_impl {
         args: &[String],
         _limits: ResourceLimits,
         job: &JobObject,
+        workspace_parent: &std::path::Path,
     ) -> Result<(HANDLE, HANDLE, u32, std::path::PathBuf, HANDLE)> {
         use windows_sys::Win32::Security::SECURITY_CAPABILITIES;
         use windows_sys::Win32::System::Threading::{
@@ -409,7 +415,7 @@ mod windows_impl {
         // environment, CreateProcessW resolves the child's per-drive cwd from
         // hidden "=X:" entries the block does not carry and fails with
         // ERROR_ENVVAR_NOT_FOUND (203).
-        let workspace = create_container_workspace(sid)?;
+        let workspace = create_container_workspace(sid, workspace_parent)?;
         let mut env_block = sanitized_environment(&workspace);
         let mut cwd_wide: Vec<u16> = workspace
             .as_os_str()

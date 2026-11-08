@@ -1,6 +1,6 @@
 {
   "artifact": "Do Code Rust implementation source inventory",
-  "generated_at_utc": "2026-11-08T11:04:35.727373+00:00",
+  "generated_at_utc": "2026-11-08T11:19:20.371356+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
   "inventory_count": 84,
@@ -327,8 +327,8 @@
     },
     {
       "path": "src/main.rs",
-      "bytes": 65615,
-      "sha256": "f2e63f1d0b1f6ecb128e4b934887dcbb92318aa10806be03591994226715b455"
+      "bytes": 66005,
+      "sha256": "5c7f02fba6f9f6f1e74c766ec540abe4fff93021a7acba5c0ebb9db42b30ea2c"
     },
     {
       "path": "src/memory.rs",
@@ -382,8 +382,8 @@
     },
     {
       "path": "src/sandbox.rs",
-      "bytes": 25842,
-      "sha256": "43b47e56926703fd5638e219efa58844cf76e3d29707f0072156bf3e8472fde3"
+      "bytes": 26146,
+      "sha256": "189328c8844533be03091c770c914d2d10491df0bbbf72c2828d693d4da8acaa"
     },
     {
       "path": "src/storage.rs",

@@ -770,8 +770,13 @@ async fn run(cli: Cli) -> Result<()> {
                         ..Default::default()
                     };
                     let job = sandbox::JobObject::create(limits)?;
+                    // Container workspace lives under the project's .docode,
+                    // not %TEMP% — hardened images deny AppContainer
+                    // traversal on temp roots, which kills the child outright.
+                    let home = crate::storage::ensure_project_home(&root)?;
+                    let workspace_parent = home.join("sandbox");
                     let (proc_handle, thread_handle, _pid, workspace, stdout_pipe) =
-                        sandbox::spawn_suspended(&exe, &args, limits, &job)?;
+                        sandbox::spawn_suspended(&exe, &args, limits, &job, &workspace_parent)?;
                     // Cleanup runs even if the wait itself errors.
                     let wait = sandbox::wait_for_completion(
                         proc_handle,
