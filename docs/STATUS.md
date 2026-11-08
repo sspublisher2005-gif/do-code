@@ -182,3 +182,21 @@ License-compliant decision recorded: open-source dependencies may be vendored wi
 **Not done / not claimed:** no live-model run of the agent loop (needs provider keys and the interlock); the loop does not execute tests/builds for the user (sandbox unqualified, `is_qualified()` false); review/security steps and `docode complete` remain unreachable without trusted evidence; restricted primary token unwired; independent security review outstanding; matrix NEVER run. All of this and every file above remain uncommitted pending explicit approval.
 
 **Restricted primary token — closed as a non-gap with evidence (2026-11-08):** PROC_THREAD_ATTRIBUTE_TOKEN is absent from the documented UpdateProcThreadAttribute attribute table; CreateProcessWithTokenW requires SeImpersonatePrivilege. There is no unprivileged primary-token API for assigning a child process's primary token on Windows. Codex solves this with an elevated broker service; we deliberately do not (local-first CLI). AppContainer SID inheritance is the only documented unprivileged injection mechanism. src/sandbox.rs comments updated to say exactly this.
+
+---
+
+## 2026-11-08 (sandbox matrix) - Windows subset green on a disposable runner
+
+**Evidence:** GitHub Actions run 42483293327, workflow `sandbox-matrix-windows.yml`, `windows-2022`, commit 6d1f2b2. Artifact `sandbox-adversarial.json`: `status = WINDOWS_SUBSET_PASS`, 10/10 cases passed, 0 failed, every probe reported `PROBE-CWD:<workspace>:readable=true`, `PID:3996` gone after exit, RES-01 killed with NTSTATUS 0xC0000409 by the 512 MiB job memory limit, PROOF-01 refused with `mission ... does not exist in this project`.
+
+**What was actually broken (the matrix was never measuring containment before):**
+- The probe child died in `canonicalize(".")` before dispatching, so all eight sandboxed cases reported "output missing" as an access-denied harness error, not a verdict. Probes use no project root; they now dispatch without canonicalizing and print `PROBE-CWD:<path>:readable=<bool>` so the failure can never hide again.
+- `sandbox exec` returned exit 0 regardless of the child status; it now propagates it (timeout is never success).
+- proc-01 spawned the probe's own binary, which the AppContainer is correctly denied reading; it now spawns a System32 image (nested creation is what the case measures).
+- The workspace was passed as a `\\?\` verbatim cwd, which makes `cmd.exe` relocate to `%SystemRoot%`; the prefix is stripped.
+- RES-01 expected exit 1; the job memory limit actually aborts the runaway allocation with 0xC0000409, so the case now requires a non-zero status.
+- NET-01 expected the PowerShell-era literal `False`; the resolver deny path printed `NET01:RESOLVER-DENIED`. Both denials now print `NET01:DENIED`.
+- PROOF-01 passed on any failure: `complete` on an unknown mission leaked a raw `\\?\` path I/O error. `mission_store::get` now states `mission <id> does not exist in this project`, and the case requires that reason.
+- Exit 21 (probe could not run) now always fails a case instead of slipping through.
+
+**What this does NOT establish:** `is_qualified()` stays false. This is the Windows-applicable subset on one disposable VM: no independent security review, no Linux/macOS driver, no packaging cases, restricted primary token still unwired (no unprivileged Windows API provides it - see the earlier non-gap note), and the RBAC/network outcome is the AppContainer zero-capability model only. `docode run` and arbitrary execution remain disabled.
