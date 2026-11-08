@@ -230,26 +230,6 @@ pub fn mission_transitions(from: &MissionStatus, to: &MissionStatus) -> bool {
     )
 }
 
-// KNOWN GAP: the completion-gate policy is implemented and unit-tested but not yet called from
-// the mission workflow's completion path (src/workflow.rs). See FEATURE_PARITY_LEDGER.md.
-#[allow(dead_code)]
-pub fn completion_allowed(
-    checks: &[VerificationCheck],
-    blocking_security_warnings: &[String],
-    review_passed: bool,
-    has_required_criteria: bool,
-) -> bool {
-    !checks.is_empty()
-        && checks
-            .iter()
-            .all(|c| !c.required || (c.status == "passed" && !c.evidence_ids.is_empty()))
-        && !blocking_security_warnings
-            .iter()
-            .any(|w| !w.trim().is_empty())
-        && review_passed
-        && has_required_criteria
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -263,28 +243,5 @@ mod tests {
             &MissionStatus::Completed,
             &MissionStatus::Running
         ));
-    }
-    #[test]
-    fn completion_needs_evidence_for_every_required_check() {
-        let check = VerificationCheck {
-            id: "c".into(),
-            name: "tests".into(),
-            status: "passed".into(),
-            required: true,
-            exit_code: Some(0),
-            duration_ms: Some(10),
-            evidence_ids: vec!["e".into()],
-            details: None,
-        };
-        assert!(completion_allowed(
-            std::slice::from_ref(&check),
-            &[],
-            true,
-            true
-        ));
-        let mut missing = check;
-        missing.evidence_ids.clear();
-        assert!(!completion_allowed(&[missing], &[], true, true));
-        assert!(!completion_allowed(&[], &[], true, true));
     }
 }

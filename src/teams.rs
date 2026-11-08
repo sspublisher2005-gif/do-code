@@ -1,11 +1,12 @@
 //! Feature-lead teams — complexity-gated agent staffing.
 //!
-//! A Simple task is one agent. A Standard task adds a lead (architect) with
-//! two specialists (tester, reviewer). A Complex task staffs the full team
-//! including security. Teams are sequential specialist perspectives sharing
-//! the mission ledger — never independent models claiming to be a meeting.
-//! Best-of-N is opt-in only: for Complex tasks the user may request N coder
-//! proposals and pick one; it doubles model cost, so it is never default.
+//! A Simple task is one agent (a coder, led by an architect). A Standard
+//! task adds Tester and Reviewer specialists alongside the Coder. A Complex
+//! task also staffs Security. Teams are sequential specialist perspectives
+//! sharing the mission ledger — never independent models claiming to be a
+//! meeting. Best-of-N is opt-in only: for Complex tasks the user may request
+//! N coder proposals and pick one; it doubles model cost, so it is never
+//! default.
 
 use crate::dispatch::TaskComplexity;
 use crate::mission::AgentRole;
@@ -38,12 +39,17 @@ pub fn assign_team(complexity: TaskComplexity) -> TeamPlan {
         },
         TaskComplexity::Standard => TeamPlan {
             lead: AgentRole::Architect,
-            specialists: vec![AgentRole::Tester, AgentRole::Reviewer],
+            specialists: vec![AgentRole::Coder, AgentRole::Tester, AgentRole::Reviewer],
             strategy: TeamStrategy::Single,
         },
         TaskComplexity::Complex => TeamPlan {
             lead: AgentRole::Architect,
-            specialists: vec![AgentRole::Tester, AgentRole::Reviewer, AgentRole::Security],
+            specialists: vec![
+                AgentRole::Coder,
+                AgentRole::Tester,
+                AgentRole::Reviewer,
+                AgentRole::Security,
+            ],
             strategy: TeamStrategy::Single,
         },
     }
@@ -76,15 +82,20 @@ mod tests {
     }
 
     #[test]
-    fn standard_tasks_add_tester_and_reviewer() {
+    fn standard_tasks_add_coder_tester_and_reviewer() {
         let plan = assign_team(TaskComplexity::Standard);
-        assert_eq!(plan.specialists.len(), 2);
+        assert_eq!(
+            plan.specialists,
+            vec![AgentRole::Coder, AgentRole::Tester, AgentRole::Reviewer]
+        );
     }
 
     #[test]
-    fn complex_tasks_add_security() {
+    fn complex_tasks_add_security_with_coder() {
         let plan = assign_team(TaskComplexity::Complex);
+        assert!(plan.specialists.contains(&AgentRole::Coder));
         assert!(plan.specialists.contains(&AgentRole::Security));
+        assert_eq!(plan.specialists.len(), 4);
     }
 
     #[test]
@@ -100,6 +111,15 @@ mod tests {
         let plan = assign_team(TaskComplexity::Complex);
         let order = execution_order(&plan);
         assert_eq!(order.first(), Some(&AgentRole::Architect));
-        assert_eq!(order.len(), 4);
+        assert_eq!(
+            order,
+            vec![
+                AgentRole::Architect,
+                AgentRole::Coder,
+                AgentRole::Tester,
+                AgentRole::Reviewer,
+                AgentRole::Security,
+            ]
+        );
     }
 }

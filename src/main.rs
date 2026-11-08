@@ -1,3 +1,4 @@
+mod agent_loop;
 mod audit;
 mod compounding;
 mod config;
@@ -24,6 +25,7 @@ mod sandbox;
 mod storage;
 mod taskboard;
 mod teams;
+mod tools;
 mod workflow;
 mod workspace;
 
@@ -92,6 +94,8 @@ enum Command {
     Plan(WorkflowArgs),
     /// Run the multi-role proposal workflow; changes remain a patch until explicitly applied.
     Run(WorkflowArgs),
+    /// Run the single-agent tool loop: the model decides its own tool calls; changes remain a patch until explicitly applied.
+    Agent(WorkflowArgs),
     /// Inspect saved missions.
     Mission {
         #[command(subcommand)]
@@ -461,6 +465,7 @@ fn which_exe(name: &str) -> Option<String> {
     }
     None
 }
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     if let Err(error) = run(Cli::parse()).await {
@@ -559,6 +564,15 @@ async fn run(cli: Cli) -> Result<()> {
             if let Some(patch) = &outcome.patch {
                 println!("\n{}", patches::preview(patch));
                 println!("Patch is not yet applied. Preview again: docode apply {}\nTo approve writes after review: docode apply {} --approve", outcome.mission.id, outcome.mission.id);
+            }
+            println!("IMPORTANT: no shell, tests, build, or browser commands were executed. This mission is not complete.");
+        }
+        Command::Agent(args) => {
+            let outcome = agent_loop::agent(&root, &args.task, args.live, args.approve_context_sharing).await?;
+            println!("Mission: {}\nStatus: {:?}\nModel requests: {}\nTools used: {}", outcome.mission_id, outcome.status, outcome.model_requests, if outcome.tools_called.is_empty() { "(none)".to_owned() } else { outcome.tools_called.join(", ") });
+            if let Some(preview) = &outcome.patch_preview {
+                println!("\nPATCH PROPOSAL (stored; not applied)\n{preview}");
+                println!("Preview again: docode apply {}\nTo approve writes after review: docode apply {} --approve", outcome.mission_id, outcome.mission_id);
             }
             println!("IMPORTANT: no shell, tests, build, or browser commands were executed. This mission is not complete.");
         }
@@ -728,10 +742,15 @@ async fn run(cli: Cli) -> Result<()> {
                         ..Default::default()
                     };
                     let job = sandbox::JobObject::create(limits)?;
-                    let (proc_handle, thread_handle, _pid) =
+                    let (proc_handle, thread_handle, _pid, workspace) =
                         sandbox::spawn_suspended(&exe, &args, limits, &job)?;
-                    let (exit_code, timed_out) =
-                        sandbox::wait_for_completion(proc_handle, thread_handle, timeout_ms)?;
+                    // Cleanup runs even if the wait itself errors.
+                    let wait =
+                        sandbox::wait_for_completion(proc_handle, thread_handle, timeout_ms, &job);
+                    if let Err(e) = std::fs::remove_dir_all(&workspace) {
+                        eprintln!("warning: could not remove sandbox workspace {}: {e}", workspace.display());
+                    }
+                    let (exit_code, timed_out) = wait?;
                     println!("exit_code={exit_code} timed_out={timed_out}");
                 }
                 #[cfg(not(windows))]
@@ -788,7 +807,7 @@ async fn run(cli: Cli) -> Result<()> {
                 .map_err(|e| DocodeError::Message(format!("stored contract is corrupt: {e}")))?;
             println!("Mission contract: {mission_id}");
             println!("Goal: {}", redaction::safe_terminal(&contract.goal));
-            println!("Approved: {}", contract.approved);
+            println!("Enforced: deterministically derived; patches refused outside these paths");
             println!("Allowed paths ({}):", contract.allowed_paths.len());
             for p in &contract.allowed_paths { println!("  - {p}"); }
             println!("Forbidden paths: {}", contract.forbidden_paths.join(", "));

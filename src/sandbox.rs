@@ -3,13 +3,14 @@
 //! where the required primitive cannot be established.
 //!
 //! Current status:
-//!   - Windows: Job Object containment + AppContainer launch (restricted
-//!     primary token = known gap; windows-sys 0.61 lacks the token attr)
-//!     (PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES, zero capabilities =
-//!     OS-enforced deny-by-default network) + sanitized minimal environment +
-//!     suspended process creation implemented. Full adversarial proof is still
-//!     pending; command execution stays disabled until `sandbox self-test`
-//!     passes on a real disposable Windows runner.
+//!   - Windows: Job Object containment + AppContainer launch (zero capabilities =
+//!     OS network deny) + sanitized minimal environment + suspended process
+//!     creation implemented. No unprivileged primary-token API exists —
+//!     PROC_THREAD_ATTRIBUTE_TOKEN is absent from the documented attribute
+//!     table, and CreateProcessWithTokenW requires SeImpersonatePrivilege.
+//!     Full adversarial proof is still pending; command execution stays
+//!     disabled until `sandbox self-test` passes on a real disposable
+//!     Windows runner.
 //!   - Linux / macOS: not yet implemented; execution stays disabled.
 
 #[cfg(windows)]
@@ -24,7 +25,7 @@ mod windows_impl {
     use windows_sys::Win32::Security::Isolation::CreateAppContainerProfile;
     use windows_sys::Win32::System::JobObjects::{
         AssignProcessToJobObject, CreateJobObjectW, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-        JobObjectExtendedLimitInformation, SetInformationJobObject,
+        JobObjectExtendedLimitInformation, SetInformationJobObject, TerminateJobObject,
     };
     use windows_sys::Win32::System::Memory::{LMEM_FIXED, LocalAlloc};
     use windows_sys::Win32::System::Threading::{
@@ -292,12 +293,14 @@ mod windows_impl {
     ///   4. Job Object assigned BEFORE resume with kill-on-close.
     ///
     /// Any failure before resume terminates the child and returns an error.
+    /// Returns the handles plus the private disposable workspace path — the
+    /// caller owns cleanup (`remove_dir_all`) once the child exits.
     pub fn spawn_suspended(
         exe: &str,
         args: &[String],
         _limits: ResourceLimits,
         job: &JobObject,
-    ) -> Result<(HANDLE, HANDLE, u32)> {
+    ) -> Result<(HANDLE, HANDLE, u32, std::path::PathBuf)> {
         use windows_sys::Win32::Security::SECURITY_CAPABILITIES;
         use windows_sys::Win32::System::Threading::{
             DeleteProcThreadAttributeList, EXTENDED_STARTUPINFO_PRESENT,
@@ -429,6 +432,7 @@ mod windows_impl {
 
         if ok == 0 {
             let last = unsafe { windows_sys::Win32::Foundation::GetLastError() };
+            let _ = std::fs::remove_dir_all(&workspace);
             return Err(DocodeError::Safety(format!(
                 "CreateProcessW (suspended, AppContainer) failed; no process was started. (GetLastError={last})"
             )));
@@ -441,6 +445,7 @@ mod windows_impl {
                 CloseHandle(proc_info.hThread);
                 CloseHandle(proc_info.hProcess);
             }
+            let _ = std::fs::remove_dir_all(&workspace);
             return Err(e);
         }
 
@@ -452,25 +457,38 @@ mod windows_impl {
                 CloseHandle(proc_info.hThread);
                 CloseHandle(proc_info.hProcess);
             }
+            let _ = std::fs::remove_dir_all(&workspace);
             return Err(DocodeError::Safety(
                 "ResumeThread failed; process terminated before execution.".into(),
             ));
         }
 
-        Ok((proc_info.hProcess, proc_info.hThread, proc_info.dwProcessId))
+        Ok((
+            proc_info.hProcess,
+            proc_info.hThread,
+            proc_info.dwProcessId,
+            workspace,
+        ))
     }
 
     /// Wait for a sandboxed process to complete, with timeout.
-    /// Returns (exit_code, timed_out). Terminates the tree on timeout.
+    /// Returns (exit_code, timed_out). On timeout the WHOLE process tree is
+    /// terminated via the Job Object — killing only the main process leaves
+    /// grandchildren running past the wall-clock limit.
     pub fn wait_for_completion(
         process_handle: HANDLE,
         thread_handle: HANDLE,
         timeout_ms: u32,
+        job: &JobObject,
     ) -> Result<(u32, bool)> {
         const WAIT_TIMEOUT: u32 = 0x0000_0102;
         let result = unsafe { WaitForSingleObject(process_handle, timeout_ms) };
         if result == WAIT_TIMEOUT {
-            unsafe { TerminateProcess(process_handle, 1) };
+            let killed = unsafe { TerminateJobObject(job.handle(), 1) };
+            if killed == 0 {
+                // Fail safe: at least stop the main process.
+                let _ = unsafe { TerminateProcess(process_handle, 1) };
+            }
             let _ = unsafe { WaitForSingleObject(process_handle, 5000) };
             unsafe {
                 CloseHandle(thread_handle);

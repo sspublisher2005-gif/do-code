@@ -41,6 +41,43 @@ pub(crate) const CODER_SYSTEM: &str = "You are Do Code's Coder role. Return ONLY
 const REVIEWER_SYSTEM: &str = "You are Do Code's Reviewer role. Review the proposed patch and plan for correctness, unnecessary changes, edge cases, API/behavior compatibility, and missing tests. This is an advisory model review, not a verified human review. Do not claim execution.";
 const SECURITY_SYSTEM: &str = "You are Do Code's Security role. Inspect the proposed patch for secret disclosure, path traversal, injection, unsafe execution, permission changes, dependency/supply-chain risk, denial of service and missing authorization. Return concrete findings with severity and evidence. This is advisory and not an independent security certification.";
 
+/// Up to 3 user-confirmed project-scope memory notes, ranked by task-keyword
+/// matches. Advisory only: retrieval failure never blocks a run.
+fn confirmed_memory_brief(root: &Path, task: &str) -> String {
+    let mut tokens: Vec<&str> = task
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|token| token.len() >= 4)
+        .collect();
+    tokens.sort_unstable();
+    tokens.dedup();
+    let mut seen = std::collections::BTreeSet::new();
+    let mut hits: Vec<crate::memory::MemoryNote> = Vec::new();
+    for token in tokens.into_iter().take(12) {
+        for note in crate::memory::search(root, token, "project").unwrap_or_default() {
+            if seen.insert(note.id.clone()) {
+                hits.push(note);
+            }
+        }
+        if hits.len() >= 6 {
+            break;
+        }
+    }
+    if hits.is_empty() {
+        return String::new();
+    }
+    if hits.len() > 3 {
+        hits.truncate(3);
+    }
+    let items: Vec<String> = hits
+        .iter()
+        .map(|note| format!("- {} ({}): {}", note.title, note.note_type, note.decision))
+        .collect();
+    format!(
+        "\n\nProject memory (user-confirmed, advisory):\n{}\n",
+        items.join("\n")
+    )
+}
+
 pub async fn plan(root: &Path, task: &str, live: bool, approved: bool) -> Result<WorkflowOutcome> {
     let root = fs::canonicalize(root).map_err(|e| crate::error::io_error(root, e))?;
     if !live || !approved {
@@ -215,7 +252,8 @@ Project playbooks approved by the user (advisory):
             )
         }
     };
-    let architect_prior = format!("{}{}", research.text, playbook_brief);
+    let memory_brief = confirmed_memory_brief(root, task);
+    let architect_prior = format!("{}{}{}", research.text, playbook_brief, memory_brief);
     let plan = call_role_routed(
         root,
         cfg,
@@ -311,6 +349,14 @@ pub async fn run(
             Ok(outcome)
         }
         Err(error) => {
+            // A loop-budget pause is not a failure: the checkpoint itself
+            // persisted the loop summary and moved the mission to Interrupted.
+            if let Some(reason) = error.to_string().strip_prefix("LOOP_PAUSED: ") {
+                return Err(DocodeError::Message(format!(
+                    "Mission paused at a safe boundary: {reason}. No work was lost; \
+                     'docode mission show' explains the state."
+                )));
+            }
             // Rate limits pause the mission instead of failing it so the
             // task, ledger, and any partial work survive for a later run.
             if error.to_string().contains("RATE_LIMITED:") {
@@ -368,6 +414,7 @@ async fn run_coding_steps(
     // architect receives the task directly. Standard/Complex keep the full
     // pipeline. The research step is still recorded so the mission ledger
     // stays complete.
+    budget_checkpoint(root, mission_id, &loop_state)?;
     let research_text = if complexity == crate::dispatch::TaskComplexity::Simple {
         start_step(store, mission_id, "research")?;
         finish_step(
@@ -420,6 +467,7 @@ async fn run_coding_steps(
         },
     };
 
+    budget_checkpoint(root, mission_id, &loop_state)?;
     start_step(store, mission_id, "plan")?;
     // Compounding: approved playbooks whose keywords match this task are
     // briefed to the architect. Local files only; the brief rides in the
@@ -440,7 +488,8 @@ async fn run_coding_steps(
             )
         }
     };
-    let architect_prior = format!("{}{}", research.text, playbook_brief);
+    let memory_brief = confirmed_memory_brief(root, task);
+    let architect_prior = format!("{}{}{}", research.text, playbook_brief, memory_brief);
     let plan = call_role_routed(
         root,
         cfg,
@@ -459,6 +508,7 @@ async fn run_coding_steps(
     save_role_evidence(root, store, mission_id, "plan", &plan, &context_hash, pack)?;
     finish_step(store, mission_id, "plan", StepStatus::Passed, None)?;
 
+    budget_checkpoint(root, mission_id, &loop_state)?;
     start_step(store, mission_id, "test")?;
     let test_plan = call_role_routed(
         root,
@@ -579,6 +629,7 @@ async fn run_coding_steps(
     storage::ensure_private_dir(&board_home)?;
     storage::write_atomic(&board_home.join("tasks.json"), &board.to_json()?, true)?;
 
+    budget_checkpoint(root, mission_id, &loop_state)?;
     start_step(store, mission_id, "implement")?;
     // Complex tasks get the plan's explicit file targets restated as priority
     // targets so the coder focuses the change set deterministically.
@@ -605,8 +656,8 @@ async fn run_coding_steps(
         crate::teams::TeamStrategy::Single => 1,
     };
     let coder_prompt = format!(
-        "Research:\n{}\nPlan:\n{}\nTest plan (not executed):\n{}\n{}{}\nOnly propose complete replacements for files fully included in context.",
-        research.text, plan.text, test_plan.text, dispatch_targets, workspace_brief
+        "Research:\n{}\nPlan:\n{}\nTest plan (not executed):\n{}\n{}{}{}\nOnly propose complete replacements for files fully included in context.",
+        research.text, plan.text, test_plan.text, dispatch_targets, workspace_brief, memory_brief
     );
     let mut coder: Option<provider::ModelResponse> = None;
     for attempt in 0..coder_attempts {
@@ -658,103 +709,16 @@ async fn run_coding_steps(
         ));
     }
     let parsed = parse_patch_json(&coder.text)?;
-    let mut changes: Vec<patches::PatchOpInput> = Vec::new();
-    for item in parsed.files {
-        let op = if item.op.is_empty() {
-            "edit".to_string()
-        } else {
-            item.op.to_ascii_lowercase()
-        };
-        // Contract checks are per-operation: edits touch known context files,
-        // creates add new non-sensitive paths, deletes/renames act on known
-        // files and never cross into the sensitive-path floor.
-        match op.as_str() {
-            "edit" => {
-                if !editable.contains(&item.path) {
-                    return Err(DocodeError::Safety(format!(
-                        "model proposed path '{}' that was not fully present in the approved context; proposal rejected.",
-                        item.path
-                    )));
-                }
-                if !contract.allows(&item.path) {
-                    return Err(DocodeError::Safety(format!(
-                        "model proposed path '{}' that the mission contract forbids; proposal rejected.",
-                        item.path
-                    )));
-                }
-                let absolute = files_resolve(root, &item.path)?;
-                let current = storage::read_bounded_regular(
-                    &absolute,
-                    cfg.limits
-                        .max_read_bytes
-                        .max(MAX_PATCH_RESPONSE_BYTES as u64),
-                )?;
-                if sha256(&current)
-                    != pack
-                        .files
-                        .iter()
-                        .find(|f| f.path == item.path)
-                        .expect("checked membership")
-                        .sha256
-                {
-                    return Err(DocodeError::Safety(format!(
-                        "source file '{}' changed since context collection; no patch was saved.",
-                        item.path
-                    )));
-                }
-                changes.push(patches::PatchOpInput::edit(
-                    item.path,
-                    item.content,
-                    item.reason,
-                ));
-            }
-            "create" => {
-                if crate::files::is_sensitive_path(&item.path) || !contract.allows(&item.path) {
-                    return Err(DocodeError::Safety(format!(
-                        "model proposed creating '{}' outside the mission contract or sensitive path; proposal rejected.",
-                        item.path
-                    )));
-                }
-                changes.push(patches::PatchOpInput::create(
-                    item.path,
-                    item.content,
-                    item.reason,
-                ));
-            }
-            "delete" => {
-                if !editable.contains(&item.path) || !contract.allows(&item.path) {
-                    return Err(DocodeError::Safety(format!(
-                        "model proposed deleting '{}' which the mission contract does not cover; proposal rejected.",
-                        item.path
-                    )));
-                }
-                changes.push(patches::PatchOpInput::delete(item.path, item.reason));
-            }
-            "rename" => {
-                let to = item.new_path.clone().ok_or_else(|| {
-                    DocodeError::Safety(
-                        "model proposed a rename without a destination path.".into(),
-                    )
-                })?;
-                if !editable.contains(&item.path)
-                    || !contract.allows(&item.path)
-                    || crate::files::is_sensitive_path(&to)
-                {
-                    return Err(DocodeError::Safety(format!(
-                        "model proposed renaming '{}' to '{}' outside the mission contract; proposal rejected.",
-                        item.path, to
-                    )));
-                }
-                changes.push(patches::PatchOpInput::rename(item.path, to, item.reason));
-            }
-            other => {
-                return Err(DocodeError::Safety(format!(
-                    "model proposed unsupported operation '{other}'; proposal rejected."
-                )));
-            }
-        }
-    }
-    let patch = patches::create_proposal(root, mission_id, &parsed.summary, changes)?;
+    let summary = parsed.summary.clone();
+    let changes = build_patch_changes(
+        root,
+        cfg.limits.max_read_bytes,
+        pack,
+        &contract,
+        &editable,
+        parsed,
+    )?;
+    let patch = patches::create_proposal(root, mission_id, &summary, changes)?;
     let patch_manifest = evidence::put(
         root,
         mission_id,
@@ -784,6 +748,7 @@ async fn run_coding_steps(
         Ok(())
     })?;
 
+    budget_checkpoint(root, mission_id, &loop_state)?;
     start_step(store, mission_id, "review")?;
     let review = call_role_routed(
         root,
@@ -814,6 +779,7 @@ async fn run_coding_steps(
         pack,
     )?;
     finish_step(store, mission_id, "review", StepStatus::Passed, None)?;
+    budget_checkpoint(root, mission_id, &loop_state)?;
     start_step(store, mission_id, "security")?;
     let security = call_role_routed(
         root,
@@ -884,12 +850,12 @@ async fn run_coding_steps(
 }
 
 #[derive(serde::Deserialize)]
-struct ModelPatch {
+pub(crate) struct ModelPatch {
     summary: String,
     files: Vec<ModelFileChange>,
 }
 #[derive(serde::Deserialize)]
-struct ModelFileChange {
+pub(crate) struct ModelFileChange {
     path: String,
     content: String,
     #[serde(default)]
@@ -901,7 +867,7 @@ struct ModelFileChange {
     #[serde(default)]
     new_path: Option<String>,
 }
-fn parse_patch_json(text: &str) -> Result<ModelPatch> {
+pub(crate) fn parse_patch_json(text: &str) -> Result<ModelPatch> {
     let trimmed = text.trim();
     let cleaned = trimmed
         .strip_prefix("```json")
@@ -1051,7 +1017,7 @@ fn role_name(role: &AgentRole) -> &'static str {
         AgentRole::Devops => "devops",
     }
 }
-fn validate_task(task: &str) -> Result<()> {
+pub(crate) fn validate_task(task: &str) -> Result<()> {
     if task.trim().len() < 8 || task.len() > 20_000 {
         return Err(DocodeError::Message(
             "task description must be 8..20000 bytes.".into(),
@@ -1109,7 +1075,7 @@ fn finish_step(
     })?;
     Ok(())
 }
-fn save_context_evidence(
+pub(crate) fn save_context_evidence(
     root: &Path,
     store: &MissionStore,
     mission_id: &str,
@@ -1203,7 +1169,42 @@ fn save_role_evidence(
     message_store::append(root, message)?;
     Ok(())
 }
-fn fail_mission(store: &MissionStore, mission_id: &str) {
+/// Consult the loop budget at a safe boundary before a new step starts. On
+/// pause, persist the loop summary, move the mission to Interrupted (out of
+/// scope of fail_mission) and return a sentinel error the outer handler
+/// recognizes. This is a clean pause, never a failure.
+pub(crate) fn budget_checkpoint(
+    root: &Path,
+    mission_id: &str,
+    loop_state: &crate::loopctl::LoopState,
+) -> Result<()> {
+    let reason = match loop_state.begin_step() {
+        Ok(crate::loopctl::LoopDecision::Continue) => return Ok(()),
+        Ok(crate::loopctl::LoopDecision::Pause(reason)) => reason,
+        Err(error) => return Err(error),
+    };
+    let summary = loop_state.summary(Some(reason.clone()));
+    let mission_dir = storage::ensure_project_home(root)?
+        .join("missions")
+        .join(mission_id);
+    crate::loopctl::save_summary(&mission_dir, &summary)?;
+    if let Ok(store) = MissionStore::open(root) {
+        let _ = store.transition(mission_id, MissionStatus::Interrupted);
+    }
+    audit::append(
+        root,
+        "mission.loop_paused",
+        "paused",
+        BTreeMap::from([
+            ("missionId".into(), json!(mission_id)),
+            ("reason".into(), json!(reason)),
+            ("stepsTaken".into(), json!(summary.steps_taken)),
+        ]),
+    )?;
+    Err(DocodeError::Message(format!("LOOP_PAUSED: {reason}")))
+}
+
+pub(crate) fn fail_mission(store: &MissionStore, mission_id: &str) {
     if let Ok(current) = store.get(mission_id) {
         if matches!(
             current.status,
@@ -1433,6 +1434,114 @@ pub fn list_agents() -> Vec<(&'static str, &'static str)> {
             "Reserved for build/CI/release planning; blocked without a verified sandbox.",
         ),
     ]
+}
+
+/// Validate a parsed model patch against the mission contract and build the
+/// typed operation list. Shared by the multi-role workflow and the single
+/// agent loop so both paths enforce identical per-operation checks.
+pub(crate) fn build_patch_changes(
+    root: &Path,
+    max_read_bytes: u64,
+    pack: &ContextPack,
+    contract: &crate::contract::MissionContract,
+    editable: &std::collections::BTreeSet<String>,
+    parsed: ModelPatch,
+) -> Result<Vec<patches::PatchOpInput>> {
+    let mut changes: Vec<patches::PatchOpInput> = Vec::new();
+    for item in parsed.files {
+        let op = if item.op.is_empty() {
+            "edit".to_string()
+        } else {
+            item.op.to_ascii_lowercase()
+        };
+        // Contract checks are per-operation: edits touch known context files,
+        // creates add new non-sensitive paths, deletes/renames act on known
+        // files and never cross into the sensitive-path floor.
+        match op.as_str() {
+            "edit" => {
+                if !editable.contains(&item.path) {
+                    return Err(DocodeError::Safety(format!(
+                        "model proposed path '{}' that was not fully present in the approved context; proposal rejected.",
+                        item.path
+                    )));
+                }
+                if !contract.allows(&item.path) {
+                    return Err(DocodeError::Safety(format!(
+                        "model proposed path '{}' that the mission contract forbids; proposal rejected.",
+                        item.path
+                    )));
+                }
+                let absolute = files_resolve(root, &item.path)?;
+                let current = storage::read_bounded_regular(
+                    &absolute,
+                    max_read_bytes.max(MAX_PATCH_RESPONSE_BYTES as u64),
+                )?;
+                if sha256(&current)
+                    != pack
+                        .files
+                        .iter()
+                        .find(|f| f.path == item.path)
+                        .expect("checked membership")
+                        .sha256
+                {
+                    return Err(DocodeError::Safety(format!(
+                        "source file '{}' changed since context collection; no patch was saved.",
+                        item.path
+                    )));
+                }
+                changes.push(patches::PatchOpInput::edit(
+                    item.path,
+                    item.content,
+                    item.reason,
+                ));
+            }
+            "create" => {
+                if crate::files::is_sensitive_path(&item.path) || !contract.allows(&item.path) {
+                    return Err(DocodeError::Safety(format!(
+                        "model proposed creating '{}' outside the mission contract or sensitive path; proposal rejected.",
+                        item.path
+                    )));
+                }
+                changes.push(patches::PatchOpInput::create(
+                    item.path,
+                    item.content,
+                    item.reason,
+                ));
+            }
+            "delete" => {
+                if !editable.contains(&item.path) || !contract.allows(&item.path) {
+                    return Err(DocodeError::Safety(format!(
+                        "model proposed deleting '{}' which the mission contract does not cover; proposal rejected.",
+                        item.path
+                    )));
+                }
+                changes.push(patches::PatchOpInput::delete(item.path, item.reason));
+            }
+            "rename" => {
+                let to = item.new_path.clone().ok_or_else(|| {
+                    DocodeError::Safety(
+                        "model proposed a rename without a destination path.".into(),
+                    )
+                })?;
+                if !editable.contains(&item.path)
+                    || !contract.allows(&item.path)
+                    || crate::files::is_sensitive_path(&to)
+                {
+                    return Err(DocodeError::Safety(format!(
+                        "model proposed renaming '{}' to '{}' outside the mission contract; proposal rejected.",
+                        item.path, to
+                    )));
+                }
+                changes.push(patches::PatchOpInput::rename(item.path, to, item.reason));
+            }
+            other => {
+                return Err(DocodeError::Safety(format!(
+                    "model proposed unsupported operation '{other}'; proposal rejected."
+                )));
+            }
+        }
+    }
+    Ok(changes)
 }
 
 #[cfg(test)]

@@ -2,8 +2,30 @@ name: Docode Windows Sandbox Matrix
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/sandbox-matrix-windows.yml"
+      - "scripts/sandbox_adversarial_windows.py"
+      - "scripts/validate_python_sources.py"
+      - "src/sandbox.rs"
+      - "src/main.rs"
+      - "src/storage.rs"
+      - "src/error.rs"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "docs/SANDBOX_ACCEPTANCE_MATRIX.json"
   push:
-    paths: [".github/workflows/sandbox-matrix-windows.yml"]
+    paths:
+      - ".github/workflows/sandbox-matrix-windows.yml"
+      - "scripts/sandbox_adversarial_windows.py"
+      - "scripts/validate_python_sources.py"
+      - "src/sandbox.rs"
+      - "src/main.rs"
+      - "src/storage.rs"
+      - "src/error.rs"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "docs/SANDBOX_ACCEPTANCE_MATRIX.json"
   schedule:
     - cron: "0 2 * * 1"
 

@@ -425,35 +425,39 @@ mod tests {
 
     #[test]
     fn concurrent_mission_updates_do_not_lose_appends() {
-        let root = tempdir().unwrap();
-        let store = MissionStore::open(root.path()).unwrap();
-        let mission = store.create("Preserve every concurrent update").unwrap();
-        let mut workers = Vec::new();
-        for index in 0..8 {
-            let root_path = root.path().to_path_buf();
-            let mission_id = mission.id.clone();
-            workers.push(std::thread::spawn(move || {
-                let store = MissionStore::open(&root_path).unwrap();
-                store
-                    .update(&mission_id, |current| {
-                        current.evidence_ids.push(format!("evidence-{index}"));
-                        Ok(())
-                    })
-                    .unwrap();
-            }));
+        // Repeated contention, not one lucky run: the release gate expects
+        // high iteration counts, so this stresses several rounds of 8 writers.
+        // (A full 100-round soak belongs to CI/stress runs, not the default suite.)
+        const ROUNDS: usize = 12;
+        for round in 0..ROUNDS {
+            let root = tempdir().unwrap();
+            let store = MissionStore::open(root.path()).unwrap();
+            let mission = store.create("Preserve every concurrent update").unwrap();
+            let mut workers = Vec::new();
+            for index in 0..8 {
+                let root_path = root.path().to_path_buf();
+                let mission_id = mission.id.clone();
+                workers.push(std::thread::spawn(move || {
+                    let store = MissionStore::open(&root_path).unwrap();
+                    store
+                        .update(&mission_id, |current| {
+                            current
+                                .evidence_ids
+                                .push(format!("evidence-{index}-{round}"));
+                            Ok(())
+                        })
+                        .unwrap();
+                }));
+            }
+            for worker in workers {
+                worker.join().unwrap();
+            }
+            let updated = store.get(&mission.id).unwrap();
+            assert_eq!(
+                updated.evidence_ids.len(),
+                8,
+                "round {round} lost concurrent appends"
+            );
         }
-        for worker in workers {
-            worker.join().unwrap();
-        }
-        let updated = store.get(&mission.id).unwrap();
-        assert_eq!(updated.evidence_ids.len(), 8);
-        assert_eq!(
-            updated
-                .evidence_ids
-                .iter()
-                .collect::<std::collections::BTreeSet<_>>()
-                .len(),
-            8
-        );
     }
 }

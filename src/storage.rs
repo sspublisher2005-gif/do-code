@@ -271,18 +271,34 @@ fn atomic_replace(from: &Path, to: &Path) -> Result<()> {
             .encode_wide()
             .chain(std::iter::once(0))
             .collect();
-        // SAFETY: both paths are valid NUL-terminated UTF-16 strings alive for the duration of the call.
-        let ok = unsafe {
-            MoveFileExW(
-                from_wide.as_ptr(),
-                to_wide.as_ptr(),
-                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
-            )
-        };
-        if ok == 0 {
-            return Err(io_error(to, std::io::Error::last_os_error()));
+        // Windows transiently refuses a replace (access denied 5 / sharing
+        // violation 32) when a concurrent reader holds the destination
+        // without FILE_SHARE_DELETE — antivirus scanners and indexers behave
+        // exactly like this. Mission updates are already mutex-serialized,
+        // so this is external contention, not a data race: a bounded retry
+        // is correct. It is not a mask for lost updates.
+        const MAX_ATTEMPTS: u32 = 20;
+        for attempt in 0..MAX_ATTEMPTS {
+            // SAFETY: both paths are valid NUL-terminated UTF-16 strings alive for the duration of the call.
+            let ok = unsafe {
+                MoveFileExW(
+                    from_wide.as_ptr(),
+                    to_wide.as_ptr(),
+                    MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+                )
+            };
+            if ok != 0 {
+                return Ok(());
+            }
+            let err = std::io::Error::last_os_error();
+            let code = err.raw_os_error();
+            if attempt + 1 < MAX_ATTEMPTS && matches!(code, Some(5) | Some(32) | Some(33)) {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                continue;
+            }
+            return Err(io_error(to, err));
         }
-        Ok(())
+        unreachable!("retry loop always returns")
     }
     #[cfg(not(any(unix, windows)))]
     {

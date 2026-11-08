@@ -30,8 +30,9 @@ def main() -> int:
         return 'Expected core commands present; predicted-cost flags absent'
     def sandbox_status():
         r=run(['sandbox','status']); assert r.returncode==0, r.stdout
-        assert 'NOT IMPLEMENTED' in r.stdout and 'execution is disabled' in r.stdout, r.stdout
-        return 'Status reports no sandbox and keeps arbitrary execution disabled'
+        # Honest current disclosure: primitives exist but are NOT qualified; execution stays disabled.
+        assert 'NOT qualified' in r.stdout and 'Arbitrary command execution is disabled.' in r.stdout, r.stdout
+        return 'Status reports primitives implemented but NOT qualified; arbitrary execution remains disabled'
     def sandbox_fails_closed():
         r=run(['sandbox','self-test']); assert r.returncode != 0, r.stdout
         assert 'no native sandbox driver is implemented' in r.stdout.lower(), r.stdout

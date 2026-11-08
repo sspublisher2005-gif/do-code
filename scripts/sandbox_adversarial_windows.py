@@ -58,8 +58,8 @@ CASES = [
     },
     {
         "id": "NET-02",
-        "title": "loopback connect denied",
-        "probe": "(New-Object Net.Sockets.TcpClient).Connect('127.0.0.1', 1); Write-Output 'connected'",
+        "title": "loopback connect denied while host listener is open",
+        "probe": "PLACEHOLDER_HOST_LISTENER_PORT",
         "must_fail": True,
     },
     {
@@ -125,6 +125,7 @@ def run_sandboxed(binary, case, timeout_s):
         binary,
         "sandbox",
         "exec",
+        "--approve",
         "--",
         "powershell",
         "-NoProfile",
@@ -147,14 +148,12 @@ def run_sandboxed(binary, case, timeout_s):
             )
         env["DOCODE_DECOY"] = decoy
     started = time.time()
-    started = time.time()
     proc = subprocess.run(
         cmd,
         capture_output=True,
         text=True, encoding="utf-8", errors="replace",
         timeout=timeout_s,
         env=env,
-        errors="replace",
     )
     elapsed = time.time() - started
     stdout = (proc.stdout or "")[-8000:]
@@ -231,15 +230,15 @@ def run_host_cases(binary, report, all_passed):
     work = tempfile.mkdtemp(prefix="docode-matrix-")
     # WIN-01: init a real workspace, then read the .docode DACL.
     init = subprocess.run(
-        [binary, "--root", work, "init"], capture_output=True, text=True, encoding="utf-8", errors="replace", errors="replace"
+        [binary, "--root", work, "init"], capture_output=True, text=True, encoding="utf-8", errors="replace"
     )
     owner = subprocess.run(
         ["powershell", "-NoProfile", "-Command",
          "(Get-Acl '" + os.path.join(work, ".docode") + "').Owner"],
-        capture_output=True, text=True, encoding="utf-8", errors="replace", errors="replace"
+        capture_output=True, text=True, encoding="utf-8", errors="replace"
     )
     icacls = subprocess.run(
-        ["icacls", os.path.join(work, ".docode")], capture_output=True, text=True, encoding="utf-8", errors="replace", errors="replace"
+        ["icacls", os.path.join(work, ".docode")], capture_output=True, text=True, encoding="utf-8", errors="replace"
     )
     dacl_text = (
         "OWNER=" + (owner.stdout or owner.stderr or "").strip()
@@ -273,7 +272,6 @@ def run_host_cases(binary, report, all_passed):
         [binary, "--root", work, "complete", "00000000-0000-0000-0000-000000000000"],
         capture_output=True,
         text=True, encoding="utf-8", errors="replace",
-        errors="replace",
     )
     out = (complete.stdout or "") + (complete.stderr or "")
     problems = []
@@ -355,7 +353,8 @@ def main():
             if probe == "PLACEHOLDER_HOST_LISTENER_PORT":
                 probe = (
                     "try { (New-Object Net.Sockets.TcpClient).Connect('127.0.0.1', "
-                    f"{listener_port}); Write-Output 'connected' }} catch {{ Write-Output ('DENIED:' + $_.Exception.GetType().Name) }}"
+                    f"{listener_port}); Write-Output 'connected'; exit 0 }} "
+                    f"catch {{ Write-Output ('DENIED:' + $_.Exception.GetType().Name); exit 1 }}"
                 )
             case = dict(case)
             case["probe"] = probe

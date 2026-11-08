@@ -1,9 +1,9 @@
 {
   "artifact": "Do Code Rust implementation source inventory",
-  "generated_at_utc": "2026-11-07T21:06:29.897045+00:00",
+  "generated_at_utc": "2026-11-08T09:22:23.114826+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
-  "inventory_count": 77,
+  "inventory_count": 81,
   "inventory": [
     {
       "path": ".github/workflows/rust-ci.yml",
@@ -12,8 +12,8 @@
     },
     {
       "path": ".github/workflows/sandbox-matrix-windows.yml",
-      "bytes": 1724,
-      "sha256": "6b5b79b9b1003ebce6320b330af3696bb1f35516993b1c0d01adfe6bfd1d2150"
+      "bytes": 2366,
+      "sha256": "c878cd8808d42cd060cdaa2fd73dc27c3eeca785bd2e9490af38e4d5dfb6360f"
     },
     {
       "path": ".github/workflows/security-audit.yml",
@@ -137,8 +137,8 @@
     },
     {
       "path": "docs/STATUS.md",
-      "bytes": 15384,
-      "sha256": "3c8975bf8915cea4277a1f61f5ca355e6ddbd554129c8c3afb546a73df82b8df"
+      "bytes": 22486,
+      "sha256": "867c032bda0cfcf8549205fa926ac219add9d693c9871013d8e937ce3ec078bd"
     },
     {
       "path": "docs/TEST_RESULTS_2026-10-26.md",
@@ -182,8 +182,8 @@
     },
     {
       "path": "scripts/ci_pipeline.py",
-      "bytes": 16573,
-      "sha256": "1ddfb01b27ba9ad706cd2c6701519279a9b1972c3ecaded6dc19a663520a5040"
+      "bytes": 16995,
+      "sha256": "95d97c2c15a2dc97f9680140b0ff9724a64db5e0bf69eb9c86aabcac3a38688f"
     },
     {
       "path": "scripts/extended_offline_acceptance.py",
@@ -192,8 +192,8 @@
     },
     {
       "path": "scripts/extra_safety_probes.py",
-      "bytes": 4237,
-      "sha256": "81e634aedb82ffd0a7aa4427b85a9fde3b77da505faef39797263c2066a2c676"
+      "bytes": 4386,
+      "sha256": "7616318af7f6479e094aa96d419e28911fd6895c022809c965f8b77c49526b36"
     },
     {
       "path": "scripts/generate_sbom.py",
@@ -207,8 +207,8 @@
     },
     {
       "path": "scripts/sandbox_adversarial_windows.py",
-      "bytes": 18330,
-      "sha256": "f868f46a30e30f3a943881d09b7e0c2e6ab20e0bedb3e045e0a4a4a05ab150b0"
+      "bytes": 18198,
+      "sha256": "55d7d62ea3cfcfd8fed1878caa5172ecdfc8d654a440c0388a856ed85fd390e2"
     },
     {
       "path": "scripts/static_preflight.py",
@@ -222,8 +222,8 @@
     },
     {
       "path": "scripts/test_ci_pipeline_gates.py",
-      "bytes": 3414,
-      "sha256": "e8d0e84827a52bd7f5e39f817d084bc607cb7f2fc70c0806d686345ad0251e38"
+      "bytes": 3779,
+      "sha256": "2001c73003c642237c93deddc742b9f45e4a5995b21b1db6409f843e866d00dc"
     },
     {
       "path": "scripts/test_sbom_generator.py",
@@ -236,9 +236,19 @@
       "sha256": "a76fca006804a5cf7892eefa9557194f3a75eba0e14ad415bd011e4739389289"
     },
     {
+      "path": "scripts/validate_python_sources.py",
+      "bytes": 852,
+      "sha256": "67c9104d84c8aee0aa92ca9fafb96663ffabcc2a368391d8229111fc9c4c7be3"
+    },
+    {
       "path": "scripts/verify_cli.py",
       "bytes": 24328,
       "sha256": "e81e845a05d165948ebb9b65bab98cb2db4791602edc98b01d6e224338043bb6"
+    },
+    {
+      "path": "src/agent_loop.rs",
+      "bytes": 16171,
+      "sha256": "6d7be61b05df9b26f70d10ac8402f30f772516424f07d16a8bc2935f77838a0c"
     },
     {
       "path": "src/audit.rs",
@@ -262,8 +272,8 @@
     },
     {
       "path": "src/contract.rs",
-      "bytes": 5997,
-      "sha256": "576e7171a0ec114d134bb168748bf3e0b23f250ea05f60b1384552cbbf509494"
+      "bytes": 5636,
+      "sha256": "10bb7f3ef7e72e071f74ca3962883ceaddadf84f622b7c21cdce5508efe585d6"
     },
     {
       "path": "src/decision_arena.rs",
@@ -307,8 +317,8 @@
     },
     {
       "path": "src/main.rs",
-      "bytes": 61887,
-      "sha256": "105edf0fcb2560589189cff778d7e44f2e404987626b4ad19e84dd399033b7fd"
+      "bytes": 63278,
+      "sha256": "f0ca2b0c172e0421be09d8c19e57627711a5160015e97645559d46aab08f5c29"
     },
     {
       "path": "src/memory.rs",
@@ -322,13 +332,13 @@
     },
     {
       "path": "src/mission.rs",
-      "bytes": 8402,
-      "sha256": "220b3a312e9ac0d71c2b080610035e9ea73fe1816a2fb799fef292eda8581270"
+      "bytes": 6971,
+      "sha256": "69e4720ad84f1975275b0291362abe025dfbd5312cd29f663324ac48e45a2446"
     },
     {
       "path": "src/mission_store.rs",
-      "bytes": 18027,
-      "sha256": "043ece0e83ab2dd167babb868a6dbc9894393377c388ae1bb6a00a463955ae1b"
+      "bytes": 18407,
+      "sha256": "521bc4d58fc8dd5b19d9d268e51f1ca692b21c115952a1535b18830c02ace0f6"
     },
     {
       "path": "src/patches.rs",
@@ -357,13 +367,13 @@
     },
     {
       "path": "src/sandbox.rs",
-      "bytes": 21268,
-      "sha256": "74d8b0429f50a94d0276bdc327a5e817893a3e92b1c35a0ca385cc4cb75670d1"
+      "bytes": 22053,
+      "sha256": "084217899ed141a402599d83283456437a3c32b3d519543e7027bd22594ae174"
     },
     {
       "path": "src/storage.rs",
-      "bytes": 15276,
-      "sha256": "8fff92cfd92ddc43f3e07ab52c89e6b3c649a9d81e4bf3b0746d490b04294ddf"
+      "bytes": 16186,
+      "sha256": "57e1c3c776a8a8d9b8d95f3fca34a06a3b696aaa96b10e7ac16de99393d4b5a3"
     },
     {
       "path": "src/taskboard.rs",
@@ -372,18 +382,28 @@
     },
     {
       "path": "src/teams.rs",
-      "bytes": 3680,
-      "sha256": "290a89f722e5052c0ba0f6e784c2ff53ae6312317d15f3a3f89f8343d4aa621a"
+      "bytes": 4247,
+      "sha256": "954821dd6c261af0374cd921cc153c5dc15398f49de2b31a680f8f2b064477d3"
+    },
+    {
+      "path": "src/tools.rs",
+      "bytes": 13007,
+      "sha256": "a415b7c4bcba12717f7397fc6c96e8fdb85ea66d19ccb3587bb29dd889317412"
     },
     {
       "path": "src/workflow.rs",
-      "bytes": 54099,
-      "sha256": "539c13deb3460fffd7644ead2f8c2b80373c9d38f0ef16ca1c948367efe575c2"
+      "bytes": 58359,
+      "sha256": "197c5fd83678299bb2d391ca4f51701195c9818299e56b19436706da68466358"
     },
     {
       "path": "src/workspace.rs",
       "bytes": 7362,
       "sha256": "c4e9735bf664c64e1076943224e670cafb11a88808c2c2d9b90246c3e8ad4176"
+    },
+    {
+      "path": "tests/agent_loop.rs",
+      "bytes": 8169,
+      "sha256": "6a7d5cefbf51f81c696b1bf2b19d12b262d29806b4e6f6e965e2ae775a8ca051"
     },
     {
       "path": "tests/cli_smoke.rs",
