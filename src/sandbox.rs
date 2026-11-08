@@ -23,14 +23,17 @@ mod windows_impl {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, LocalFree};
     use windows_sys::Win32::Security::Isolation::CreateAppContainerProfile;
+    use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
     use windows_sys::Win32::System::JobObjects::{
         AssignProcessToJobObject, CreateJobObjectW, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
         JobObjectExtendedLimitInformation, SetInformationJobObject, TerminateJobObject,
     };
     use windows_sys::Win32::System::Memory::{LMEM_FIXED, LocalAlloc};
+    use windows_sys::Win32::System::Pipes::CreatePipe;
     use windows_sys::Win32::System::Threading::{
         CREATE_SUSPENDED, CREATE_UNICODE_ENVIRONMENT, CreateProcessW, GetExitCodeProcess,
-        PROCESS_INFORMATION, ResumeThread, TerminateProcess, WaitForSingleObject,
+        PROCESS_INFORMATION, ResumeThread, STARTF_USESTDHANDLES, TerminateProcess,
+        WaitForSingleObject,
     };
 
     /// Conservative resource limits for a sandboxed child process tree.
@@ -300,7 +303,7 @@ mod windows_impl {
         args: &[String],
         _limits: ResourceLimits,
         job: &JobObject,
-    ) -> Result<(HANDLE, HANDLE, u32, std::path::PathBuf)> {
+    ) -> Result<(HANDLE, HANDLE, u32, std::path::PathBuf, HANDLE)> {
         use windows_sys::Win32::Security::SECURITY_CAPABILITIES;
         use windows_sys::Win32::System::Threading::{
             DeleteProcThreadAttributeList, EXTENDED_STARTUPINFO_PRESENT,
@@ -408,6 +411,27 @@ mod windows_impl {
             .encode_wide()
             .chain(std::iter::once(0))
             .collect();
+        // 6b. Merged stdout/stderr pipe for the child. Without an explicit
+        // inherited handle an AppContainer child has no console and the
+        // runner sees NOTHING — every output assertion would be blind.
+        let mut sec_attrs: SECURITY_ATTRIBUTES = unsafe { std::mem::zeroed() };
+        sec_attrs.nLength = std::mem::size_of::<SECURITY_ATTRIBUTES>() as u32;
+        sec_attrs.bInheritHandle = 1;
+        sec_attrs.lpSecurityDescriptor = std::ptr::null_mut();
+        let mut stdout_read: HANDLE = std::ptr::null_mut();
+        let mut stdout_write: HANDLE = std::ptr::null_mut();
+        let pipe_ok = unsafe { CreatePipe(&mut stdout_read, &mut stdout_write, &sec_attrs, 0) };
+        if pipe_ok == 0 {
+            let _ = std::fs::remove_dir_all(&workspace);
+            return Err(DocodeError::Safety(
+                "CreatePipe failed; sandbox cannot capture child output.".into(),
+            ));
+        }
+        startup_info_ex.StartupInfo.hStdOutput = stdout_write;
+        startup_info_ex.StartupInfo.hStdError = stdout_write;
+        startup_info_ex.StartupInfo.hStdInput = std::ptr::null_mut();
+        startup_info_ex.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
+
         // 7. Create process suspended inside the AppContainer.
         let mut proc_info: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
         let ok = unsafe {
@@ -416,7 +440,7 @@ mod windows_impl {
                 cmd_wide.as_mut_ptr(),
                 std::ptr::null(),
                 std::ptr::null(),
-                0, // no handle inheritance
+                1, // inherit; only handles marked inheritable (the pipe) pass
                 CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
                 env_block.as_mut_ptr().cast(),
                 cwd_wide.as_mut_ptr(),
@@ -432,6 +456,10 @@ mod windows_impl {
 
         if ok == 0 {
             let last = unsafe { windows_sys::Win32::Foundation::GetLastError() };
+            unsafe {
+                CloseHandle(stdout_read);
+                CloseHandle(stdout_write);
+            }
             let _ = std::fs::remove_dir_all(&workspace);
             return Err(DocodeError::Safety(format!(
                 "CreateProcessW (suspended, AppContainer) failed; no process was started. (GetLastError={last})"
@@ -444,6 +472,8 @@ mod windows_impl {
                 TerminateProcess(proc_info.hProcess, 1);
                 CloseHandle(proc_info.hThread);
                 CloseHandle(proc_info.hProcess);
+                CloseHandle(stdout_read);
+                CloseHandle(stdout_write);
             }
             let _ = std::fs::remove_dir_all(&workspace);
             return Err(e);
@@ -456,6 +486,8 @@ mod windows_impl {
                 TerminateProcess(proc_info.hProcess, 1);
                 CloseHandle(proc_info.hThread);
                 CloseHandle(proc_info.hProcess);
+                CloseHandle(stdout_read);
+                CloseHandle(stdout_write);
             }
             let _ = std::fs::remove_dir_all(&workspace);
             return Err(DocodeError::Safety(
@@ -463,55 +495,99 @@ mod windows_impl {
             ));
         }
 
+        unsafe {
+            CloseHandle(stdout_write);
+        }
         Ok((
             proc_info.hProcess,
             proc_info.hThread,
             proc_info.dwProcessId,
             workspace,
+            stdout_read,
         ))
     }
 
-    /// Wait for a sandboxed process to complete, with timeout.
-    /// Returns (exit_code, timed_out). On timeout the WHOLE process tree is
-    /// terminated via the Job Object — killing only the main process leaves
-    /// grandchildren running past the wall-clock limit.
+    /// Wait for a sandboxed process to complete, with timeout, capturing its
+    /// output. Returns (exit_code, timed_out, merged stdout+stderr bytes,
+    /// capped at 1 MiB). On timeout the WHOLE process tree is terminated via
+    /// the Job Object.
     pub fn wait_for_completion(
         process_handle: HANDLE,
         thread_handle: HANDLE,
         timeout_ms: u32,
         job: &JobObject,
-    ) -> Result<(u32, bool)> {
+        stdout_pipe: HANDLE,
+    ) -> Result<(u32, bool, Vec<u8>)> {
         const WAIT_TIMEOUT: u32 = 0x0000_0102;
+        const MAX_CAPTURE: usize = 1_048_576;
+        // Drain the pipe on a helper thread while the child runs; a full
+        // pipe would otherwise wedge the child.
+        let stdout_addr = stdout_pipe as usize;
+        let reader = std::thread::spawn(move || {
+            let stdout_pipe = stdout_addr as HANDLE;
+            let mut captured = Vec::with_capacity(8_192);
+            loop {
+                let mut chunk = [0u8; 8_192];
+                let mut read_bytes: u32 = 0;
+                let ok = unsafe {
+                    windows_sys::Win32::Storage::FileSystem::ReadFile(
+                        stdout_pipe,
+                        chunk.as_mut_ptr(),
+                        chunk.len() as u32,
+                        &mut read_bytes,
+                        std::ptr::null_mut(),
+                    )
+                };
+                if ok == 0 || read_bytes == 0 {
+                    break;
+                }
+                let n = read_bytes as usize;
+                if captured.len() < MAX_CAPTURE {
+                    let take = (MAX_CAPTURE - captured.len()).min(n);
+                    captured.extend_from_slice(&chunk[..take]);
+                }
+            }
+            unsafe {
+                CloseHandle(stdout_pipe);
+            }
+            captured
+        });
         let result = unsafe { WaitForSingleObject(process_handle, timeout_ms) };
-        if result == WAIT_TIMEOUT {
+        let timed_out = result == WAIT_TIMEOUT;
+        if timed_out {
             let killed = unsafe { TerminateJobObject(job.handle(), 1) };
             if killed == 0 {
-                // Fail safe: at least stop the main process.
                 let _ = unsafe { TerminateProcess(process_handle, 1) };
             }
+            let _ = unsafe { WaitForSingleObject(process_handle, 5000) };
+        } else if result == 0 {
+            // Normal exit: fall through to code read below.
+        } else {
+            // Unexpected wait failure: stop the tree fail-safe, then report.
+            let _ = unsafe { TerminateJobObject(job.handle(), 1) };
             let _ = unsafe { WaitForSingleObject(process_handle, 5000) };
             unsafe {
                 CloseHandle(thread_handle);
                 CloseHandle(process_handle);
             }
-            return Ok((1, true));
-        }
-        if result != 0 {
-            unsafe {
-                CloseHandle(thread_handle);
-                CloseHandle(process_handle);
-            }
+            let _ = reader.join();
             return Err(DocodeError::Safety(format!(
                 "WaitForSingleObject failed (result=0x{result:08x})."
             )));
         }
-        let mut exit_code: u32 = 0;
-        unsafe { GetExitCodeProcess(process_handle, &mut exit_code) };
+        let exit_code = if timed_out {
+            1
+        } else {
+            let mut exit_code: u32 = 0;
+            unsafe { GetExitCodeProcess(process_handle, &mut exit_code) };
+            if exit_code == 0 { 0 } else { exit_code }
+        };
         unsafe {
             CloseHandle(thread_handle);
             CloseHandle(process_handle);
         }
-        Ok((exit_code, false))
+        let captured = reader.join().unwrap_or_default();
+        Ok((exit_code, timed_out, captured))
     }
 }
 
