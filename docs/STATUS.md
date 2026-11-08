@@ -134,3 +134,51 @@ The environment still has no `cargo`, `rustc`, `rustfmt`, or `rustup`. The curre
 ### CI gate-integrity follow-up (26 October 2026)
 
 A review caught a real verification-pipeline bug: the `cargo test` display name had changed while the final required-gate name had not, so the final status filter could fail to classify a failing test step under its new name. The code now has a centralized evaluator that fails missing, non-PASS, or duplicate required gates. `scripts/test_ci_pipeline_gates.py` exercises these cases: **7/7 PASS**. The source preflight asserts the current test name and evaluator are present; this script test does not replace actual Cargo/hosted CI runs.
+
+
+---
+
+## 2026-11-08 (later) - code-fix pass on `work/windows-security-sandbox` (uncommitted)
+
+Continued from the orphaned pre-rename session. Scope was deliberately code-only; nothing was committed or pushed.
+
+**Fixes landed (working tree only):**
+- `scripts/sandbox_adversarial_windows.py`: duplicate `errors="replace"` / timer removed (was the SyntaxError blocking the matrix harness parse).
+- `scripts/validate_python_sources.py` (new) + required gate in `scripts/ci_pipeline.py` + regression test in `scripts/test_ci_pipeline_gates.py`: Python harness syntax is now a required CI gate.
+- `.github/workflows/sandbox-matrix-windows.yml`: matrix now triggers on push/PR touching the runner, workflow, src/sandbox.rs, src/main.rs, src/storage.rs, src/error.rs, Cargo.*, or the matrix JSON (previously: workflow YAML only, so runner fixes never triggered the gate).
+- `src/contract.rs`: removed the hard-coded `approved: true` field; contracts print "Enforced:" not a fake human approval. Derivation/enforcement behavior unchanged.
+- `src/teams.rs`: Standard and Complex teams now actually staff a Coder (order: Architect, Coder, Tester, Reviewer[, Security]).
+- `src/workflow.rs`: loop budget is enforced at six step boundaries (research/plan/test/implement/review/security); a pause is not a failure — mission moves to Interrupted with a persisted loop summary and an audit record. User-confirmed project memory is injected as advisory brief (max 3 notes) into the architect prompt and coder prompt.
+- `src/storage.rs`: Windows atomic replace retries transient access-denied/sharing-violation (5/32/33) up to ~1 s; updates were already mutex-serialized, this covers external handle contention (e.g. real-time scanners).
+- `src/mission_store.rs`: concurrency test now stresses 12 contention rounds (was 1 lucky run).
+- `src/sandbox.rs`: on timeout the WHOLE process tree is killed via TerminateJobObject (was main-process only). Disposable container workspaces are now removed after every `sandbox exec` run and on spawn failure paths. Removed dead `SandboxProfile` policy scaffolding.
+- `src/mission.rs`: removed dead duplicate `completion_allowed` policy function (the real gate remains in `workflow.rs::complete`).
+- `docs/STATUS.md`: this entry; counts updated here - 125 unit + 10 integration.
+
+**Verified on this machine (Windows, MSVC 1.99.1, offline):** `cargo fmt --check` clean; `cargo check --all-targets --locked` clean; `cargo clippy --all-targets --locked -- -D warnings` clean; `cargo test --all-targets --locked` = **125 unit + 10 integration, 0 failed**; previously reported 127 unit reflects two deleted dead-code tests. One `concurrent_mission_updates_do_not_lose_appends` failure (access denied, code 5, transient Windows handle contention) was observed intermittently under full-suite load before the retry fix.
+
+**Root-cause note:** the ten integration tests were all failing with path-not-found after the 2026-11-08 folder rename — the stale prebuilt test binary embedded the old `forge cli\...` path in `env!("CARGO_BIN_EXE_docode")`. `cargo clean -p docode-cli` rebuilt everything against the new path; 10/10 pass.
+
+**Still missing / not claimed:** the 26-case adversarial matrix has NEVER run — `is_qualified()` stays false, `docode run` and arbitrary execution stay disabled; the `--native` probe executor was never written; restricted primary token still unwired (windows-sys 0.61); cancellation propagation for provider requests not done; independent security review outstanding; Linux/macOS drivers absent; the "6-job green CI" figure remains a prior-session claim, not independently re-verified this pass. These documents and the code changes are uncommitted; commit only on explicit approval.
+
+
+---
+
+## 2026-11-08 (P1) - single-agent tool loop landed (`docode agent`)
+
+License-compliant decision recorded: open-source dependencies may be vendored with notices; closed-source code is never copied; specs/ideas reimplemented independently. (User decision, 2026-11-08.)
+
+**New (uncommitted working tree):**
+- `src/tools.rs` (new): typed tool registry with hand-checked schemas - `workspace.list`, `workspace.read`, `workspace.search` execute read-only with bounded/redacted output; `process.run` and unknown tools are policy-denied in this build (no qualified execution driver). Traversal/absolute paths, wrong types, out-of-range bounds rejected before any side effect.
+- `src/agent_loop.rs` (new): one bounded loop per mission - model turn → validated tool call → policy → bounded local execution → observed result → ... → final patch proposal stored as a normal patch record (applicable via `docode apply --approve`). Nothing is applied unattended; completion remains impossible (evidence gate).
+- `src/workflow.rs`: extracted `build_patch_changes` shared by the multi-role workflow and the agent loop (identical per-operation contract checks); `parse_patch_json`/`validate_task`/`budget_checkpoint`/`fail_mission` now `pub(crate)`.
+- `src/main.rs`: new `agent` subcommand (`docode agent "<task>" --live --approve-context-sharing`), same consent gating as `docode run`. Step ledger honesty: research/plan steps recorded `SKIPPED_AGENT_TOOL_LOOP`, test stays `TEST_PLAN_ONLY_NOT_EXECUTED`, review/security stay Pending.
+- `tests/agent_loop.rs` (new, integration): scripted fixture provider (no network) exercises: schema traversal rejection before execution, policy denial of `process.run`, successful read after errors, proposal stored, **nothing written to disk**, patch applicable via `apply --approve`, audit trail shows denials and the proposal.
+- `src/teams.rs` / `src/mission.rs` (earlier in this session): Standard/Complex teams now staff a Coder; dead duplicate `completion_allowed` removed; loop budget enforced at six step boundaries; Windows atomic replace retries transient sharing violations; sandbox timeout now kills the whole tree via TerminateJobObject; container workspaces deleted after every run; `SandboxProfile` scaffold removed.
+- Extra probes updated: the safety probe asserting the old `NOT IMPLEMENTED` status string now asserts the truthful `NOT qualified` disclosure (stale test repaired, strictness unchanged).
+
+**Verified on this machine (Windows, MSVC 1.99.1, offline):** `cargo fmt --check` clean; `cargo check --all-targets --locked` clean; `cargo clippy --all-targets --locked -- -D warnings` clean; `cargo test --all-targets --locked` = **131 unit + 11 integration, 0 failed**; `verify_cli.py` 23 pass / 1 skip (OS-denied symlink); `extended_offline_acceptance.py` 37/37; `extra_safety_probes.py` 6/6; Python harness syntax 14/14; CI gate tests 8/8.
+
+**Not done / not claimed:** no live-model run of the agent loop (needs provider keys and the interlock); the loop does not execute tests/builds for the user (sandbox unqualified, `is_qualified()` false); review/security steps and `docode complete` remain unreachable without trusted evidence; restricted primary token unwired; independent security review outstanding; matrix NEVER run. All of this and every file above remain uncommitted pending explicit approval.
+
+**Restricted primary token — closed as a non-gap with evidence (2026-11-08):** PROC_THREAD_ATTRIBUTE_TOKEN is absent from the documented UpdateProcThreadAttribute attribute table; CreateProcessWithTokenW requires SeImpersonatePrivilege. There is no unprivileged primary-token API for assigning a child process's primary token on Windows. Codex solves this with an elevated broker service; we deliberately do not (local-first CLI). AppContainer SID inheritance is the only documented unprivileged injection mechanism. src/sandbox.rs comments updated to say exactly this.

@@ -20,6 +20,7 @@ from typing import Any
 
 
 CORE_REQUIRED_GATES = {
+    "Python harness syntax",
     "Validate source inventory hashes",
     "Generate preliminary offline CycloneDX SBOM",
     "Test offline SBOM generator",
@@ -96,6 +97,12 @@ def main() -> int:
 
     args.report_dir.mkdir(parents=True, exist_ok=True)
     steps: list[dict[str, Any]] = []
+    syntax_script = Path(__file__).with_name("validate_python_sources.py").resolve()
+    syntax_step = run_step("Python harness syntax", [sys.executable, str(syntax_script)], timeout=60)
+    steps.append(syntax_step)
+    if syntax_step["status"] != "PASS":
+        write_reports(args.report_dir, args.toolchain, steps, None, lockfile_was_present=Path("Cargo.lock").is_file())
+        return 1
     rustup = shutil.which("rustup")
     cargo = shutil.which("cargo")
     if rustup is None or cargo is None:

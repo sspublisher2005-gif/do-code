@@ -1,0 +1,94 @@
+[
+  {
+    "id": "t01-existing-file-edit",
+    "prompt": "implement add in add.py",
+    "seed_files": {
+      "add.py": "def add(a, b):\n    \"\"\"Add two numbers.\"\"\"\n    pass  # TODO: implement\n"
+    },
+    "model_script": [
+      {"tool_call": {"name": "workspace.read", "arguments": {"path": "add.py"}}},
+      {"final": {"summary": "implement add", "files": [{"path": "add.py", "content": "def add(a, b):\n    return a + b\n", "reason": "implement add per the task"}]}}
+    ],
+    "expect_exit": 0,
+    "accept": [
+      {"type": "file_equals", "path": "add.py", "text": "def add(a, b):\n    return a + b\n"}
+    ]
+  },
+  {
+    "id": "t02-multi-file-task",
+    "prompt": "add helpers module with greeting and use it in main.py",
+    "seed_files": {
+      "main.py": "from helpers import greeting\n\nprint(greeting('world'))\n",
+      "helpers.py": "def greeting(name):\n    pass\n"
+    },
+    "model_script": [
+      {"tool_call": {"name": "workspace.read", "arguments": {"path": "helpers.py"}}},
+      {"final": {"summary": "implement greeting", "files": [{"path": "helpers.py", "content": "def greeting(name):\n    return f'hello {name}'\n", "reason": "implement greeting per task"}]}}
+    ],
+    "expect_exit": 0,
+    "accept": [
+      {"type": "file_equals", "path": "helpers.py", "text": "def greeting(name):\n    return f'hello {name}'\n"},
+      {"type": "file_unchanged", "path": "main.py"}
+    ]
+  },
+  {
+    "id": "t03-sensitive-path-refusal",
+    "prompt": "update the token file",
+    "seed_files": {
+      ".env": "API_KEY=super-secret-value-1234567890\n",
+      "app.py": "print('ok')\n"
+    },
+    "model_script": [
+      {"final": {"summary": "rotate token", "files": [{"path": ".env", "content": "API_KEY=rotated-value-abcdef\n", "reason": "rotate token per task"}]}}
+    ],
+    "expect_exit": 1,
+    "accept": [
+      {"type": "file_contains", "path": ".env", "text": "super-secret-value-1234567890"}
+    ]
+  },
+  {
+    "id": "t04-undo-restores-exactly",
+    "prompt": "fix add in add.py",
+    "seed_files": {
+      "add.py": "def add(a, b):\n    return a - b\n"
+    },
+    "model_script": [
+      {"final": {"summary": "fix sign", "files": [{"path": "add.py", "content": "def add(a, b):\n    return a + b\n", "reason": "a-b was the bug"}]}}
+    ],
+    "expect_exit": 0,
+    "undo": true,
+    "accept": [
+      {"type": "file_equals", "path": "add.py", "text": "def add(a, b):\n    return a - b\n"}
+    ]
+  },
+  {
+    "id": "t05-invalid-output-recovers",
+    "prompt": "implement add in add.py",
+    "seed_files": {
+      "add.py": "def add(a, b):\n    pass\n"
+    },
+    "model_script": [
+      {"__raw__": "I am happy to help! Let me edit add.py for you now."},
+      {"tool_call": {"name": "workspace.read", "arguments": {"path": "add.py"}}},
+      {"final": {"summary": "implement add", "files": [{"path": "add.py", "content": "def add(a, b):\n    return a + b\n", "reason": "implement add"}]}}
+    ],
+    "expect_exit": 0,
+    "accept": [
+      {"type": "file_equals", "path": "add.py", "text": "def add(a, b):\n    return a + b\n"}
+    ]
+  },
+  {
+    "id": "t06-path-escape-rejected",
+    "prompt": "write the report",
+    "seed_files": {
+      "app.py": "print('ok')\n"
+    },
+    "model_script": [
+      {"final": {"summary": "evil", "files": [{"path": "../evil.txt", "content": "touched-outside-workspace\n", "reason": "escape"}]}}
+    ],
+    "expect_exit": 1,
+    "accept": [
+      {"type": "file_absent", "path": "../evil.txt"}
+    ]
+  }
+]

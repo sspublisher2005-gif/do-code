@@ -21,6 +21,11 @@ class ReleaseGateEvaluatorTests(unittest.TestCase):
         failures = evaluate_release_gates(steps, require_cargo_aware_sbom=False, require_linux_rss=False)
         self.assertTrue(any(f["name"] == "cargo test --all-targets --locked" and f["status"] == "MISSING" for f in failures))
 
+    def test_python_harness_syntax_gate_is_required(self):
+        steps = [s for s in passing_steps() if s["name"] != "Python harness syntax"]
+        failures = evaluate_release_gates(steps, require_cargo_aware_sbom=False, require_linux_rss=False)
+        self.assertTrue(any(f["name"] == "Python harness syntax" and f["status"] == "MISSING" for f in failures))
+
     def test_failing_test_gate_is_detected_by_exact_current_name(self):
         steps = passing_steps()
         next(s for s in steps if s["name"] == "cargo test --all-targets --locked")["status"] = "FAIL"

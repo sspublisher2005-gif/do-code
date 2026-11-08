@@ -23,8 +23,6 @@ pub struct MissionContract {
     pub required_tests: Vec<String>,
     pub security_requirements: Vec<String>,
     pub rollback_plan: String,
-    /// Set when the contract was accepted for this mission.
-    pub approved: bool,
 }
 
 impl MissionContract {
@@ -61,17 +59,13 @@ impl MissionContract {
                 "no network access is performed by this mission".into(),
             ],
             rollback_plan: "docode undo --approve restores checkpointed file bytes exactly".into(),
-            approved: true,
         }
     }
 
-    /// Validate the contract before the implement step may start.
+    /// Validate the contract before the implement step may start. The contract
+    /// is derived as data from the mission inputs; this checks the derivation
+    /// is complete enough to enforce — it is not a human approval signal.
     pub fn validate(&self) -> Result<()> {
-        if !self.approved {
-            return Err(DocodeError::Safety(
-                "mission contract is not approved; the coder may not start.".into(),
-            ));
-        }
         if self.goal.trim().len() < 8 {
             return Err(DocodeError::Safety(
                 "mission contract goal is missing or too short.".into(),
@@ -134,7 +128,7 @@ mod tests {
     }
 
     #[test]
-    fn derived_contract_allows_context_files_and_requires_approval() {
+    fn derived_contract_allows_context_files_and_required_tests() {
         let c = MissionContract::derive(
             "implement the add function in add.py",
             &pack(&["add.py"]),
@@ -145,13 +139,6 @@ mod tests {
         assert!(!c.allows("other.py"));
         assert_eq!(c.required_tests.len(), 2);
         assert!(!c.forbidden_paths.is_empty());
-    }
-
-    #[test]
-    fn unapproved_contract_blocks_the_coder() {
-        let mut c = MissionContract::derive("implement add in add.py", &pack(&["add.py"]), "");
-        c.approved = false;
-        assert!(c.validate().is_err());
     }
 
     #[test]
