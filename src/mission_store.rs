@@ -106,6 +106,13 @@ impl MissionStore {
 
     pub fn get(&self, id: &str) -> Result<Mission> {
         let path = self.mission_path(id)?;
+        // Unknown missions are a normal lookup miss, not an I/O fault: callers
+        // (and the acceptance matrix) must see why completion was refused.
+        if !path.is_file() {
+            return Err(DocodeError::Message(format!(
+                "mission {id} does not exist in this project."
+            )));
+        }
         let bytes = storage::read_bounded_regular(&path, MAX_MISSION_BYTES)?;
         let envelope: MissionEnvelope = serde_json::from_slice(&bytes).map_err(|_| {
             DocodeError::Safety("mission state is not valid JSON; it was not modified.".into())

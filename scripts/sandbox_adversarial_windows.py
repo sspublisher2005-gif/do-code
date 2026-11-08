@@ -115,9 +115,10 @@ CASES = [
     },
     {
         "id": "PROOF-01",
-        "title": "docode completion refused (no executed-test evidence)",
+        "title": "completion refused with a stated reason (nothing marked complete)",
         "host_command": "PROOF-01",
         "must_fail": True,
+        "must_contain": ["does not exist in this project"],
         "must_not_contain": ["MISSION COMPLETE"],
     },
 ]
@@ -273,22 +274,28 @@ def run_host_cases(binary, report, all_passed):
     print(f"WIN-01: {'PASS' if not problems else 'FAIL ' + '; '.join(problems)}", flush=True)
     report["raw_logs"].append({"id": "WIN-01", "stdout": dacl_text, "stderr": ""})
 
-    # PROOF-01: completion must refuse without executed-test evidence.
+    # PROOF-01: completion of an unknown mission must be refused with a stated
+    # reason and must never print completion. Any other failure (a raw I/O
+    # error) is a harness fault, not a pass.
     complete = subprocess.run(
         [binary, "--root", work, "complete", "00000000-0000-0000-0000-000000000000"],
         capture_output=True,
         text=True, encoding="utf-8", errors="replace",
     )
     out = (complete.stdout or "") + (complete.stderr or "")
+    case = next(c for c in CASES if c["id"] == "PROOF-01")
     problems = []
     if complete.returncode == 0:
-        problems.append("complete succeeded without sandbox-verified evidence")
+        problems.append("complete succeeded for a mission that does not exist")
     if "MISSION COMPLETE" in out:
         problems.append("forbidden output present: MISSION COMPLETE")
+    for needle in case.get("must_contain", []):
+        if needle not in out:
+            problems.append(f"required output missing: {needle!r}")
     report["executed"].append(
         {
             "id": "PROOF-01",
-            "title": "docode completion refused",
+            "title": case["title"],
             "observed_exit": complete.returncode,
             "stdout_tail": out[-300:],
             "passed": not problems,

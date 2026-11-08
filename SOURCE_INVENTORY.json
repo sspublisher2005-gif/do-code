@@ -1,6 +1,6 @@
 {
   "artifact": "Do Code Rust implementation source inventory",
-  "generated_at_utc": "2026-11-08T12:54:49.813258+00:00",
+  "generated_at_utc": "2026-11-08T13:05:32.728386+00:00",
   "compiled": false,
   "note": "Source tree inventory only. Hashes verify file bytes, not runtime safety, compilation, or feature parity.",
   "inventory_count": 84,
@@ -217,8 +217,8 @@
     },
     {
       "path": "scripts/sandbox_adversarial_windows.py",
-      "bytes": 17380,
-      "sha256": "e24b7dbf23dae65c3b498aeaba16a3d4a0e62674e37f3e5a5ddad543bee00020"
+      "bytes": 17771,
+      "sha256": "4545eb32d0e3343cf101b5240acfe64e59afd7fcbc55b7daa1ec3d329ec7b193"
     },
     {
       "path": "scripts/static_preflight.py",
@@ -347,8 +347,8 @@
     },
     {
       "path": "src/mission_store.rs",
-      "bytes": 18407,
-      "sha256": "521bc4d58fc8dd5b19d9d268e51f1ca692b21c115952a1535b18830c02ace0f6"
+      "bytes": 18735,
+      "sha256": "a11d7019a81e3debb50c1575950d7621de7be88907c082042f9c4ff99f9516a0"
     },
     {
       "path": "src/patches.rs",
