@@ -200,3 +200,18 @@ License-compliant decision recorded: open-source dependencies may be vendored wi
 - Exit 21 (probe could not run) now always fails a case instead of slipping through.
 
 **What this does NOT establish:** `is_qualified()` stays false. This is the Windows-applicable subset on one disposable VM: no independent security review, no Linux/macOS driver, no packaging cases, restricted primary token still unwired (no unprivileged Windows API provides it - see the earlier non-gap note), and the RBAC/network outcome is the AppContainer zero-capability model only. `docode run` and arbitrary execution remain disabled.
+
+---
+
+## 2026-11-08 (windows-2025) - all three pipelines green, Windows 2025 proven
+
+**Evidence (commit c752feb, branch fix/sandbox-cross-verification):**
+- Sandbox Matrix run 42485511999: BOTH windows-2022 AND windows-2025 completed and their release gates passed; both artifacts report WINDOWS_SUBSET_PASS, 10/10 cases, 0 failed (runnervmquqza / runnervmm7ud1).
+- Cross-Platform Verification run 42485511973: ALL 8 legs passed - Rust 1.88.0 and 1.99.1 x ubuntu-latest, macos-latest, windows-latest, windows-2025. 1.99.1/windows-2025 = 7m16s, 1.88.0/windows-2025 = 7m37s.
+- Dependency Security Audit run 42485625321 (manual dispatch): PASS, no advisories blocking the locked tree. Node 20 deprecation annotation on rustsec/audit-check; ubuntu-latest migrates to Ubuntu 26 on 2026-10-19.
+
+**Pipelines reconfigured in the same commit:** sandbox matrix is now windows-2022 + windows-2025 (fail-fast false, per-OS artifacts); cross-verification matrix adds windows-2025; action SHAs pinned (dtolnay/rust-toolchain v1 683b588c, actions/upload-artifact v7 cf430e03). Preflight expectation updated to 8 combos.
+
+**Found by actually running the suite and fixed:** benchmark fixture replayed turn 0 forever (per-request handler instances meant the turn counter never advanced; golden tasks t01/t02/t05 could never pass) - 6/6 now pass; static_preflight hash check normalized nothing while the inventory normalizes CRLF->LF; stale TS archive path (renamed DoCode_TS_0.6.0-ts.2_..., 509 members verified); false "rustc/cargo not installed" (no cargo on PATH but present in cargo bin); hardcoded "this authoring runner is Linux"; security-marker drift vs verify_cli.py; missing-PyYAML checks now BLOCKED instead of FAIL; packaged source ZIP (git archive HEAD) verifies 14 PASS / 0 FAIL.
+
+**Still NOT established:** is_qualified() stays false - independent security review outstanding, Linux/macOS sandbox drivers absent, restricted primary token unwired, and the Windows subset has not been packaged for release. Windows-2025 legs prove the AppContainer behavior is identical on 2022 and 2025 on the hosted images; they do not generalize beyond that.
