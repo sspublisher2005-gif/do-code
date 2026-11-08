@@ -742,15 +742,35 @@ async fn run(cli: Cli) -> Result<()> {
                         ..Default::default()
                     };
                     let job = sandbox::JobObject::create(limits)?;
-                    let (proc_handle, thread_handle, _pid, workspace) =
+                    let (proc_handle, thread_handle, _pid, workspace, stdout_pipe) =
                         sandbox::spawn_suspended(&exe, &args, limits, &job)?;
                     // Cleanup runs even if the wait itself errors.
-                    let wait =
-                        sandbox::wait_for_completion(proc_handle, thread_handle, timeout_ms, &job);
+                    let wait = sandbox::wait_for_completion(
+                        proc_handle,
+                        thread_handle,
+                        timeout_ms,
+                        &job,
+                        stdout_pipe,
+                    );
                     if let Err(e) = std::fs::remove_dir_all(&workspace) {
                         eprintln!("warning: could not remove sandbox workspace {}: {e}", workspace.display());
                     }
-                    let (exit_code, timed_out) = wait?;
+                    let (exit_code, timed_out, output) = wait?;
+                    if !output.is_empty() {
+                        let text = String::from_utf8_lossy(&output);
+                        let redacted = crate::redaction::redact(&text);
+                        let mut tail = redacted.as_str();
+                        if redacted.len() > 32 * 1024 {
+                            let start = redacted.len() - 32 * 1024;
+                            let mut idx = start;
+                            while idx < redacted.len() && !redacted.is_char_boundary(idx) {
+                                idx += 1;
+                            }
+                            tail = &redacted[idx..];
+                            println!("[output truncated at 32 KiB tail]");
+                        }
+                        println!("{tail}");
+                    }
                     println!("exit_code={exit_code} timed_out={timed_out}");
                 }
                 #[cfg(not(windows))]
