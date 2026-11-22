@@ -52,7 +52,7 @@ jobs:
         shell: pwsh
 
       - name: Run sandbox adversarial matrix (disposable native runner)
-        run: python scripts/sandbox_adversarial_windows.py --binary target\release\docode.exe --report sandbox-adversarial.json --execute-matrix --case-timeout 120
+        run: python scripts/sandbox_adversarial_windows.py --binary target\release\docode.exe --report sandbox-adversarial.json --emit-qualification sandbox-qualification.json --execute-matrix --case-timeout 120
         shell: pwsh
 
       - name: Upload sandbox evidence
@@ -60,7 +60,9 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: sandbox-adversarial-${{ github.sha }}-${{ matrix.os }}
-          path: sandbox-adversarial.json
+          path: |
+            sandbox-adversarial.json
+            sandbox-qualification.json
           if-no-files-found: warn
           retention-days: 90
 
@@ -84,8 +86,8 @@ jobs:
             Write-Host "$id=$result"
           }
 
-          if ($status -ne "WINDOWS_SUBSET_PASS" -and $status -ne "PASS") {
-            Write-Error "Sandbox matrix did not pass: status=$status"
+          if ($status -ne "WINDOWS_QUALIFIED") {
+            Write-Error "Sandbox matrix did not qualify: status=$status"
             exit 1
           }
 
@@ -95,4 +97,9 @@ jobs:
             exit 1
           }
 
-          Write-Host "Windows sandbox matrix release gate passed."
+          if (-not (Test-Path "sandbox-qualification.json")) {
+            Write-Error "Qualification record was not produced."
+            exit 1
+          }
+
+          Write-Host "Windows sandbox matrix release gate passed: 20/20 applicable cases, qualification record retained."

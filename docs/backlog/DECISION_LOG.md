@@ -14,5 +14,12 @@
 - **Created this feature ledger** (`docs/backlog/`). Reason: founder asked that ALL features/updates be listed permanently so nothing is forgotten.
 - **Sequencing locked**: Windows first → engineer → breadth; Linux only after Windows qualifies; macOS after Linux. Reason: only real technical edge is Windows native; no parallel OS work.
 
+## 2026-11-22
+- **Implemented the 9 missing Windows-applicable sandbox cases** (FS-03, FS-04, FS-05, PROC-02, LOG-01, LIFE-01, WIN-02, WIN-03, PKG-01; EXEC-01 moved into the executed matrix). Reason: the spec has 26 cases, 20 apply to Windows; the runner only had 10, so qualification was impossible. Evidence: `scripts/sandbox_adversarial_windows.py`, `src/probe.rs`; local run 20/20 PASS → `WINDOWS_QUALIFIED`.
+- **Qualification is now evidence-driven, not a hard-coded `false`** (`src/qualification.rs`). It flips only for a complete record bound to the exact binary hash with status `QUALIFIED` and all 20 applicable cases passed; `WINDOWS_SUBSET_PASS` never qualifies. Reason: the previous constant could never be earned and proved nothing. Evidence: `src/qualification.rs` unit tests; record present → "available (qualified)", removed → "NOT qualified".
+- **Capture keeps the newest 1 MiB, not the oldest** (`src/sandbox.rs:append_bounded`). Reason: a truncated build log must show the failure tail; the old code showed the first megabyte and discarded the actual end. Found by the new LOG-01 case.
+- **FS-05 measures data reads, not handle opens.** Reason: Windows' own DACL lets an AppContainer open `KsecDD`; failing the matrix on a handle it cannot read from would be measuring Windows, not our sandbox.
+- **CI gate now requires `WINDOWS_QUALIFIED`** and retains the qualification record as an artifact. Reason: `WINDOWS_SUBSET_PASS` was explicitly not a qualification. Evidence: `.github/workflows/sandbox-matrix-windows.yml`.
+
 ## Update procedure
 Append a line here with: `YYYY-MM-DD | decision | reason | evidence (commit/file:line) | approver`. Never edit history. If a decision is reversed, append a new line that supersedes it by ID/date.

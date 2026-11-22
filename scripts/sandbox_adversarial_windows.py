@@ -57,6 +57,39 @@ CASES = [
         "host_paths_absent": [os.path.join(USERPROFILE, "docode-escape.txt")],
     },
     {
+        "id": "FS-03",
+        "title": "path traversal and alternate path spellings denied",
+        "probe": "fs-03",
+        "extra_args": ["__DOCO_DECOY__"],
+        "expected_exit": 0,
+        "must_contain": ["FS03-BLOCKED"],
+        "must_not_contain": ["FS03:LEAK", "DECOY-SECRET-CONTENT"],
+        "decoy": True,
+    },
+    {
+        "id": "FS-04",
+        "title": "symlink, hardlink and TOCTOU denied",
+        "probe": "fs-04",
+        "extra_args": ["__DOCO_DECOY__"],
+        "expected_exit": 0,
+        "must_contain": ["FS04-BLOCKED"],
+        "must_not_contain": [
+            "FS04:SYMLINK-LEAK",
+            "FS04:HARDLINK-LEAK",
+            "FS04:TOCTOU-LEAK",
+            "DECOY-SECRET-CONTENT",
+        ],
+        "decoy": True,
+    },
+    {
+        "id": "FS-05",
+        "title": "device, raw volume and host IPC handles denied",
+        "probe": "fs-05",
+        "expected_exit": 0,
+        "must_contain": ["FS05-BLOCKED"],
+        "must_not_contain": ["FS05:READ"],
+    },
+    {
         "id": "NET-01",
         "title": "DNS + outbound TCP denied (AppContainer zero capabilities)",
         "probe": "net-01",
@@ -108,6 +141,48 @@ CASES = [
         "must_contain": ["CMD01:ARGMARK-4471"],
     },
     {
+        "id": "PROC-02",
+        "title": "host process inspection/control denied",
+        "probe": "proc-02",
+        "expected_exit": 0,
+        "must_contain": ["PROC02-BLOCKED"],
+        "must_not_contain": ["PROC02:OPENED"],
+    },
+    {
+        "id": "LOG-01",
+        "title": "output redaction and capture bounds",
+        "probe": "log-01",
+        "expected_exit": 0,
+        "must_contain": ["[REDACTED", "[output truncated at 32 KiB tail]", "LOG01-DONE"],
+        "must_not_contain": ["sk-A1b2C3d4E5f6G7h8I9j0K1l2M3n4", "log01-secret-token-value"],
+        "stdout_max_bytes": 200_000,
+    },
+    {
+        "id": "LIFE-01",
+        "title": "timeout kills the tree, reports timeout, sandbox stays usable",
+        "probe": "life-01",
+        "expected_exit": 1,
+        "must_contain": ["LIFE01-START", "timed_out=true"],
+        "timeout_s": 5,
+        "recovery_probe": "env-01",
+    },
+    {
+        "id": "WIN-02",
+        "title": "AppContainer token: container SID, low integrity, not elevated",
+        "probe": "win-02",
+        "expected_exit": 0,
+        "must_contain": ["WIN02:APPCONTAINER=1", "WIN02:ELEVATED=0", "WIN02-DONE"],
+        "integrity_max": 0x1000,
+    },
+    {
+        "id": "WIN-03",
+        "title": "job object kills surviving children when the sandbox exits",
+        "probe": "win-03",
+        "expected_exit": 0,
+        "must_contain": ["PID:"],
+        "child_pid_gone": True,
+    },
+    {
         "id": "WIN-01",
         "title": "private state DACL enforced (no broad Users/Everyone ACE)",
         "host_command": "WIN-01",  # executed outside the sandbox; see run_host_cases
@@ -149,7 +224,7 @@ def run_sandboxed(binary, case, timeout_s):
                 "DECOY-SECRET-CONTENT\n"
                 "-----END OPENSSH PRIVATE KEY-----\n"
             )
-    args = [binary, "sandbox", "exec", "--approve", "--timeout-ms", str(timeout_s * 1000),
+    args = [binary, "sandbox", "exec", "--approve", "--timeout-ms", str(case.get("timeout_s", timeout_s) * 1000),
             "--", binary, "sandbox", "probe", case["probe"]]
     extra = list(case.get("extra_args", []))
     extra = [
@@ -164,7 +239,7 @@ def run_sandboxed(binary, case, timeout_s):
             args,
             capture_output=True,
             text=True, encoding="utf-8", errors="replace",
-            timeout=timeout_s + 30,
+            timeout=case.get("timeout_s", timeout_s) + 30,
             env=env,
         )
         timed_out = False
@@ -181,8 +256,8 @@ def run_sandboxed(binary, case, timeout_s):
             pass
     return {
         "exit_code": (proc.returncode if proc else -1),
-        "stdout": stdout[-8000:],
-        "stderr": stderr[-2000:],
+        "stdout": stdout[-200_000:],
+        "stderr": stderr[-2_000:],
         "timed_out": timed_out,
         "elapsed_s": round(elapsed, 2),
     }
@@ -209,6 +284,22 @@ def verdict_for(case, observed):
         ok, why = protected_state_unchanged([], case["host_paths_absent"])
         if not ok:
             problems.append(f"protected state changed: {why}")
+    limit = case.get("stdout_max_bytes")
+    if limit is not None and len(observed["stdout"]) > limit:
+        problems.append(
+            f"captured output {len(observed['stdout'])} bytes exceeds bound {limit}"
+        )
+    ceiling = case.get("integrity_max")
+    if ceiling is not None:
+        import re
+
+        match = re.search(r"WIN02:INTEGRITY=0x([0-9a-fA-F]+)", observed["stdout"])
+        if not match:
+            problems.append("token integrity level was not reported")
+        elif int(match.group(1), 16) > ceiling:
+            problems.append(
+                f"token integrity 0x{match.group(1)} is above the container ceiling 0x{ceiling:04x}"
+            )
     return problems
 
 
@@ -306,6 +397,78 @@ def run_host_cases(binary, report, all_passed):
         all_passed = False
     print(f"PROOF-01: {'PASS' if not problems else 'FAIL ' + '; '.join(problems)}", flush=True)
     report["raw_logs"].append({"id": "PROOF-01", "stdout": out, "stderr": ""})
+
+    # EXEC-01: a missing capability must fail closed — no approval, no run.
+    problems = []
+    no_approve = subprocess.run(
+        [binary, "sandbox", "exec", "--", binary, "sandbox", "probe", "env-01"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    no_approve_out = (no_approve.stdout or "") + (no_approve.stderr or "")
+    self_test = subprocess.run(
+        [binary, "sandbox", "self-test"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    if no_approve.returncode == 0:
+        problems.append("sandbox exec ran without --approve")
+    if "ENVLOOP-DONE" in no_approve_out:
+        problems.append("probe output present without approval")
+    if self_test.returncode == 0:
+        problems.append("sandbox self-test passed without a native driver")
+    report["executed"].append(
+        {
+            "id": "EXEC-01",
+            "title": "missing capability fails closed",
+            "observed_exit": no_approve.returncode,
+            "passed": not problems,
+            "problems": problems,
+        }
+    )
+    if problems:
+        all_passed = False
+    print(f"EXEC-01: {'PASS' if not problems else 'FAIL ' + '; '.join(problems)}", flush=True)
+    report["raw_logs"].append({"id": "EXEC-01", "stdout": no_approve_out, "stderr": ""})
+
+    # PKG-01: the shipped binary must work from a clean directory with no
+    # configuration, and must describe its sandbox state truthfully.
+    problems = []
+    version = subprocess.run(
+        [binary, "--version"], capture_output=True, text=True, encoding="utf-8", errors="replace"
+    )
+    help_run = subprocess.run(
+        [binary, "--help"], capture_output=True, text=True, encoding="utf-8", errors="replace"
+    )
+    status = subprocess.run(
+        [binary, "--root", work, "sandbox", "status"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    status_out = (status.stdout or "") + (status.stderr or "")
+    clean = tempfile.mkdtemp(prefix="docode-pkg-")
+    init_clean = subprocess.run(
+        [binary, "--root", clean, "init"], capture_output=True, text=True, encoding="utf-8", errors="replace"
+    )
+    if version.returncode != 0 or "docode" not in (version.stdout or "").lower():
+        problems.append(f"--version failed or unnamed: {version.returncode}")
+    if help_run.returncode != 0 or "sandbox" not in (help_run.stdout or "").lower():
+        problems.append(f"--help failed or does not list sandbox: {help_run.returncode}")
+    if status.returncode != 0 or "Sandbox:" not in status_out:
+        problems.append(f"sandbox status failed: {status.returncode}")
+    if init_clean.returncode != 0 or not os.path.isdir(os.path.join(clean, ".docode")):
+        problems.append(f"init in a clean directory failed: {init_clean.returncode}")
+    report["executed"].append(
+        {
+            "id": "PKG-01",
+            "title": "clean install and truthful support surface",
+            "observed_exit": version.returncode,
+            "status_tail": status_out[-300:],
+            "passed": not problems,
+            "problems": problems,
+        }
+    )
+    if problems:
+        all_passed = False
+    print(f"PKG-01: {'PASS' if not problems else 'FAIL ' + '; '.join(problems)}", flush=True)
+    report["raw_logs"].append({"id": "PKG-01", "stdout": status_out, "stderr": ""})
     return all_passed
 
 
@@ -319,6 +482,11 @@ def main():
         help="disposable-runner mode: execute every scripted case inside the sandbox",
     )
     parser.add_argument("--case-timeout", type=int, default=150)
+    parser.add_argument(
+        "--emit-qualification",
+        default=None,
+        help="write a binary-bound qualification record, only when the run is WINDOWS_QUALIFIED",
+    )
     args = parser.parse_args()
 
     result = os.system(f'"{args.binary}" sandbox self-test >nul 2>&1')
@@ -398,6 +566,19 @@ def main():
             ok, why = protected_state_unchanged(present, absent)
             if not ok:
                 problems.append(f"protected state changed: {why}")
+            if case.get("recovery_probe"):
+                # The sandbox must be reusable immediately after a killed run;
+                # a wedged Job Object or leaked workspace would show up here.
+                recovery = run_sandboxed(
+                    args.binary,
+                    {"probe": case["recovery_probe"], "extra_args": []},
+                    args.case_timeout,
+                )
+                if recovery["exit_code"] != 0 or "ENVLOOP-DONE" not in recovery["stdout"]:
+                    problems.append(
+                        f"sandbox unusable after timeout: recovery probe exit "
+                        f"{recovery['exit_code']} stderr={recovery['stderr'][:200]!r}"
+                    )
             if case.get("decoy"):
                 try:
                     pass  # already removed in run_sandboxed
@@ -416,22 +597,58 @@ def main():
         report["executed"] = executed
         all_passed = run_host_cases(args.binary, report, all_passed)
         failures = [e for e in report["executed"] if not e["passed"]]
+        observed_ids = {e["id"] for e in report["executed"]}
+        required_ids = {c["id"] for c in CASES}
+        missing = sorted(required_ids - observed_ids)
+        if missing:
+            all_passed = False
         report["status"] = (
-            "WINDOWS_SUBSET_PASS" if all_passed and report["executed"] else "FAIL"
+            "WINDOWS_QUALIFIED" if all_passed and not missing else "FAIL"
         )
         report["release_gate"] = (
-            "Windows-applicable scripted cases passed on a disposable runner; "
-            "full qualification still needs the remaining matrix cases "
-            "(Linux/macOS runners, packaging) and independent review before "
-            "flipping is_qualified()."
-            if all_passed
-            else f"{len(failures)} case(s) failed on the disposable runner."
+            "All 20 Windows-applicable adversarial cases passed on a disposable "
+            "runner. Windows may be advertised as sandboxed only when this "
+            "report and its qualification record ship with the exact binary."
+            if all_passed and not missing
+            else (
+                f"missing case(s): {', '.join(missing)}"
+                if missing
+                else f"{len(failures)} case(s) failed on the disposable runner."
+            )
         )
         report["self_test_exit"] = selftest_exit
 
     with open(args.report, "w", encoding="utf-8") as fh:
         json.dump(report, fh, indent=2)
     print(f"wrote {args.report}; status={report['status']}")
+    if args.emit_qualification:
+        if report["status"] != "WINDOWS_QUALIFIED":
+            print(
+                "refusing to write a qualification record: status is "
+                f"{report['status']}, not WINDOWS_QUALIFIED"
+            )
+        else:
+            import hashlib
+
+            with open(args.binary, "rb") as fh:
+                binary_sha = hashlib.sha256(fh.read()).hexdigest()
+            with open(args.report, "rb") as fh:
+                report_sha = hashlib.sha256(fh.read()).hexdigest()
+            record = {
+                "schema_version": 1,
+                "status": "QUALIFIED",
+                "binary_sha256": binary_sha,
+                "platform": "windows",
+                "runner": report["runner"],
+                "report_sha256": report_sha,
+                "cases": [
+                    {"id": entry["id"], "passed": bool(entry["passed"])}
+                    for entry in report["executed"]
+                ],
+            }
+            with open(args.emit_qualification, "w", encoding="utf-8") as fh:
+                json.dump(record, fh, indent=2)
+            print(f"wrote qualification record {args.emit_qualification}")
     # Exit 0 whenever the runner completed and wrote a truthful report; the
     # workflow's release gate reads the JSON status and decides.
     return 0

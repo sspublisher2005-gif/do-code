@@ -19,6 +19,7 @@ mod mission_store;
 mod patches;
 mod probe;
 mod provider;
+mod qualification;
 mod redaction;
 mod risk;
 mod router;
@@ -743,12 +744,20 @@ async fn run(cli: Cli) -> Result<()> {
                 let code = match case.as_str() {
                     "fs-01" => crate::probe::fs_01(&args),
                     "fs-02" => crate::probe::fs_02(&args),
+                    "fs-03" => crate::probe::fs_03(&args),
+                    "fs-04" => crate::probe::fs_04(&args),
+                    "fs-05" => crate::probe::fs_05(&args),
                     "net-01" => crate::probe::net_01(&args),
                     "net-02" => crate::probe::net_02(&args),
                     "env-01" => crate::probe::env_01(&args),
                     "cmd-01" => crate::probe::cmd_01(&args),
+                    "log-01" => crate::probe::log_01(&args),
+                    "life-01" => crate::probe::life_01(&args),
                     "res-01" => crate::probe::res_01(&args),
                     "proc-01" => crate::probe::proc_01(&args),
+                    "proc-02" => crate::probe::proc_02(&args),
+                    "win-02" => crate::probe::win_02(&args),
+                    "win-03" => crate::probe::win_03(&args),
                     _ => 21,
                 };
                 std::process::exit(code);

@@ -16,6 +16,45 @@
 #[cfg(windows)]
 use crate::error::{DocodeError, Result};
 
+/// Append a chunk to a capture buffer, keeping at most `cap` bytes and always
+/// retaining the newest bytes. Truncated output is useful only as a tail.
+fn append_bounded(captured: &mut Vec<u8>, chunk: &[u8], cap: usize) {
+    let chunk = if chunk.len() > cap {
+        &chunk[chunk.len() - cap..]
+    } else {
+        chunk
+    };
+    if captured.len() + chunk.len() > cap {
+        let drop = (captured.len() + chunk.len() - cap).min(captured.len());
+        captured.drain(..drop);
+    }
+    captured.extend_from_slice(chunk);
+}
+
+#[cfg(test)]
+mod capture_tests {
+    use super::append_bounded;
+
+    #[test]
+    fn keeps_the_newest_bytes_when_over_capacity() {
+        let mut buffer = Vec::new();
+        append_bounded(&mut buffer, b"abcdef", 4);
+        assert_eq!(buffer, b"cdef");
+        append_bounded(&mut buffer, b"ghij", 4);
+        assert_eq!(buffer, b"ghij");
+        append_bounded(&mut buffer, b"k", 4);
+        assert_eq!(buffer, b"hijk");
+    }
+
+    #[test]
+    fn keeps_everything_under_capacity() {
+        let mut buffer = Vec::new();
+        append_bounded(&mut buffer, b"ab", 4);
+        append_bounded(&mut buffer, b"cd", 4);
+        assert_eq!(buffer, b"abcd");
+    }
+}
+
 #[cfg(windows)]
 mod windows_impl {
     #![allow(dead_code)]
@@ -553,10 +592,9 @@ mod windows_impl {
                     break;
                 }
                 let n = read_bytes as usize;
-                if captured.len() < MAX_CAPTURE {
-                    let take = (MAX_CAPTURE - captured.len()).min(n);
-                    captured.extend_from_slice(&chunk[..take]);
-                }
+                // Keep the LAST MAX_CAPTURE bytes: when output is truncated,
+                // the tail is what explains a failure, not the first megabyte.
+                append_bounded(&mut captured, &chunk[..n], MAX_CAPTURE);
             }
             unsafe {
                 CloseHandle(stdout_pipe);
@@ -607,19 +645,26 @@ mod windows_impl {
 pub use windows_impl::*;
 
 /// A qualified sandbox has passed the adversarial acceptance matrix on a
-/// disposable native runner. Do Code has not run those tests, so this stays
-/// false and arbitrary command execution stays disabled. Do not flip this
-/// to true without retained evidence from the 26-case matrix.
+/// disposable native runner. Qualification is evidence-driven: it is true only
+/// when a complete, binary-bound record (status QUALIFIED, every applicable
+/// case passed) is present next to the binary. No valid record exists in a
+/// normal build, so this stays false and execution stays disabled — fail-closed.
 pub fn is_qualified() -> bool {
-    false
+    crate::qualification::is_qualified()
 }
 
 pub fn status_text() -> String {
     if is_qualified() {
         "Sandbox: available (qualified)".to_string()
     } else if cfg!(windows) {
-        "Sandbox: primitives implemented (AppContainer + Job Object + private workspace          DACL + sanitized env + OS network deny), but NOT qualified — adversarial acceptance          tests have not passed on a disposable runner yet. Arbitrary command execution is disabled."
-            .to_string()
+        let record = if crate::qualification::record_present() {
+            "a qualification record was found but is incomplete, binary-bound check failed, or not all applicable cases passed"
+        } else {
+            "no qualification record is present"
+        };
+        format!(
+            "Sandbox: primitives implemented (AppContainer + Job Object + private workspace DACL + sanitized env + OS network deny), but NOT qualified — {record}. Arbitrary command execution is disabled."
+        )
     } else {
         "Sandbox: not implemented on this platform; arbitrary command execution is disabled.          Windows driver exists; Linux (Bubblewrap+Landlock+seccomp) and macOS (Seatbelt) are          designed but not implemented."
             .to_string()
