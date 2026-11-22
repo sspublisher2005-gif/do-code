@@ -63,6 +63,9 @@ pub enum ToolPolicy {
 pub fn tool_policy(name: &str) -> ToolPolicy {
     match name {
         "workspace.list" | "workspace.read" | "workspace.search" => ToolPolicy::Execute,
+        // Process execution is only available when the OS sandbox is qualified;
+        // on an unqualified build it stays denied, fail-closed.
+        "process.run" if crate::sandbox::is_qualified() => ToolPolicy::Execute,
         _ => ToolPolicy::Deny,
     }
 }
@@ -185,6 +188,57 @@ pub fn execute(root: &Path, name: &str, args: &Value, _max_read_bytes: u64) -> T
                 .collect::<Vec<_>>()
                 .join("\n")
         }),
+        "process.run" => {
+            let argv_value = args.get("argv").cloned().unwrap_or(Value::Array(vec![]));
+            let argv: Vec<String> = match argv_value.as_array() {
+                Some(items) => {
+                    let mut out = Vec::with_capacity(items.len());
+                    for entry in items {
+                        match entry.as_str() {
+                            Some(s) => out.push(s.to_owned()),
+                            None => {
+                                return ToolResult::err(
+                                    name,
+                                    "tool_error",
+                                    "tool 'process.run' argv items must be strings.".into(),
+                                    started,
+                                );
+                            }
+                        }
+                    }
+                    out
+                }
+                None => {
+                    return ToolResult::err(
+                        name,
+                        "tool_error",
+                        "tool 'process.run' argv must be an array of strings.".into(),
+                        started,
+                    );
+                }
+            };
+            match crate::sandbox::run_in_project(root, &argv, 300_000) {
+                Ok(outcome) => {
+                    if !outcome.output.is_empty() {
+                        let output = outcome.output;
+                        let tail = if output.len() > MAX_TOOL_OUTPUT_BYTES {
+                            let start = output.len() - MAX_TOOL_OUTPUT_BYTES;
+                            let mut idx = start;
+                            while idx < output.len() && !output.is_char_boundary(idx) {
+                                idx += 1;
+                            }
+                            output[idx..].to_owned()
+                        } else {
+                            output
+                        };
+                        Ok(format!("{}\n[receipt] {}", tail, outcome.receipt))
+                    } else {
+                        Ok(format!("[receipt] {}", outcome.receipt))
+                    }
+                }
+                Err(error) => Err(error),
+            }
+        }
         _ => Err(DocodeError::Message(format!(
             "tool '{name}' is not executable."
         ))),
@@ -325,7 +379,14 @@ mod tests {
     fn process_run_validates_but_is_policy_denied() {
         let args = serde_json::json!({"argv": ["cmd.exe", "/c", "echo hi"]});
         let normalized = validate_tool_call("process.run", &args).expect("schema parses");
-        assert_eq!(tool_policy("process.run"), ToolPolicy::Deny);
+        assert_eq!(
+            tool_policy("process.run"),
+            if crate::sandbox::is_qualified() {
+                ToolPolicy::Execute
+            } else {
+                ToolPolicy::Deny
+            }
+        );
         let result = execute(Path::new("."), "process.run", &normalized, 1024);
         assert!(!result.ok);
         assert_eq!(result.error_code.as_deref(), Some("policy_denied"));

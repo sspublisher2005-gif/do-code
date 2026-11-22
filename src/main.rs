@@ -449,7 +449,7 @@ struct DecisionArgs {
 }
 
 #[allow(dead_code)]
-fn which_exe(name: &str) -> Option<String> {
+pub(crate) fn which_exe(name: &str) -> Option<String> {
     if name.contains('\\') || name.contains('/') {
         return if std::path::Path::new(name).exists() {
             Some(name.to_owned())
@@ -785,61 +785,33 @@ async fn run(cli: Cli) -> Result<()> {
                 }
                 #[cfg(windows)]
                 {
-                    let exe = command[0].clone();
-                    let args = command[1..].to_vec();
-                    let exe = if exe.contains('\\') || exe.contains('/') {
-                        exe
-                    } else if let Some(found) = which_exe(&exe) {
-                        found
-                    } else {
-                        return Err(DocodeError::Message(format!("executable not found in PATH: {exe}")));
-                    };
-                    let limits = sandbox::ResourceLimits {
-                        max_wall_time_ms: timeout_ms,
-                        ..Default::default()
-                    };
-                    let job = sandbox::JobObject::create(limits)?;
-                    // Container workspace lives under the project's .docode,
-                    // not %TEMP% — hardened images deny AppContainer
-                    // traversal on temp roots, which kills the child outright.
-                    let home = crate::storage::ensure_project_home(&root)?;
-                    let workspace_parent = home.join("sandbox");
-                    let (proc_handle, thread_handle, _pid, workspace, stdout_pipe) =
-                        sandbox::spawn_suspended(&exe, &args, limits, &job, &workspace_parent)?;
-                    // Cleanup runs even if the wait itself errors.
-                    let wait = sandbox::wait_for_completion(
-                        proc_handle,
-                        thread_handle,
-                        timeout_ms,
-                        &job,
-                        stdout_pipe,
-                    );
-                    if let Err(e) = std::fs::remove_dir_all(&workspace) {
-                        eprintln!("warning: could not remove sandbox workspace {}: {e}", workspace.display());
-                    }
-                    let (exit_code, timed_out, output) = wait?;
-                    if !output.is_empty() {
-                        let text = String::from_utf8_lossy(&output);
-                        let redacted = crate::redaction::redact(&text);
-                        let mut tail = redacted.as_str();
-                        if redacted.len() > 32 * 1024 {
-                            let start = redacted.len() - 32 * 1024;
+                    let argv = command.clone();
+                    let outcome = sandbox::run_in_project(&root, &argv, timeout_ms)?;
+                    if !outcome.output.is_empty() {
+                        let mut tail = outcome.output.as_str();
+                        if outcome.output.len() > 32 * 1024 {
+                            let start = outcome.output.len() - 32 * 1024;
                             let mut idx = start;
-                            while idx < redacted.len() && !redacted.is_char_boundary(idx) {
+                            while idx < outcome.output.len() && !outcome.output.is_char_boundary(idx) {
                                 idx += 1;
                             }
-                            tail = &redacted[idx..];
+                            tail = &outcome.output[idx..];
                             println!("[output truncated at 32 KiB tail]");
                         }
                         println!("{tail}");
                     }
-                    println!("exit_code={exit_code} timed_out={timed_out}");
+                    println!("[receipt] {}", outcome.receipt);
+                    println!("exit_code={} timed_out={}", outcome.exit_code, outcome.timed_out);
                     // Propagate the child's status: a caller (matrix runner,
                     // wrapper script) must be able to see failure. Timeouts are
                     // never a success.
                     use std::io::Write;
                     let _ = std::io::stdout().flush();
-                    let code = if timed_out && exit_code == 0 { 1 } else { exit_code };
+                    let code = if outcome.timed_out && outcome.exit_code == 0 {
+                        1
+                    } else {
+                        outcome.exit_code
+                    };
                     std::process::exit(code as i32);
                 }
                 #[cfg(not(windows))]

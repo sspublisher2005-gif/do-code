@@ -16,6 +16,15 @@
 #[cfg(windows)]
 use crate::error::{DocodeError, Result};
 
+pub struct CommandOutcome {
+    pub exit_code: u32,
+    pub timed_out: bool,
+    pub output: String,
+    #[allow(dead_code)]
+    pub output_sha256: String,
+    pub receipt: String,
+}
+
 /// Append a chunk to a capture buffer, keeping at most `cap` bytes and always
 /// retaining the newest bytes. Truncated output is useful only as a tail.
 fn append_bounded(captured: &mut Vec<u8>, chunk: &[u8], cap: usize) {
@@ -204,8 +213,8 @@ mod windows_impl {
         const ALLOWLIST: &[&str] = &[
             "SystemRoot",
             "SystemDrive",
-            "TEMP",
-            "TMP",
+            // TEMP and TMP are overridden below to point at the writable
+            // workspace so the child never touches the user's temp root.
             "PATHEXT",
             "COMPUTERNAME",
             "PROCESSOR_ARCHITECTURE",
@@ -231,6 +240,11 @@ mod windows_impl {
                 block.push(0);
             }
         }
+        let ws = workspace.to_string_lossy();
+        for key in ["TEMP", "TMP"] {
+            block.extend(format!("{key}={ws}").encode_utf16());
+            block.push(0);
+        }
         let ws_line = format!("DOCODE_WORKSPACE={}", workspace.display());
         block.extend(ws_line.encode_utf16());
         block.push(0);
@@ -243,7 +257,108 @@ mod windows_impl {
         block
     }
 
-    /// Spawn a process suspended inside an AppContainer with:
+    /// Run a command inside the qualified sandbox with the project visible
+    /// read-only (source, target/ writable), network denied, hard timeout.
+    pub fn run_in_project(
+        root: &std::path::Path,
+        argv: &[String],
+        timeout_ms: u32,
+    ) -> crate::error::Result<super::CommandOutcome> {
+        use crate::error::DocodeError;
+        if argv.is_empty() {
+            return Err(DocodeError::Message(
+                "process.run requires a non-empty argv".into(),
+            ));
+        }
+        let exe = if argv[0].contains('\\') || argv[0].contains('/') {
+            if std::path::Path::new(&argv[0]).exists() {
+                argv[0].clone()
+            } else {
+                return Err(DocodeError::Message(format!(
+                    "executable not found: {}",
+                    argv[0]
+                )));
+            }
+        } else {
+            crate::which_exe(&argv[0]).ok_or_else(|| {
+                DocodeError::Message(format!("executable not found in PATH: {}", argv[0]))
+            })?
+        };
+        let limits = ResourceLimits {
+            max_wall_time_ms: timeout_ms,
+            ..Default::default()
+        };
+        let job = JobObject::create(limits)?;
+        let home = crate::storage::ensure_project_home(root)?;
+        let workspace_parent = home.join("sandbox");
+        let read_roots = vec![root.to_path_buf()];
+        let mut write_roots = vec![root.join("target"), root.join(".docode").join("scratch")];
+        if let Some(cargo_home) = std::env::var_os("CARGO_HOME")
+            .map(std::path::PathBuf::from)
+            .or_else(|| {
+                std::env::var_os("USERPROFILE").map(|p| std::path::PathBuf::from(p).join(".cargo"))
+            })
+        {
+            let registry = cargo_home.join("registry");
+            let git = cargo_home.join("git");
+            if registry.is_dir() {
+                write_roots.push(registry);
+            }
+            if git.is_dir() {
+                write_roots.push(git);
+            }
+        }
+        let access = SandboxAccess {
+            read_roots: &read_roots,
+            write_roots: &write_roots,
+            cwd: Some(root),
+        };
+        let (proc_handle, thread_handle, _pid, workspace, stdout_pipe) =
+            spawn_suspended(&exe, &argv[1..], limits, &job, &workspace_parent, &access)?;
+        eprintln!("diag: spawned");
+        let wait = wait_for_completion(proc_handle, thread_handle, timeout_ms, &job, stdout_pipe);
+        let _ = std::fs::remove_dir_all(&workspace);
+        let (exit_code, timed_out, output) = wait?;
+        let text = String::from_utf8_lossy(&output).into_owned();
+        let redacted = crate::redaction::redact(&text);
+        let output_sha256 = crate::storage::sha256(&output);
+        let receipt = serde_json::json!({
+            "tool": "process.run",
+            "argv": argv,
+            "cwd": root.display().to_string(),
+            "exit_code": exit_code,
+            "timed_out": timed_out,
+            "output_sha256": output_sha256,
+            "output_bytes": output.len(),
+            "writable_roots": write_roots,
+            "sandbox": "appcontainer-windows",
+            "timestamp": crate::storage::timestamp(),
+        })
+        .to_string();
+        let _ = crate::audit::append(
+            root,
+            "process.run",
+            if exit_code == 0 && !timed_out {
+                "succeeded"
+            } else {
+                "failed"
+            },
+            std::collections::BTreeMap::from([
+                ("argv".into(), serde_json::json!(argv)),
+                ("exitCode".into(), serde_json::json!(exit_code)),
+                ("timedOut".into(), serde_json::json!(timed_out)),
+                ("outputSha256".into(), serde_json::json!(output_sha256)),
+                ("receipt".into(), serde_json::json!(receipt)),
+            ]),
+        );
+        Ok(super::CommandOutcome {
+            exit_code,
+            timed_out,
+            output: redacted,
+            output_sha256,
+            receipt,
+        })
+    }
     /// Create the private disposable workspace for one sandbox run: a fresh
     /// directory under the project's `.docode/sandbox/` directory whose DACL
     /// grants the container SID full control, protected so nothing broad is
@@ -252,21 +367,22 @@ mod windows_impl {
     /// Located under the project instead of %TEMP%: some hardened Windows
     /// images deny AppContainer traversal on temp roots, which makes any
     /// %TEMP%-based workspace unusable there.
-    pub fn create_container_workspace(
+    /// Add (never replace) an ACE granting the container SID access to `path`.
+    /// Idempotent: adding the same ACE twice is harmless. Grants are left in
+    /// place on purpose — they are scoped to this machine's docode AppContainer
+    /// SID, so only processes this binary launches can use them.
+    pub fn grant_container_access(
         container_sid: *mut std::ffi::c_void,
-        parent: &std::path::Path,
-    ) -> Result<std::path::PathBuf> {
-        use windows_sys::Win32::Security::Authorization::SE_FILE_OBJECT;
+        path: &std::path::Path,
+        mask: u32,
+        recursive: bool,
+    ) -> Result<()> {
         use windows_sys::Win32::Security::Authorization::{
-            EXPLICIT_ACCESS_W, GRANT_ACCESS, SetEntriesInAclW, SetNamedSecurityInfoW,
-            TRUSTEE_IS_SID, TRUSTEE_IS_UNKNOWN, TRUSTEE_W,
+            EXPLICIT_ACCESS_W, GRANT_ACCESS, GetNamedSecurityInfoW, SE_FILE_OBJECT,
+            SetEntriesInAclW, SetNamedSecurityInfoW, TRUSTEE_IS_SID, TRUSTEE_IS_UNKNOWN, TRUSTEE_W,
         };
         use windows_sys::Win32::Security::DACL_SECURITY_INFORMATION;
-        // Parent (e.g. .docode/sandbox/) must exist and be private before use.
-        crate::storage::ensure_private_dir(parent)?;
-        let dir = parent.join(format!("run-{}", uuid::Uuid::new_v4().simple()));
-        std::fs::create_dir(&dir).map_err(|e| crate::error::io_error(&dir, e))?;
-        let mut wide: Vec<u16> = dir
+        let mut wide: Vec<u16> = path
             .as_os_str()
             .encode_wide()
             .chain(std::iter::once(0))
@@ -279,9 +395,9 @@ mod windows_impl {
             ptstrName: container_sid as *mut _,
         };
         let entry = EXPLICIT_ACCESS_W {
-            grfAccessPermissions: 0x1F01FF, // file-generic all
+            grfAccessPermissions: mask,
             grfAccessMode: GRANT_ACCESS,
-            grfInheritance: 0x3, // sub-containers and objects inherit
+            grfInheritance: if recursive { 0x3 } else { 0x0 },
             Trustee: trustee,
         };
         // ADD the container ACE to the existing DACL instead of replacing it:
@@ -292,7 +408,7 @@ mod windows_impl {
         let mut current_sd: *mut std::ffi::c_void = std::ptr::null_mut();
         let mut current_dacl: *mut windows_sys::Win32::Security::ACL = std::ptr::null_mut();
         let get_err = unsafe {
-            windows_sys::Win32::Security::Authorization::GetNamedSecurityInfoW(
+            GetNamedSecurityInfoW(
                 wide.as_mut_ptr(),
                 SE_FILE_OBJECT,
                 DACL_SECURITY_INFORMATION,
@@ -305,14 +421,62 @@ mod windows_impl {
         };
         if get_err != 0 {
             return Err(DocodeError::Safety(format!(
-                "GetNamedSecurityInfoW (workspace read) failed (err={get_err})."
+                "GetNamedSecurityInfoW (grant read) failed for {} (err={get_err}).",
+                path.display()
             )));
+        }
+        // Idempotent: if the container SID already has an ACE on this path,
+        // do nothing. Without this, every run appends another ACE to the same
+        // directory and the DACL (and every later grant) grows without bound.
+        let mut already = false;
+        if !current_dacl.is_null() {
+            let mut size_info: windows_sys::Win32::Security::ACL_SIZE_INFORMATION =
+                unsafe { std::mem::zeroed() };
+            let ok = unsafe {
+                windows_sys::Win32::Security::GetAclInformation(
+                    current_dacl,
+                    (&mut size_info as *mut windows_sys::Win32::Security::ACL_SIZE_INFORMATION)
+                        .cast(),
+                    std::mem::size_of::<windows_sys::Win32::Security::ACL_SIZE_INFORMATION>()
+                        as u32,
+                    windows_sys::Win32::Security::AclSizeInformation,
+                )
+            };
+            if ok != 0 {
+                for i in 0..size_info.AceCount {
+                    let mut ace_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
+                    if unsafe {
+                        windows_sys::Win32::Security::GetAce(current_dacl, i, &mut ace_ptr)
+                    } != 0
+                        && !ace_ptr.is_null()
+                    {
+                        // The SID sits at the tail of an access-allowed ACE.
+                        let ace =
+                            ace_ptr as *const windows_sys::Win32::Security::ACCESS_ALLOWED_ACE;
+                        let sid = unsafe { &(*ace).SidStart as *const _ as *mut std::ffi::c_void };
+                        if !sid.is_null()
+                            && unsafe {
+                                windows_sys::Win32::Security::EqualSid(sid, container_sid) != 0
+                            }
+                        {
+                            already = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if already {
+            unsafe { LocalFree(current_sd) };
+            return Ok(());
         }
         let mut new_dacl: *mut windows_sys::Win32::Security::ACL = std::ptr::null_mut();
         let hr = unsafe { SetEntriesInAclW(1, &entry, current_dacl, &mut new_dacl) };
         if hr != 0 || new_dacl.is_null() {
+            unsafe { LocalFree(current_sd) };
             return Err(DocodeError::Safety(format!(
-                "SetEntriesInAclW (workspace grant) failed (hr={hr})."
+                "SetEntriesInAclW (grant) failed for {} (hr={hr}).",
+                path.display()
             )));
         }
         let err = unsafe {
@@ -332,8 +496,24 @@ mod windows_impl {
         }
         if err != 0 {
             return Err(DocodeError::Safety(format!(
-                "SetNamedSecurityInfoW (workspace grant) failed (err={err})."
+                "SetNamedSecurityInfoW (grant) failed for {} (err={err}).",
+                path.display()
             )));
+        }
+        Ok(())
+    }
+
+    pub fn create_container_workspace(
+        container_sid: *mut std::ffi::c_void,
+        parent: &std::path::Path,
+    ) -> Result<std::path::PathBuf> {
+        // Parent (e.g. .docode/sandbox/) must exist and be private before use.
+        crate::storage::ensure_private_dir(parent)?;
+        let dir = parent.join(format!("run-{}", uuid::Uuid::new_v4().simple()));
+        std::fs::create_dir(&dir).map_err(|e| crate::error::io_error(&dir, e))?;
+        if let Err(error) = grant_container_access(container_sid, &dir, 0x1F01FF, true) {
+            let _ = std::fs::remove_dir_all(&dir);
+            return Err(error);
         }
         Ok(dir)
     }
@@ -347,12 +527,29 @@ mod windows_impl {
     /// Any failure before resume terminates the child and returns an error.
     /// Returns the handles plus the private disposable workspace path — the
     /// caller owns cleanup (`remove_dir_all`) once the child exits.
+    /// Host paths the sandboxed child may reach. Anything not listed is denied
+    /// by the AppContainer token — there is no ambient access to the machine.
+    pub struct SandboxAccess<'a> {
+        /// Read + execute, recursive. The project source lives here.
+        pub read_roots: &'a [std::path::PathBuf],
+        /// Read + write, recursive. Build output, dependency caches, temp.
+        pub write_roots: &'a [std::path::PathBuf],
+        /// Working directory; defaults to the private workspace.
+        pub cwd: Option<&'a std::path::Path>,
+    }
+
+    /// `FILE_GENERIC_READ | FILE_GENERIC_EXECUTE`.
+    const READ_EXECUTE: u32 = 0x0012_00A9;
+    /// `FILE_ALL_ACCESS`.
+    const FULL_CONTROL: u32 = 0x001F_01FF;
+
     pub fn spawn_suspended(
         exe: &str,
         args: &[String],
         _limits: ResourceLimits,
         job: &JobObject,
         workspace_parent: &std::path::Path,
+        access: &SandboxAccess<'_>,
     ) -> Result<(HANDLE, HANDLE, u32, std::path::PathBuf, HANDLE)> {
         use windows_sys::Win32::Security::SECURITY_CAPABILITIES;
         use windows_sys::Win32::System::Threading::{
@@ -455,10 +652,29 @@ mod windows_impl {
         // hidden "=X:" entries the block does not carry and fails with
         // ERROR_ENVVAR_NOT_FOUND (203).
         let workspace = create_container_workspace(sid, workspace_parent)?;
+        let grant_result: Result<()> = (|| {
+            for root in access.read_roots {
+                if root.exists() {
+                    grant_container_access(sid, root, READ_EXECUTE, true)?;
+                }
+            }
+            for root in access.write_roots {
+                if !root.exists() {
+                    std::fs::create_dir_all(root).map_err(|e| crate::error::io_error(root, e))?;
+                }
+                grant_container_access(sid, root, FULL_CONTROL, true)?;
+            }
+            Ok(())
+        })();
+        if let Err(error) = grant_result {
+            let _ = std::fs::remove_dir_all(&workspace);
+            return Err(error);
+        }
         let mut env_block = sanitized_environment(&workspace);
         // Strip the \\?\ verbatim prefix: legacy children (cmd.exe) treat it
         // as a UNC path and silently relocate their cwd to %SystemRoot%.
-        let cwd_plain = workspace.to_string_lossy();
+        let cwd_path = access.cwd.unwrap_or(&workspace);
+        let cwd_plain = cwd_path.to_string_lossy();
         let cwd_plain = cwd_plain.strip_prefix(r"\\?\").unwrap_or(&cwd_plain);
         let mut cwd_wide: Vec<u16> = cwd_plain.encode_utf16().chain(std::iter::once(0)).collect();
         // 6b. Merged stdout/stderr pipe for the child. Without an explicit
@@ -643,6 +859,17 @@ mod windows_impl {
 #[cfg(windows)]
 #[allow(unused_imports)]
 pub use windows_impl::*;
+
+#[cfg(not(windows))]
+pub fn run_in_project(
+    _root: &std::path::Path,
+    _argv: &[String],
+    _timeout_ms: u32,
+) -> crate::error::Result<CommandOutcome> {
+    Err(crate::error::DocodeError::Safety(
+        "process.run requires the Windows sandbox; not available on this platform.".into(),
+    ))
+}
 
 /// A qualified sandbox has passed the adversarial acceptance matrix on a
 /// disposable native runner. Qualification is evidence-driven: it is true only

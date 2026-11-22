@@ -21,5 +21,12 @@
 - **FS-05 measures data reads, not handle opens.** Reason: Windows' own DACL lets an AppContainer open `KsecDD`; failing the matrix on a handle it cannot read from would be measuring Windows, not our sandbox.
 - **CI gate now requires `WINDOWS_QUALIFIED`** and retains the qualification record as an artifact. Reason: `WINDOWS_SUBSET_PASS` was explicitly not a qualification. Evidence: `.github/workflows/sandbox-matrix-windows.yml`.
 
+## 2026-11-22 (process execution)
+- **Enabled `process.run` behind the qualified sandbox** with receipts. Reason: the evidence gate needs real test runs; execution was `Deny`. Evidence: `src/tools.rs` (policy gated on `is_qualified()`), `src/sandbox.rs::run_in_project`, receipt JSON with argv/cwd/exit_code/timed_out/output_sha256/timestamp.
+- **Sandbox now grants the project read-only and `target/`+caches writable** (Codex/Claude Code run in place; we are stricter). Reason: tests need the source tree; copying would kill incremental builds. Evidence: `src/sandbox.rs::SandboxAccess`, `grant_container_access`; matrix 20/20 still PASS.
+- **Grant is idempotent** (no duplicate ACEs). Reason: repeated runs were bloating the project root DACL and slowing `SetNamedSecurityInfoW` to 30s+. Evidence: `src/sandbox.rs::grant_container_access` ACE walk + `EqualSid`.
+- **`sandbox exec` now uses `run_in_project`**, so the matrix exercises the real execution path.
+- **Capture keeps the newest 1 MiB** (not the oldest) so truncated logs show the failure tail.
+
 ## Update procedure
 Append a line here with: `YYYY-MM-DD | decision | reason | evidence (commit/file:line) | approver`. Never edit history. If a decision is reversed, append a new line that supersedes it by ID/date.
