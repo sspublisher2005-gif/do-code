@@ -28,5 +28,15 @@
 - **`sandbox exec` now uses `run_in_project`**, so the matrix exercises the real execution path.
 - **Capture keeps the newest 1 MiB** (not the oldest) so truncated logs show the failure tail.
 
+
+## 2026-11-24
+- **Created beta planning documents** (docs/research/docode-beta-research.md, docs/product/docode-beta-product-brief.md, docs/architecture/docode-beta-design.md, docs/plans/docode-beta-implementation-plan.md, docs/release/docode-beta-evaluation-and-launch.md, docs/BETA_INDEX.md). Reason: Phase A-J planning deliverables requested.
+- **Selected beta positioning:** The auditable coding agent - tamper-evident evidence chain + Windows-native sandbox + single Rust binary.
+- **Rejected alternatives:** best general-purpose agent, fastest agent, cheapest agent, non-coder agent (deferred), verification layer only (rejected as primary).
+- **Beta scope:** 11 P0, 8 P1, 22 P2, 8 P3 (out of scope).
+- **Release gates:** 9 criteria + 4 numerical thresholds (to be set after baseline).
+- **Launch strategy:** GitHub + Reddit + HN + X + Discord. Demo GIF + benchmark report + honest limitations.
+- **Unproven:** tool loop feasibility, niche demand, Windows-only sufficiency, evidence ledger value, daily shipping, for-all achievability, NLnet success, external user acquisition.
+
 ## Update procedure
 Append a line here with: `YYYY-MM-DD | decision | reason | evidence (commit/file:line) | approver`. Never edit history. If a decision is reversed, append a new line that supersedes it by ID/date.
