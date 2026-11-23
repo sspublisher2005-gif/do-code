@@ -143,7 +143,7 @@ pub fn list(root: &Path, mission_id: &str) -> Result<Vec<EvidenceManifest>> {
 /// returns an error so that no evidence can be marked verified by untrusted code.
 #[allow(dead_code)]
 pub fn mark_verified(
-    _root: &Path,
+    root: &Path,
     mission_id: &str,
     evidence_id: &str,
     sandbox_run_id: &str,
@@ -155,10 +155,37 @@ pub fn mark_verified(
             "sandbox run ID is required to mark evidence as verified.".into(),
         ));
     }
-    // Fail-closed: no qualified sandbox driver exists yet.
-    Err(DocodeError::Safety(
-        "no qualified sandbox driver is available; evidence cannot be marked verified.".into(),
-    ))
+    if !crate::sandbox::is_qualified() {
+        return Err(DocodeError::Safety(
+            "no qualified sandbox driver is available; evidence cannot be marked verified.".into(),
+        ));
+    }
+    let canonical_root = fs::canonicalize(root).map_err(|e| io_error(root, e))?;
+    let mission_dir = storage::ensure_project_home(&canonical_root)?
+        .join("evidence")
+        .join(mission_id);
+    let path = mission_dir.join(format!("{evidence_id}.json"));
+    let mut manifest = load_manifest(&canonical_root, mission_id, &path)?;
+    if manifest.kind != "test_log" {
+        return Err(DocodeError::Safety(
+            "only test_log evidence can be marked verified by the sandbox.".into(),
+        ));
+    }
+    manifest.verified = true;
+    manifest.metadata.insert(
+        "sandboxRunId".into(),
+        Value::String(crate::redaction::safe_terminal(sandbox_run_id)),
+    );
+    // Rewrite the envelope with the updated manifest checksum.
+    let payload = serde_json::to_vec(&manifest).map_err(|e| DocodeError::Message(e.to_string()))?;
+    let envelope = Envelope {
+        store_version: EVIDENCE_VERSION,
+        manifest_sha256: hash(&payload),
+        manifest: manifest.clone(),
+    };
+    let bytes = serde_json::to_vec(&envelope).map_err(|e| DocodeError::Message(e.to_string()))?;
+    storage::write_atomic(&path, &bytes, false)?;
+    Ok(manifest)
 }
 
 pub fn read(

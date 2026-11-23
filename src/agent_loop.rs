@@ -159,6 +159,13 @@ pub async fn agent(
     let mut transcript = String::new();
     let mut model_requests = 0usize;
     let mut invalid_turns = 0usize;
+    // Bounded repair + false-success tracking.
+    let mut consecutive_tool_failures: usize = 0;
+    let mut tests_run: bool = false;
+    let mut tests_passed: bool = false;
+    let mut false_success_rejections: usize = 0;
+    const REPAIR_LIMIT: usize = 2;
+    const FALSE_SUCCESS_LIMIT: usize = 2;
 
     let run = async {
         loop {
@@ -239,6 +246,66 @@ pub async fn agent(
                         ]),
                     )?;
                     tools_called.push(name.clone());
+                    // Bounded repair + receipt tracking: a process.run that exits
+                    // non-zero (or times out) counts as a failed attempt, not a
+                    // success. Consecutive failures beyond REPAIR_LIMIT stop the loop.
+                    let mut process_exit_code: Option<i64> = None;
+                    let mut process_timed_out = false;
+                    if name == "process.run" {
+                        tests_run = true;
+                        if let Some(receipt_str) = result.output.split("[receipt] ").nth(1)
+                            && let Ok(receipt) =
+                                serde_json::from_str::<serde_json::Value>(receipt_str.trim())
+                        {
+                            process_exit_code = receipt.get("exit_code").and_then(|v| v.as_i64());
+                            process_timed_out = receipt
+                                .get("timed_out")
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(false);
+                            if process_exit_code == Some(0) && !process_timed_out {
+                                tests_passed = true;
+                                // Record a verified test_log so the completion
+                                // gate can open. Failures here are non-fatal to
+                                // the loop but are audited.
+                                let run_id = receipt
+                                    .get("output_sha256")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_owned();
+                                if let Ok(manifest) = evidence::put(
+                                    &root,
+                                    &mission_id,
+                                    "test_log",
+                                    "docode-sandbox",
+                                    receipt_str.trim().as_bytes(),
+                                    "application/json",
+                                    BTreeMap::new(),
+                                ) {
+                                    let _ = evidence::mark_verified(
+                                        &root,
+                                        &mission_id,
+                                        &manifest.id,
+                                        &run_id,
+                                    );
+                                }
+                            } else {
+                                tests_passed = false;
+                            }
+                        }
+                    }
+                    let tool_failed = !result.ok
+                        || process_exit_code.map(|c| c != 0).unwrap_or(false)
+                        || process_timed_out;
+                    if tool_failed {
+                        consecutive_tool_failures += 1;
+                    } else {
+                        consecutive_tool_failures = 0;
+                    }
+                    if consecutive_tool_failures > REPAIR_LIMIT {
+                        return Err(DocodeError::Message(format!(
+                            "repair budget exhausted after {consecutive_tool_failures} consecutive tool failures; mission preserved for inspection."
+                        )));
+                    }
                     transcript.push_str(&format!(
                         "Turn {model_requests}: tool {name} -> ok:{}\n{}\n",
                         result.ok,
@@ -246,6 +313,34 @@ pub async fn agent(
                     ));
                 }
                 ModelTurn::Final { summary, files } => {
+                    // False-success gate: a Final is only accepted when a
+                    // qualified test run succeeded. Otherwise reject and ask the
+                    // model to repair, up to FALSE_SUCCESS_LIMIT times.
+                    if tests_run && !tests_passed {
+                        false_success_rejections += 1;
+                        if false_success_rejections >= FALSE_SUCCESS_LIMIT {
+                            return Err(DocodeError::Message(
+                                "tests failed; refusing to declare success without a passing run."
+                                    .into(),
+                            ));
+                        }
+                        transcript.push_str(&format!(
+                            "Turn {model_requests}: FINAL rejected — the last test run failed. Repair and re-run tests before declaring success.\n"
+                        ));
+                        continue;
+                    }
+                    if !tests_run {
+                        false_success_rejections += 1;
+                        if false_success_rejections >= FALSE_SUCCESS_LIMIT {
+                            return Err(DocodeError::Message(
+                                "no test was executed; refusing to declare success without evidence.".into(),
+                            ));
+                        }
+                        transcript.push_str(&format!(
+                            "Turn {model_requests}: FINAL rejected — no test has been run. Run process.run on the test command before declaring success.\n"
+                        ));
+                        continue;
+                    }
                     if files.is_empty() {
                         return Err(DocodeError::Message(
                             "agent proposed an empty file list; nothing was saved.".into(),
