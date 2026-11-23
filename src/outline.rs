@@ -73,7 +73,7 @@ fn collect_files(_root: &Path, dir: &Path, out: &mut Vec<PathBuf>) -> Result<()>
             if SKIP_DIRS.contains(&name.as_ref()) {
                 continue;
             }
-            collect_files(root, &path, out)?;
+            collect_files(_root, &path, out)?;
         } else if path.is_file()
             && let Some(ext) = path.extension().and_then(|e| e.to_str())
             && SOURCE_EXTS.contains(&ext)
