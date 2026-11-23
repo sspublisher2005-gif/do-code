@@ -330,6 +330,7 @@ mod windows_impl {
             "timed_out": timed_out,
             "output_sha256": output_sha256,
             "output_bytes": output.len(),
+            "patch_hash": serde_json::Value::Null,
             "writable_roots": write_roots,
             "sandbox": "appcontainer-windows",
             "timestamp": crate::storage::timestamp(),

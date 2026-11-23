@@ -18,6 +18,12 @@ use std::collections::BTreeMap;
 pub struct RoutingConfig {
     /// role -> "provider/model" (e.g. "anthropic/claude-sonnet").
     pub roles: BTreeMap<String, String>,
+    /// Named cost tiers: tier name -> "provider/model". A role can be assigned
+    /// to a tier via `role_tiers` instead of pinning a model directly, so the
+    /// same tier can be reused across roles and swapped in one place.
+    pub tiers: BTreeMap<String, String>,
+    /// role -> tier name. Takes precedence over `roles` when both are set.
+    pub role_tiers: BTreeMap<String, String>,
     /// Ordered fallback targets used when the primary route fails.
     pub fallback: Vec<String>,
 }
@@ -68,14 +74,37 @@ pub fn routes_for(
     role: AgentRole,
 ) -> Vec<ModelConfig> {
     let mut routes = Vec::new();
+    let mut seen: std::collections::BTreeSet<(String, String)> = std::collections::BTreeSet::new();
     let key = role_key(role);
-    if let Some((provider, model)) = routing.roles.get(key).and_then(|t| parse_target(t).ok()) {
-        routes.push(override_model(&cfg.model, &provider, &model));
+    let push = |provider: String,
+                model: String,
+                routes: &mut Vec<ModelConfig>,
+                seen: &mut std::collections::BTreeSet<(String, String)>| {
+        if seen.insert((provider.clone(), model.clone())) {
+            routes.push(override_model(&cfg.model, &provider, &model));
+        }
+    };
+    // Tier assignment takes precedence: role -> tier -> model.
+    if let Some(tier_name) = routing.role_tiers.get(key)
+        && let Some(target) = routing.tiers.get(tier_name)
+        && let Ok((provider, model)) = parse_target(target)
+    {
+        push(provider, model, &mut routes, &mut seen);
     }
-    routes.push(cfg.model.clone());
+    // Direct role override.
+    if let Some((provider, model)) = routing.roles.get(key).and_then(|t| parse_target(t).ok()) {
+        push(provider, model, &mut routes, &mut seen);
+    }
+    // Base config is always a route (deduped).
+    push(
+        cfg.model.provider.clone(),
+        cfg.model.model.clone(),
+        &mut routes,
+        &mut seen,
+    );
     for target in &routing.fallback {
         if let Ok((provider, model)) = parse_target(target) {
-            routes.push(override_model(&cfg.model, &provider, &model));
+            push(provider, model, &mut routes, &mut seen);
         }
     }
     routes
@@ -150,6 +179,8 @@ mod tests {
         let c = cfg();
         let routing = RoutingConfig {
             roles: BTreeMap::from([("coder".into(), "anthropic/claude-sonnet".into())]),
+            tiers: Default::default(),
+            role_tiers: Default::default(),
             fallback: vec!["ollama/qwen3-coder".into()],
         };
         let routes = routes_for(&c, &routing, AgentRole::Coder);
@@ -167,6 +198,8 @@ mod tests {
         let c = cfg();
         let routing = RoutingConfig {
             roles: BTreeMap::from([("coder".into(), "anthropic/claude-sonnet".into())]),
+            tiers: Default::default(),
+            role_tiers: Default::default(),
             fallback: vec![],
         };
         let routes = routes_for(&c, &routing, AgentRole::Researcher);
@@ -179,6 +212,8 @@ mod tests {
         let c = cfg();
         let routing = RoutingConfig {
             roles: Default::default(),
+            tiers: Default::default(),
+            role_tiers: Default::default(),
             fallback: vec!["not-a-target".into(), "ollama/qwen3-coder".into()],
         };
         let routes = routes_for(&c, &routing, AgentRole::Tester);

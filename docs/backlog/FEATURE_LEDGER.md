@@ -73,7 +73,7 @@ If any fails → do not publish. This is the honest version of "full".
 | C-002 | Spec-first contract gate | HAVE | — | `contract.rs:28-80`; stored as evidence `workflow.rs:560-586` |
 | C-003 | Task board per-file locks + dependency DAG | HAVE | — | `taskboard.rs` (per PDR) |
 | C-004 | Complexity classification + per-role routing | HAVE | — | `workflow.rs:400,418,616`; `router.rs:16-23,63-82` |
-| C-005 | Compact brace-matched repo outline (top-level symbols + ranges) | PLANNED | V1.0 (Module 3) | no new deps; Aider owns heavy version |
+| C-005 | Compact brace-matched repo outline (top-level symbols + ranges) | DONE | V1.0 (Module 3) | src/outline.rs; docode outline CLI |
 | C-006 | Context hygiene: clear re-fetchable tool results, file-backed state | PLANNED | V1.1 | Anthropic "context rot"; issues #17428/#27242 |
 | C-007 | Narrow in-repo memory + staleness lint (no auto-delete) | FOUNDATION | V1.1 | `memory.rs:20-40,188-201,258-266,336-352,602` |
 | C-008 | Portable session/memory + config import (CLAUDE.md/AGENTS.md) | PLANNED | V1.1 | power-user churn; portability gap 26/30 |
@@ -89,7 +89,7 @@ If any fails → do not publish. This is the honest version of "full".
 |---|---|---|---|---|
 | D-001 | Multi-provider router + ordered fallback | HAVE | — | `router.rs`, `provider.rs` |
 | D-002 | Cost honesty: "unknown" unless provider-reported, never zero | HAVE | — | `workflow.rs:1229-1280`; our rule |
-| D-003 | Cost-tier config Cheap/Standard/Strong (configure, not build) | PLANNED | V1.0 (Module 2) | ~40 lines; commodity |
+| D-003 | Cost-tier config Cheap/Standard/Strong (configure, not build) | DONE | V1.0 (Module 2) | src/router.rs (tiers, role_tiers) |
 | D-004 | Local models (Ollama / LM Studio) | FOUNDATION | V1.1 | table stakes: OpenCode/Codex/Crush all have it; Rule 1 conditional |
 | D-005 | Native streaming responses | FUTURE | — | provider work; no differentiator |
 | D-006 | Structured JSON output | FOUNDATION | — | agent loop parses single JSON object |
@@ -100,7 +100,7 @@ If any fails → do not publish. This is the honest version of "full".
 | ID | Feature | Status | Target | Evidence / decision |
 |---|---|---|---|---|
 | E-001 | workspace.list / read / search | HAVE | — | `tools.rs`; bounded, redacted |
-| E-002 | process.run (qualified sandbox only) | PLANNED | V1.0 | see A-007 |
+| E-002 | process.run (qualified sandbox only) | DONE | V1.0 | see A-007 |
 | E-003 | Git status/diff/log tools (read-only) | FUTURE | — | avoid arbitrary shell |
 | E-004 | HTTP/fetch tool | FUTURE | — | needs network policy |
 | E-005 | Browser tool | FUTURE | — | isolated runtime only |

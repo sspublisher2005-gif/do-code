@@ -16,6 +16,7 @@ mod memory;
 mod message_store;
 mod mission;
 mod mission_store;
+mod outline;
 mod patches;
 mod probe;
 mod provider;
@@ -140,6 +141,11 @@ enum Command {
     Sandbox {
         #[command(subcommand)]
         command: SandboxCommand,
+    },
+    /// Print a compact outline of the repository's top-level symbols.
+    Outline {
+        #[arg(long, default_value_t = 500)]
+        max_lines: usize,
     },
     /// Manage human-readable, user-confirmed local learning memory.
     Memory {
@@ -824,6 +830,10 @@ async fn run(cli: Cli) -> Result<()> {
             }
 
         },
+        Command::Outline { max_lines } => {
+            let text = outline::outline(&root, max_lines)?;
+            print!("{text}");
+        }
         Command::Memory { command } => memory_command(&root, command)?,
         Command::Pilot(args) => pilot_command(&root, args).await?,
         Command::Decisions { command } => decisions_command(&root, command)?,

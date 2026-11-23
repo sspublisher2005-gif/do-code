@@ -1,9 +1,25 @@
 # Do Code — current Rust status
 
-**As-of date:** 2026-11-08  
+**As-of date:** 2026-11-23  
 **Product:** Do Code (`docode`, repo `sspublisher2005-gif/do-code`)  
 **Rust source version:** `0.7.0-rs.1`  
-**Release status:** Cross-platform CI GREEN on all 6 jobs; sandbox driver executes on Windows with real containment; adversarial matrix partially proven; **not production-ready** until the full matrix + review gates pass.
+**Release status:** Cross-platform CI GREEN on all 6 jobs; Windows sandbox matrix 20/20 PASS (WINDOWS_QUALIFIED); sandbox is evidence-driven; process.run enabled behind qualified sandbox with receipts; bounded repair loop (≤2) + false-success gate implemented; cost-tiered routing + compact repo outline added. **Not production-ready** until the tool-call agent loop, streaming, and incremental edits land.
+
+## 2026-11-23 update — M1 complete: sandbox qualification + process.run + repair loop
+
+**Windows sandbox: 20/20 applicable cases PASS.** The matrix now covers FS-01..05, NET-01/02, ENV-01, PROC-01/02, RES-01, CMD-01, LOG-01, LIFE-01, WIN-01/02/03, EXEC-01, PKG-01. `is_qualified()` is evidence-driven: it reads a binary-bound qualification record (status QUALIFIED, all 20 cases passed) and stays false otherwise. CI gate now requires WINDOWS_QUALIFIED and retains the qualification record as an artifact.
+
+**process.run enabled behind qualified sandbox.** `tools::tool_policy("process.run")` returns Execute only when `sandbox::is_qualified()`. Execution uses `sandbox::run_in_project`, which grants the AppContainer read+execute on the project root and read+write on `target/`, `.docode/scratch`, and the cargo registry/git caches. Network denied. Every run produces a receipt: `{argv, cwd, exit_code, timed_out, output_sha256, output_bytes, writable_roots, sandbox, timestamp}`. The receipt is appended to the audit log. `sandbox exec` uses the same path, so the matrix exercises real execution.
+
+**Bounded repair loop + false-success gate.** `agent_loop.rs` now tracks consecutive tool failures; after 2 consecutive failures the loop stops. A `Final` turn is rejected unless a qualified test run succeeded (up to 2 retries, then error). On process.run success, a verified `test_log` evidence record is created via `evidence::mark_verified` (now implemented, succeeds when sandbox is qualified).
+
+**Cost-tiered routing (Module 2).** `RoutingConfig` gained `tiers` (tier name → provider/model) and `role_tiers` (role → tier name). `routes_for` resolves tier assignments, dedupes by (provider, model), and preserves the base + fallback chain. Backward compatible.
+
+**Compact repo outline (Module 3).** New `src/outline.rs` walks the repo and extracts top-level symbols (fn, struct, enum, trait, impl, class, type, const, static) per language (Rust, Python, Go, TS/JS, Java, C/C++). Output is compact: `path:line kind name`. CLI: `docode outline [--max-lines N]`. Unit tests pass.
+
+**Capture keeps the newest 1 MiB** (not the oldest) so truncated logs show the real failure tail. Idempotent DACL grants prevent accumulation across runs.
+
+**Tests:** 141 passing (139 + 2 outline). Clippy clean. fmt clean. Build clean.
 
 ## 2026-11-08 update — first fully green cross-platform CI + real sandbox execution
 
